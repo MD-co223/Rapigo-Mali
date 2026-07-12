@@ -35,9 +35,11 @@ export default function Page() {
   const [showAuth, setShowAuth] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
 
-  // Derive space from auth state
+  // Derive space from auth state — admin can switch freely, others are locked to their role
   const effectiveSpace = isAuthenticated && user
-    ? ({ CLIENT: 'client' as const, MERCHANT: 'merchant' as const, DRIVER: 'driver' as const, ADMIN: 'admin' as const })[user.role] || 'landing'
+    ? (user.role === 'ADMIN'
+        ? currentSpace
+        : ({ CLIENT: 'client' as const, MERCHANT: 'merchant' as const, DRIVER: 'driver' as const, ADMIN: 'admin' as const })[user.role] || 'landing')
     : currentSpace;
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export default function Page() {
       };
       setSpace(spaceMap[user.role] || 'landing');
     }
-  }, [isAuthenticated, user, setSpace]);
+  }, [isAuthenticated, user?.id, setSpace]); // only reset on login, not on every user change
 
   const handleLogin = useCallback(async (email: string, password: string) => {
     try {
@@ -152,21 +154,14 @@ export default function Page() {
             </div>
           </motion.div>
 
-          {/* Quick demo login */}
+          {/* Admin quick access */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }} className="mt-16">
-            <p className="text-sm text-muted-foreground text-center mb-4">Accès démo rapide</p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {[
-                { label: 'Client', icon: User, email: 'client1@rapigo.ml', pass: 'Client@123', color: 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/20' },
-                { label: 'Commerçant', icon: Store, email: 'terranga@rapigo.ml', pass: 'Merchant@123', color: 'bg-gold/10 text-gold-foreground border-gold/20 hover:bg-gold/20' },
-                { label: 'Livreur', icon: Truck, email: 'driver1@rapigo.ml', pass: 'Driver@123', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/20' },
-                { label: 'Admin', icon: ShieldCheck, email: 'admin@rapigo.ml', pass: 'Admin@123', color: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 hover:bg-purple-500/20' },
-              ].map((demo) => (
-                <button key={demo.label} onClick={() => handleLogin(demo.email, demo.pass)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all hover:scale-105 ${demo.color}`}>
-                  <demo.icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{demo.label}</span>
-                </button>
-              ))}
+            <p className="text-sm text-muted-foreground text-center mb-4">Accès administrateur</p>
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={() => handleLogin('admin@rapigo.ml', 'Admin@123')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all hover:scale-105 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 hover:bg-purple-500/20">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Admin</span>
+              </button>
             </div>
           </motion.div>
         </div>
@@ -179,11 +174,11 @@ export default function Page() {
             <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">Que souhaitez-vous ?</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
-                { icon: '🍽️', label: 'Restaurants', desc: 'Plats délicieux', count: '50+', color: 'from-orange-500 to-red-500' },
-                { icon: '🛒', label: 'Supermarchés', desc: 'Courses quotidiennes', count: '20+', color: 'from-green-500 to-emerald-600' },
-                { icon: '💊', label: 'Pharmacies', desc: 'Santé & bien-être', count: '15+', color: 'from-blue-500 to-cyan-500' },
-                { icon: '🛍️', label: 'Boutiques', desc: 'Mode & accessoires', count: '30+', color: 'from-pink-500 to-rose-500' },
-                { icon: '📦', label: 'Colis', desc: 'Envois & retraits', count: '100+', color: 'from-amber-500 to-yellow-500' },
+                { icon: '🍽️', label: 'Restaurants', desc: 'Plats délicieux', color: 'from-orange-500 to-red-500' },
+                { icon: '🛒', label: 'Supermarchés', desc: 'Courses quotidiennes', color: 'from-green-500 to-emerald-600' },
+                { icon: '💊', label: 'Pharmacies', desc: 'Santé & bien-être', color: 'from-blue-500 to-cyan-500' },
+                { icon: '🛍️', label: 'Boutiques', desc: 'Mode & accessoires', color: 'from-pink-500 to-rose-500' },
+                { icon: '📦', label: 'Colis', desc: 'Envois & retraits', color: 'from-amber-500 to-yellow-500' },
               ].map((cat, i) => (
                 <motion.div key={cat.label} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
                   <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-border/50">
@@ -193,7 +188,6 @@ export default function Page() {
                       </div>
                       <h3 className="font-semibold text-sm mb-1">{cat.label}</h3>
                       <p className="text-xs text-muted-foreground">{cat.desc}</p>
-                      <Badge variant="secondary" className="mt-2 text-xs">{cat.count} établissements</Badge>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -237,10 +231,10 @@ export default function Page() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
             {[
-              { value: '10K+', label: 'Utilisateurs', icon: Users },
-              { value: '500+', label: 'Commerçants', icon: Store },
-              { value: '200+', label: 'Livreurs', icon: Truck },
-              { value: '50K+', label: 'Commandes', icon: Package },
+              { value: '0', label: 'Utilisateurs', icon: Users },
+              { value: '0', label: 'Commerçants', icon: Store },
+              { value: '0', label: 'Livreurs', icon: Truck },
+              { value: '0', label: 'Commandes', icon: Package },
             ].map((stat) => (
               <div key={stat.label}>
                 <stat.icon className="w-7 h-7 mx-auto mb-2 opacity-80" />

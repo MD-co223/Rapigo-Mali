@@ -1,64 +1,9 @@
 'use client';
-
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  LayoutDashboard,
-  Package,
-  ShoppingCart,
-  BarChart3,
-  Megaphone,
-  Receipt,
-  Crown,
-  Settings,
-  Headphones,
-  Plus,
-  Search,
-  Star,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Clock,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Pencil,
-  Trash2,
-  Bell,
-  MessageSquare,
-  User,
-  ArrowLeft,
-  Tag,
-  Gift,
-  Percent,
-  Copy,
-  Check,
-  CreditCard,
-  Calendar,
-  MapPin,
-  Phone,
-  Store,
-  ImageIcon,
-  Menu,
-  Filter,
-  ArrowUpRight,
-  ArrowDownRight,
-  Users,
-} from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
+import { toast } from 'sonner';
+import { LayoutDashboard, Package, ShoppingCart, BarChart3, Megaphone, Receipt, Crown, Settings, Headphones, Plus, Search, Star, TrendingUp, TrendingDown, Clock, ChevronLeft, ChevronRight, Eye, Pencil, Trash2, Bell, MessageSquare, User, ArrowLeft, Tag, Gift, Copy, Check, CreditCard, MapPin, Phone, Store, ImageIcon, Filter, ArrowUpRight, ArrowDownRight, Users } from 'lucide-react';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuthStore, useMerchantNav, formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,2221 +14,1416 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { toast } from 'sonner';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface Product {
+// ─── Types ───────────────────────────────────────────────
+interface MerchantInfo {
   id: string;
-  name: string;
-  price: number;
-  comparePrice?: number;
-  stock: number;
-  category: string;
-  image?: string;
-  description?: string;
-  available: boolean;
-}
-
-interface Order {
-  id: string;
-  customer: string;
-  phone: string;
-  items: { name: string; qty: number; price: number }[];
-  total: number;
-  status: string;
-  date: string;
+  businessName: string;
+  businessType: string;
+  description: string | null;
   address: string;
-  note?: string;
+  phone: string;
+  operatingHours: string;
+  rating: number;
+  city: string;
+  quartier: string | null;
+  subscriptions: Array<{ plan: { name: string; price: number; features: string | null } }>;
 }
 
-interface Promotion {
-  id: string;
-  title: string;
-  type: 'percentage' | 'fixed';
-  value: number;
-  code: string;
-  usedCount: number;
-  maxUses: number;
-  startDate: string;
-  endDate: string;
-  active: boolean;
-}
-
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  period: string;
-  features: string[];
-  current?: boolean;
-  popular?: boolean;
-}
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const MOCK_MERCHANT = {
-  id: 'm1',
-  name: 'Restaurant Le Baobab',
-  description: 'Cuisine malienne authentique et traditionnelle au cœur de Bamako',
-  address: 'Quartier Badalabougou, Bamako',
-  phone: '+223 70 12 34 56',
-  hours: '08:00 - 22:00',
-  rating: 4.7,
-  totalOrders: 1243,
-};
-
-const MOCK_PRODUCTS: Product[] = [
-  { id: 'p1', name: 'Tô avec sauce arachide', price: 2500, comparePrice: 3000, stock: 50, category: 'Plats', image: '', description: 'Tô de mil traditionnel avec sauce arachide maison', available: true },
-  { id: 'p2', name: 'Riz gras au poisson', price: 3500, stock: 30, category: 'Plats', image: '', description: 'Riz gras cuisiné avec du poisson frais', available: true },
-  { id: 'p3', name: 'Foutou banane', price: 2000, stock: 40, category: 'Plats', image: '', description: 'Foutou de banane avec sauce tomate', available: true },
-  { id: 'p4', name: 'Jus de bissap', price: 800, stock: 100, category: 'Boissons', image: '', description: 'Jus de bissap frais fait maison', available: true },
-  { id: 'p5', name: 'Thé à la menthe', price: 500, stock: 150, category: 'Boissons', image: '', description: 'Thé à la menthe traditionnel malien', available: true },
-  { id: 'p6', name: 'Brochette de viande', price: 1500, stock: 25, category: 'Grillades', image: '', description: 'Brochette de bœuf épicée', available: true },
-  { id: 'p7', name: 'Salade de fruits', price: 1200, stock: 35, category: 'Desserts', image: '', description: 'Salade de fruits de saison', available: false },
-  { id: 'p8', name: 'Choukouya', price: 2000, stock: 20, category: 'Grillades', image: '', description: 'Choukouya de mouton aux épices', available: true },
-  { id: 'p9', name: 'Légumes sautés', price: 1800, stock: 45, category: 'Accompagnements', image: '', description: 'Légumes de saison sautés', available: true },
-  { id: 'p10', name: 'Couscous poisson', price: 4000, stock: 15, category: 'Plats', image: '', description: 'Couscous traditionnel au poisson', available: true },
-];
-
-const MOCK_ORDERS: Order[] = [
-  { id: 'ORD-001', customer: 'Amadou Diallo', phone: '+223 76 11 22 33', items: [{ name: 'Tô avec sauce arachide', qty: 2, price: 2500 }, { name: 'Jus de bissap', qty: 2, price: 800 }], total: 6600, status: 'DELIVERED', date: '2025-01-15T12:30:00', address: 'Hamdallaye ACI 2000', note: 'Sans piment svp' },
-  { id: 'ORD-002', customer: 'Fatoumata Traoré', phone: '+223 77 44 55 66', items: [{ name: 'Riz gras au poisson', qty: 1, price: 3500 }, { name: 'Thé à la menthe', qty: 1, price: 500 }], total: 4000, status: 'IN_TRANSIT', date: '2025-01-15T13:15:00', address: 'Kalaban Coura, Rue 23' },
-  { id: 'ORD-003', customer: 'Ibrahim Keita', phone: '+223 78 99 88 77', items: [{ name: 'Brochette de viande', qty: 3, price: 1500 }, { name: 'Choukouya', qty: 1, price: 2000 }], total: 6500, status: 'PREPARING', date: '2025-01-15T13:45:00', address: 'Baco Djicoroni' },
-  { id: 'ORD-004', customer: 'Aïssata Coulibaly', phone: '+223 79 22 11 00', items: [{ name: 'Foutou banane', qty: 1, price: 2000 }], total: 2000, status: 'PENDING', date: '2025-01-15T14:00:00', address: 'Sogoniko, près du marché' },
-  { id: 'ORD-005', customer: 'Moussa Sidibé', phone: '+223 70 33 44 55', items: [{ name: 'Couscous poisson', qty: 2, price: 4000 }, { name: 'Salade de fruits', qty: 2, price: 1200 }], total: 10400, status: 'CONFIRMED', date: '2025-01-15T14:20:00', address: 'Faladiè, Bamako' },
-  { id: 'ORD-006', customer: 'Djénéba Diarra', phone: '+223 71 55 66 77', items: [{ name: 'Tô avec sauce arachide', qty: 1, price: 2500 }, { name: 'Jus de bissap', qty: 1, price: 800 }], total: 3300, status: 'CANCELLED', date: '2025-01-14T19:00:00', address: 'Lafiabougou' },
-  { id: 'ORD-007', customer: 'Oumar Sissoko', phone: '+223 72 88 99 00', items: [{ name: 'Riz gras au poisson', qty: 2, price: 3500 }], total: 7000, status: 'DELIVERED', date: '2025-01-14T12:00:00', address: 'Sébenikoro' },
-  { id: 'ORD-008', customer: 'Mariam Sangaré', phone: '+223 73 11 22 33', items: [{ name: 'Légumes sautés', qty: 1, price: 1800 }, { name: 'Brochette de viande', qty: 2, price: 1500 }], total: 4800, status: 'DELIVERED', date: '2025-01-14T13:30:00', address: 'Banconi' },
-];
-
-const REVENUE_DATA = [
-  { name: 'Lun', montant: 45000 },
-  { name: 'Mar', montant: 52000 },
-  { name: 'Mer', montant: 38000 },
-  { name: 'Jeu', montant: 61000 },
-  { name: 'Ven', montant: 75000 },
-  { name: 'Sam', montant: 89000 },
-  { name: 'Dim', montant: 72000 },
-];
-
-const MONTHLY_REVENUE = [
-  { name: 'Jan', montant: 850000 },
-  { name: 'Fév', montant: 920000 },
-  { name: 'Mar', montant: 780000 },
-  { name: 'Avr', montant: 1050000 },
-  { name: 'Mai', montant: 1150000 },
-  { name: 'Jun', montant: 980000 },
-  { name: 'Jul', montant: 1200000 },
-  { name: 'Aoû', montant: 1100000 },
-  { name: 'Sep', montant: 1300000 },
-  { name: 'Oct', montant: 1250000 },
-  { name: 'Nov', montant: 1400000 },
-  { name: 'Déc', montant: 1500000 },
-];
-
-const ORDER_STATUS_PIE = [
-  { name: 'Livrées', value: 65, color: '#10b981' },
-  { name: 'En cours', value: 20, color: '#f59e0b' },
-  { name: 'Annulées', value: 10, color: '#ef4444' },
-  { name: 'En attente', value: 5, color: '#6b7280' },
-];
-
-const TOP_PRODUCTS = [
-  { name: 'Tô avec sauce arachide', orders: 342, revenue: 855000 },
-  { name: 'Riz gras au poisson', orders: 287, revenue: 1004500 },
-  { name: 'Choukouya', orders: 198, revenue: 396000 },
-  { name: 'Jus de bissap', orders: 456, revenue: 364800 },
-  { name: 'Brochette de viande', orders: 267, revenue: 400500 },
-];
-
-const MOCK_PROMOTIONS: Promotion[] = [
-  { id: 'promo1', title: 'Réduction de bienvenue', type: 'percentage', value: 20, code: 'BIENVENUE20', usedCount: 45, maxUses: 100, startDate: '2025-01-01', endDate: '2025-02-01', active: true },
-  { id: 'promo2', title: 'Gratuité livraison', type: 'fixed', value: 500, code: 'LIVRAISON500', usedCount: 78, maxUses: 200, startDate: '2025-01-10', endDate: '2025-01-31', active: true },
-  { id: 'promo3', title: 'Happy Hour -15%', type: 'percentage', value: 15, code: 'HAPPY15', usedCount: 12, maxUses: 50, startDate: '2025-01-15', endDate: '2025-03-15', active: false },
-];
-
-const MOCK_PLANS: Plan[] = [
-  { id: 'free', name: 'Starter', price: 0, period: 'Gratuit', features: ['Jusqu\'à 20 produits', 'Commandes basiques', 'Support email', 'Rapports mensuels'], current: true },
-  { id: 'pro', name: 'Pro', price: 15000, period: '/mois', features: ['Produits illimités', 'Marketing avancé', 'Support prioritaire', 'Rapports hebdomadaires', 'Badges premium', 'Analytics détaillés'], popular: true },
-  { id: 'premium', name: 'Premium', price: 35000, period: '/mois', features: ['Tout du plan Pro', 'Livraison prioritaire', 'Gestionnaire dédié', 'Rapports quotidiens', 'Page boutique personnalisée', 'API d\'intégration'], current: false },
-];
-
-const CATEGORIES = ['Plats', 'Boissons', 'Grillades', 'Desserts', 'Accompagnements', 'Snacks'];
-
-const PIE_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6b7280', '#8b5cf6', '#06b6d4'];
-
-// ─── Sidebar Menu Config ──────────────────────────────────────────────────────
-const MENU_ITEMS = [
-  { view: 'dashboard' as const, label: 'Tableau de bord', icon: LayoutDashboard },
-  { view: 'products' as const, label: 'Produits', icon: Package },
-  { view: 'orders' as const, label: 'Commandes', icon: ShoppingCart },
-  { view: 'stats' as const, label: 'Statistiques', icon: BarChart3 },
-  { view: 'marketing' as const, label: 'Marketing', icon: Megaphone },
-  { view: 'billing' as const, label: 'Facturation', icon: Receipt },
-  { view: 'subscription' as const, label: 'Abonnement', icon: Crown },
-  { view: 'settings' as const, label: 'Paramètres', icon: Settings },
-  { view: 'support' as const, label: 'Support', icon: Headphones },
-];
-
-// ─── Helper ───────────────────────────────────────────────────────────────────
-const fadeIn = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -12 },
-  transition: { duration: 0.25 },
-};
-
-// ─── Custom Tooltip for Charts ────────────────────────────────────────────────
-function ChartTooltipContent({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
-  if (!active || !payload?.length) return null;
+// ─── Helpers ─────────────────────────────────────────────
+function EmptyState({ icon: Icon, title, action, onAction }: { icon: React.ElementType; title: string; action?: string; onAction?: () => void }) {
   return (
-    <div className="rounded-lg border bg-background px-3 py-2 shadow-md">
-      <p className="text-sm font-medium text-foreground">{label}</p>
-      <p className="text-sm text-emerald-600 font-semibold">{formatPrice(payload[0].value)}</p>
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+        <Icon className="w-8 h-8 text-muted-foreground" />
+      </div>
+      <p className="text-muted-foreground text-center text-sm">{title}</p>
+      {action && onAction && (
+        <Button onClick={onAction} variant="outline" className="mt-4" size="sm">
+          {action}
+        </Button>
+      )}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SIDEBAR COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
-function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { view, navigate } = useMerchantNav();
-  const user = useAuthStore((s) => s.user);
+function LoadingCards() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Card key={i} className="glass-card"><CardContent className="p-4"><Skeleton className="h-4 w-24 mb-2" /><Skeleton className="h-8 w-16" /></CardContent></Card>
+      ))}
+    </div>
+  );
+}
+
+const pageVariants = {
+  initial: { opacity: 0, x: 20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -20 },
+};
+
+// ─── SIDEBAR ITEMS ───────────────────────────────────────
+const NAV_ITEMS = [
+  { id: 'dashboard' as const, label: 'Tableau de bord', icon: LayoutDashboard },
+  { id: 'products' as const, label: 'Produits', icon: Package },
+  { id: 'orders' as const, label: 'Commandes', icon: ShoppingCart },
+  { id: 'stats' as const, label: 'Statistiques', icon: BarChart3 },
+  { id: 'marketing' as const, label: 'Marketing', icon: Megaphone },
+  { id: 'subscription' as const, label: 'Abonnement', icon: Crown },
+  { id: 'billing' as const, label: 'Facturation', icon: Receipt },
+  { id: 'settings' as const, label: 'Paramètres', icon: Settings },
+  { id: 'support' as const, label: 'Support', icon: Headphones },
+  { id: 'profile' as const, label: 'Profil', icon: User },
+];
+
+// ─── MAIN COMPONENT ──────────────────────────────────────
+export default function MerchantApp() {
+  const { view, data, navigate } = useMerchantNav();
+  const { user, logout } = useAuthStore();
+  const [merchant, setMerchant] = useState<MerchantInfo | null>(null);
+  const [merchantLoading, setMerchantLoading] = useState(true);
+
+  // Fetch merchant info on mount
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/merchants/me?userId=${user.id}`);
+        if (res.ok) {
+          const m = await res.json();
+          setMerchant(m);
+        }
+      } catch { /* silent */ }
+      setMerchantLoading(false);
+    })();
+  }, [user?.id]);
+
+  const merchantId = merchant?.id;
 
   return (
-    <aside
-      className={`hidden lg:flex flex-col border-r border-border bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-950 text-white transition-all duration-300 ${
-        collapsed ? 'w-[68px]' : 'w-64'
-      }`}
-    >
-      {/* Business Header */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-emerald-800/50">
-        <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg">
-          <Store className="w-5 h-5 text-emerald-950" />
+    <div className="flex h-screen bg-background">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex flex-col w-60 border-r bg-card/50 backdrop-blur-sm shrink-0">
+        <div className="p-4 border-b">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+              <Store className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm truncate gradient-text">Rapigo</p>
+              <p className="text-xs text-muted-foreground truncate">{merchantLoading ? 'Chargement...' : merchant?.businessName || 'Marchand'}</p>
+            </div>
+          </div>
         </div>
-        {!collapsed && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-w-0">
-            <p className="font-bold text-sm truncate">{MOCK_MERCHANT.name}</p>
-            <p className="text-xs text-emerald-300/70 truncate">Plan Starter</p>
-          </motion.div>
-        )}
-      </div>
-
-      {/* Navigation */}
-      <ScrollArea className="flex-1 py-3">
-        <nav className="flex flex-col gap-1 px-2">
-          {MENU_ITEMS.map((item) => {
-            const isActive = view === item.view;
+        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = view === item.id || (item.id === 'orders' && view === 'order-detail');
             return (
               <button
-                key={item.view}
-                onClick={() => navigate(item.view)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? 'bg-emerald-700/60 text-white shadow-sm'
-                    : 'text-emerald-200/80 hover:bg-emerald-800/40 hover:text-white'
-                }`}
+                key={item.id}
+                onClick={() => navigate(item.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${isActive ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
               >
-                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-amber-400' : ''}`} />
-                {!collapsed && <span>{item.label}</span>}
+                <Icon className="w-4 h-4 shrink-0" />
+                <span>{item.label}</span>
               </button>
             );
           })}
         </nav>
-      </ScrollArea>
-
-      {/* Collapse Toggle */}
-      <div className="border-t border-emerald-800/50 p-3">
-        <button
-          onClick={onToggle}
-          className="flex items-center justify-center w-full py-2 rounded-lg text-emerald-300/70 hover:text-white hover:bg-emerald-800/40 transition-colors"
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MOBILE SIDEBAR (Sheet Drawer)
-// ═══════════════════════════════════════════════════════════════════════════════
-function MobileSidebar({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { view, navigate } = useMerchantNav();
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-72 p-0 bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-950 text-white border-emerald-800/50 [&>button]:hidden">
-        <SheetHeader className="px-4 py-5 border-b border-emerald-800/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
-              <Store className="w-5 h-5 text-emerald-950" />
-            </div>
-            <div>
-              <SheetTitle className="text-white text-sm font-bold">{MOCK_MERCHANT.name}</SheetTitle>
-              <p className="text-xs text-emerald-300/70">Plan Starter</p>
-            </div>
-          </div>
-        </SheetHeader>
-        <ScrollArea className="flex-1 py-3">
-          <nav className="flex flex-col gap-1 px-2">
-            {MENU_ITEMS.map((item) => {
-              const isActive = view === item.view;
-              return (
-                <button
-                  key={item.view}
-                  onClick={() => {
-                    navigate(item.view);
-                    onOpenChange(false);
-                  }}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'bg-emerald-700/60 text-white'
-                      : 'text-emerald-200/80 hover:bg-emerald-800/40 hover:text-white'
-                  }`}
-                >
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-amber-400' : ''}`} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TOP BAR
-// ═══════════════════════════════════════════════════════════════════════════════
-function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
-  const user = useAuthStore((s) => s.user);
-
-  return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 lg:px-6 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
-          <Menu className="w-5 h-5" />
-        </Button>
-        <h2 className="text-sm font-medium text-muted-foreground hidden sm:block">
-          Tableau de bord marchand
-        </h2>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center">3</span>
-        </Button>
-        <Button variant="ghost" size="icon">
-          <MessageSquare className="w-5 h-5" />
-        </Button>
-        <Separator orientation="vertical" className="h-6 mx-1" />
-        <div className="flex items-center gap-2">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-bold">
-              {user?.firstName?.charAt(0) || 'M'}
-            </AvatarFallback>
-          </Avatar>
-          <span className="text-sm font-medium hidden sm:block">
-            {user?.firstName || 'Marchand'}
-          </span>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: DASHBOARD
-// ═══════════════════════════════════════════════════════════════════════════════
-function DashboardView() {
-  const { navigate } = useMerchantNav();
-  const user = useAuthStore((s) => s.user);
-
-  const todayOrders = MOCK_ORDERS.filter((o) => o.status !== 'CANCELLED').length;
-  const todayRevenue = MOCK_ORDERS.filter((o) => o.status !== 'CANCELLED').reduce((s, o) => s + o.total, 0);
-  const activeProducts = MOCK_PRODUCTS.filter((p) => p.available).length;
-
-  const stats = [
-    { label: "Commandes aujourd'hui", value: todayOrders.toString(), icon: ShoppingCart, trend: '+12%', up: true, color: 'text-emerald-600 bg-emerald-50' },
-    { label: 'Revenus du jour', value: formatPrice(todayRevenue), icon: DollarSign, trend: '+8.5%', up: true, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Produits actifs', value: `${activeProducts}/${MOCK_PRODUCTS.length}`, icon: Package, trend: '+2', up: true, color: 'text-violet-600 bg-violet-50' },
-    { label: 'Note moyenne', value: '4.7/5', icon: Star, trend: '+0.2', up: true, color: 'text-orange-600 bg-orange-50' },
-  ];
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          Bienvenue, {user?.firstName || 'Marchand'} 👋
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Voici un aperçu de votre activité sur {MOCK_MERCHANT.name}
-        </p>
-      </div>
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.label} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.color}`}>
-                  <stat.icon className="w-5 h-5" />
-                </div>
-                <span className={`text-xs font-medium flex items-center gap-0.5 ${stat.up ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {stat.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                  {stat.trend}
-                </span>
-              </div>
-              <div className="mt-3">
-                <p className="text-2xl font-bold">{stat.value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Chart + Recent Orders */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Revenue Chart */}
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Revenus de la semaine</CardTitle>
-            <CardDescription>Vos revenus des 7 derniers jours</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={REVENUE_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="name" className="text-xs" tick={{ fontSize: 12 }} />
-                  <YAxis className="text-xs" tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip content={<ChartTooltipContent />} />
-                  <Line
-                    type="monotone"
-                    dataKey="montant"
-                    stroke="#10b981"
-                    strokeWidth={2.5}
-                    dot={{ fill: '#10b981', strokeWidth: 0, r: 4 }}
-                    activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2, fill: 'white' }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Orders */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base font-semibold">Commandes récentes</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate('orders')} className="text-emerald-600 text-xs">
-              Voir tout
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {MOCK_ORDERS.slice(0, 5).map((order) => (
-                <div key={order.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{order.customer}</p>
-                    <p className="text-xs text-muted-foreground">{order.id}</p>
-                  </div>
-                  <div className="text-right ml-2">
-                    <p className="text-sm font-semibold">{formatPrice(order.total)}</p>
-                    <Badge className={`${ORDER_STATUS_COLORS[order.status]} text-[10px] px-1.5 py-0`}>
-                      {ORDER_STATUS_LABELS[order.status]}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Button
-          onClick={() => navigate('add-product')}
-          className="h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter un produit
-        </Button>
-        <Button
-          onClick={() => navigate('orders')}
-          variant="outline"
-          className="h-12 border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-medium gap-2"
-        >
-          <ShoppingCart className="w-4 h-4" />
-          Voir toutes les commandes
-        </Button>
-      </div>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: PRODUCTS
-// ═══════════════════════════════════════════════════════════════════════════════
-function ProductsView() {
-  const { navigate } = useMerchantNav();
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
-  const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
-
-  const filtered = useMemo(() => {
-    return products.filter((p) => {
-      const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
-      const matchCat = categoryFilter === 'all' || p.category === categoryFilter;
-      return matchSearch && matchCat;
-    });
-  }, [products, search, categoryFilter]);
-
-  const toggleAvailability = (id: string) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, available: !p.available } : p))
-    );
-    toast.success('Disponibilité mise à jour');
-  };
-
-  const handleDelete = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-    setDeleteDialog(null);
-    toast.success('Produit supprimé');
-  };
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Produits</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {products.length} produits au total · {products.filter((p) => p.available).length} actifs
-          </p>
-        </div>
-        <Button
-          onClick={() => navigate('add-product')}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter un produit
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher un produit..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-full sm:w-44">
-            <Filter className="w-4 h-4 mr-1" />
-            <SelectValue placeholder="Catégorie" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toutes les catégories</SelectItem>
-            {CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Products Table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Produit</TableHead>
-                <TableHead className="text-right">Prix</TableHead>
-                <TableHead className="text-center">Stock</TableHead>
-                <TableHead className="text-center">Statut</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Aucun produit trouvé
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((product) => (
-                  <TableRow key={product.id} className="hover:bg-emerald-50/30 transition-colors">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                          <Package className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm truncate max-w-[200px]">{product.name}</p>
-                          <p className="text-xs text-muted-foreground">{product.category}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <p className="font-semibold text-sm">{formatPrice(product.price)}</p>
-                      {product.comparePrice && product.comparePrice > product.price && (
-                        <p className="text-xs text-muted-foreground line-through">{formatPrice(product.comparePrice)}</p>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className={`text-sm font-medium ${product.stock <= 10 ? 'text-red-500' : ''}`}>
-                        {product.stock}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Switch
-                        checked={product.available}
-                        onCheckedChange={() => toggleAvailability(product.id)}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('add-product', { productId: product.id })}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteDialog(product.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Delete Dialog */}
-      <Dialog open={!!deleteDialog} onOpenChange={(open) => !open && setDeleteDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Supprimer le produit</DialogTitle>
-            <DialogDescription>Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDeleteDialog(null)}>Annuler</Button>
-            <Button variant="destructive" onClick={() => deleteDialog && handleDelete(deleteDialog)}>Supprimer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: ADD / EDIT PRODUCT
-// ═══════════════════════════════════════════════════════════════════════════════
-function AddProductView() {
-  const { navigate, data } = useMerchantNav();
-  const isEditing = !!data?.productId;
-  const existingProduct = isEditing ? MOCK_PRODUCTS.find((p) => p.id === data.productId) : null;
-
-  const [categories, setCategories] = useState(CATEGORIES);
-  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
-
-  const [form, setForm] = useState({
-    name: existingProduct?.name || '',
-    description: existingProduct?.description || '',
-    price: existingProduct?.price?.toString() || '',
-    comparePrice: existingProduct?.comparePrice?.toString() || '',
-    category: existingProduct?.category || '',
-    stock: existingProduct?.stock?.toString() || '',
-    image: existingProduct?.image || '',
-    imageUrl2: '',
-    imageUrl3: '',
-    variants: '',
-  });
-  const [saving, setSaving] = useState(false);
-
-  const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
-
-  // Fetch categories from API on first render if not yet loaded
-  if (!categoriesLoaded) {
-    setCategoriesLoaded(true);
-    fetch('/api/categories')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setCategories(data.map((c: { name: string; children?: { name: string }[] }) => c.name).flat());
-        }
-      })
-      .catch(() => {});
-  }
-
-  const handleSave = async () => {
-    if (!form.name || !form.price || !form.category) {
-      toast.error('Veuillez remplir tous les champs obligatoires');
-      return;
-    }
-    setSaving(true);
-    try {
-      const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const additionalImages = [form.imageUrl2, form.imageUrl3].filter(Boolean);
-      const body = {
-        merchantId: 'm1',
-        name: form.name,
-        description: form.description || null,
-        price: Number(form.price),
-        comparePrice: form.comparePrice ? Number(form.comparePrice) : null,
-        categoryId: form.category,
-        stock: Number(form.stock) || 0,
-        image: form.image || null,
-        images: additionalImages.length > 0 ? JSON.stringify(additionalImages) : null,
-        variants: form.variants.trim() ? JSON.stringify(form.variants.trim()) : null,
-        isAvailable: true,
-        slug,
-      };
-      const res = await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error('Erreur serveur');
-      toast.success(isEditing ? 'Produit mis à jour avec succès' : 'Produit créé avec succès');
-      setForm({
-        name: '',
-        description: '',
-        price: '',
-        comparePrice: '',
-        category: '',
-        stock: '',
-        image: '',
-        imageUrl2: '',
-        imageUrl3: '',
-        variants: '',
-      });
-      navigate('products');
-    } catch {
-      toast.success(isEditing ? 'Produit mis à jour avec succès' : 'Produit créé avec succès');
-      setForm({
-        name: '',
-        description: '',
-        price: '',
-        comparePrice: '',
-        category: '',
-        stock: '',
-        image: '',
-        imageUrl2: '',
-        imageUrl3: '',
-        variants: '',
-      });
-      navigate('products');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6 max-w-2xl">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('products')}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">{isEditing ? 'Modifier le produit' : 'Ajouter un produit'}</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {isEditing ? 'Modifiez les informations du produit' : 'Remplissez les informations du nouveau produit'}
-          </p>
-        </div>
-      </div>
-
-      {/* Informations de base */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Informations de base</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Name */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Nom du produit <span className="text-red-500">*</span></label>
-            <Input placeholder="Ex: Tô avec sauce arachide" value={form.name} onChange={(e) => update('name', e.target.value)} />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Description</label>
-            <Textarea placeholder="Décrivez votre produit..." value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} />
-          </div>
-
-          {/* Category */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Catégorie <span className="text-red-500">*</span></label>
-            <Select value={form.category} onValueChange={(v) => update('category', v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Choisir une catégorie" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Price Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Prix (FCFA) <span className="text-red-500">*</span></label>
-              <Input type="number" placeholder="0" value={form.price} onChange={(e) => update('price', e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Prix barré (FCFA)</label>
-              <Input type="number" placeholder="Optionnel, pour afficher une réduction" value={form.comparePrice} onChange={(e) => update('comparePrice', e.target.value)} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stock & Variants */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Stock &amp; Variantes</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Stock disponible</label>
-            <Input type="number" placeholder="0" value={form.stock} onChange={(e) => update('stock', e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Variantes</label>
-            <Textarea placeholder="Ex: Petit, Moyen, Grand (une par ligne ou description libre)" value={form.variants} onChange={(e) => update('variants', e.target.value)} rows={3} />
-            <p className="text-xs text-muted-foreground">Décrivez les variantes disponibles (taille, goût, etc.)</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Images */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ImageIcon className="w-4 h-4 text-emerald-600" />
-            Images
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Primary image */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Image URL principale</label>
-            <div className="relative">
-              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="url" placeholder="https://example.com/image.jpg" value={form.image} onChange={(e) => update('image', e.target.value)} className="pl-9" />
-            </div>
-            {form.image && (
-              <div className="mt-2 rounded-lg border overflow-hidden bg-muted/30">
-                <img src={form.image} alt="Aperçu" className="w-full h-48 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              </div>
-            )}
-          </div>
-
-          {/* Image 2 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">URL image 2 <span className="text-muted-foreground font-normal">(optionnel)</span></label>
-            <div className="relative">
-              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="url" placeholder="https://example.com/image2.jpg" value={form.imageUrl2} onChange={(e) => update('imageUrl2', e.target.value)} className="pl-9" />
-            </div>
-            {form.imageUrl2 && (
-              <div className="mt-2 rounded-lg border overflow-hidden bg-muted/30">
-                <img src={form.imageUrl2} alt="Aperçu 2" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              </div>
-            )}
-          </div>
-
-          {/* Image 3 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">URL image 3 <span className="text-muted-foreground font-normal">(optionnel)</span></label>
-            <div className="relative">
-              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="url" placeholder="https://example.com/image3.jpg" value={form.imageUrl3} onChange={(e) => update('imageUrl3', e.target.value)} className="pl-9" />
-            </div>
-            {form.imageUrl3 && (
-              <div className="mt-2 rounded-lg border overflow-hidden bg-muted/30">
-                <img src={form.imageUrl3} alt="Aperçu 3" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              </div>
-            )}
-          </div>
-
-          <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-            Entrez l&apos;URL d&apos;une image. Pour un déploiement production, l&apos;upload de fichiers sera disponible.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[140px]"
-        >
-          {saving ? (
-            <>
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Enregistrement...
-            </>
-          ) : isEditing ? (
-            'Enregistrer les modifications'
-          ) : (
-            'Ajouter le produit'
-          )}
-        </Button>
-        <Button variant="outline" onClick={() => navigate('products')}>
-          Annuler
-        </Button>
-      </div>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: ORDERS
-// ═══════════════════════════════════════════════════════════════════════════════
-function OrdersView() {
-  const { navigate } = useMerchantNav();
-  const [statusFilter, setStatusFilter] = useState('all');
-
-  const filtered = useMemo(() => {
-    if (statusFilter === 'all') return MOCK_ORDERS;
-    const map: Record<string, string[]> = {
-      pending: ['PENDING'],
-      inprogress: ['CONFIRMED', 'PREPARING', 'READY', 'PICKED_UP', 'IN_TRANSIT'],
-      delivered: ['DELIVERED'],
-    };
-    const statuses = map[statusFilter];
-    return statuses ? MOCK_ORDERS.filter((o) => statuses.includes(o.status)) : MOCK_ORDERS;
-  }, [statusFilter]);
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Commandes</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {MOCK_ORDERS.length} commandes au total
-        </p>
-      </div>
-
-      <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-        <TabsList>
-          <TabsTrigger value="all">Toutes ({MOCK_ORDERS.length})</TabsTrigger>
-          <TabsTrigger value="pending">
-            En attente ({MOCK_ORDERS.filter((o) => o.status === 'PENDING').length})
-          </TabsTrigger>
-          <TabsTrigger value="inprogress">
-            En cours ({MOCK_ORDERS.filter((o) => ['CONFIRMED', 'PREPARING', 'READY', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)).length})
-          </TabsTrigger>
-          <TabsTrigger value="delivered">
-            Livrées ({MOCK_ORDERS.filter((o) => o.status === 'DELIVERED').length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={statusFilter} className="mt-4">
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Commande</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead className="text-right">Montant</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((order) => (
-                    <TableRow key={order.id} className="hover:bg-emerald-50/30 transition-colors cursor-pointer" onClick={() => navigate('order-detail', { orderId: order.id })}>
-                      <TableCell className="font-medium text-sm">{order.id}</TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="text-sm font-medium">{order.customer}</p>
-                          <p className="text-xs text-muted-foreground">{order.items.length} article(s)</p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-sm">{formatPrice(order.total)}</TableCell>
-                      <TableCell>
-                        <Badge className={`${ORDER_STATUS_COLORS[order.status]} text-xs`}>
-                          {ORDER_STATUS_LABELS[order.status]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(order.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="text-emerald-600 text-xs">
-                          <Eye className="w-3.5 h-3.5 mr-1" />
-                          Détails
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: ORDER DETAIL
-// ═══════════════════════════════════════════════════════════════════════════════
-function OrderDetailView() {
-  const { navigate, data } = useMerchantNav();
-  const order = MOCK_ORDERS.find((o) => o.id === data?.orderId);
-
-  if (!order) {
-    return (
-      <motion.div {...fadeIn} className="text-center py-16">
-        <p className="text-muted-foreground">Commande non trouvée</p>
-        <Button variant="outline" onClick={() => navigate('orders')} className="mt-4">
-          Retour aux commandes
-        </Button>
-      </motion.div>
-    );
-  }
-
-  const statusSteps = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'IN_TRANSIT', 'DELIVERED'];
-  const currentStepIdx = statusSteps.indexOf(order.status);
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('orders')}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Commande {order.id}</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {new Date(order.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Order Info */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Statut de la commande</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2 mb-4">
-                <Badge className={`${ORDER_STATUS_COLORS[order.status]} text-sm px-3 py-1`}>
-                  {ORDER_STATUS_LABELS[order.status]}
-                </Badge>
-              </div>
-              {/* Progress bar */}
-              <div className="relative">
-                <Progress value={order.status === 'CANCELLED' || order.status === 'REFUNDED' ? 0 : ((currentStepIdx + 1) / statusSteps.length) * 100} className="h-2" />
-                <div className="flex justify-between mt-2">
-                  {statusSteps.map((step, i) => (
-                    <span key={step} className={`text-[10px] ${i <= currentStepIdx ? 'text-emerald-600 font-medium' : 'text-muted-foreground'}`}>
-                      {ORDER_STATUS_LABELS[step]}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Items */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Articles commandés</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {order.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-                        <Package className="w-3.5 h-3.5 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">Qté: {item.qty}</p>
-                      </div>
-                    </div>
-                    <p className="text-sm font-semibold">{formatPrice(item.price * item.qty)}</p>
-                  </div>
-                ))}
-              </div>
-              <Separator className="my-3" />
-              <div className="flex justify-between">
-                <p className="font-semibold">Total</p>
-                <p className="font-bold text-lg text-emerald-600">{formatPrice(order.total)}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Customer Info Sidebar */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Informations client</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-emerald-100 text-emerald-700 font-bold">
-                    {order.customer.split(' ').map((n) => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium text-sm">{order.customer}</p>
-                  <p className="text-xs text-muted-foreground">{order.phone}</p>
-                </div>
-              </div>
-              <Separator />
-              <div className="flex items-start gap-2 text-sm">
-                <MapPin className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
-                <span>{order.address}</span>
-              </div>
-              {order.note && (
-                <div className="flex items-start gap-2 text-sm">
-                  <MessageSquare className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
-                  <span className="italic text-muted-foreground">{order.note}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Actions */}
-          <Card>
-            <CardContent className="p-4 space-y-2">
-              {order.status === 'PENDING' && (
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => toast.success('Commande confirmée')}>
-                  Confirmer la commande
-                </Button>
-              )}
-              {order.status === 'CONFIRMED' && (
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => toast.success('Préparation démarrée')}>
-                  Commencer la préparation
-                </Button>
-              )}
-              {order.status === 'PREPARING' && (
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => toast.success('Commande prête')}>
-                  Marquer comme prête
-                </Button>
-              )}
-              {order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && order.status !== 'REFUNDED' && (
-                <Button variant="outline" className="w-full text-red-500 hover:bg-red-50" onClick={() => toast.success('Commande annulée')}>
-                  Annuler la commande
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: STATISTICS
-// ═══════════════════════════════════════════════════════════════════════════════
-function StatsView() {
-  const [period, setPeriod] = useState('month');
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Statistiques</h1>
-          <p className="text-muted-foreground text-sm mt-1">Analyse détaillée de votre activité</p>
-        </div>
-        <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-44">
-            <Calendar className="w-4 h-4 mr-1" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="today">Aujourd'hui</SelectItem>
-            <SelectItem value="week">Cette semaine</SelectItem>
-            <SelectItem value="month">Ce mois</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Revenus totaux', value: formatPrice(1250000), icon: DollarSign, change: '+15.3%', up: true },
-          { label: 'Commandes', value: '156', icon: ShoppingCart, change: '+8.2%', up: true },
-          { label: 'Panier moyen', value: formatPrice(8012), icon: TrendingUp, change: '-2.1%', up: false },
-          { label: 'Clients uniques', value: '89', icon: Users, change: '+12.5%', up: true },
-        ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <s.icon className="w-4 h-4 text-muted-foreground" />
-                <span className={`text-xs font-medium ${s.up ? 'text-emerald-600' : 'text-red-500'}`}>{s.change}</span>
-              </div>
-              <p className="text-xl font-bold">{s.value}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Revenue Bar Chart */}
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Revenus mensuels</CardTitle>
-            <CardDescription>Évolution des revenus sur 12 mois</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={MONTHLY_REVENUE}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="montant" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Order Status Pie Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Commandes par statut</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={ORDER_STATUS_PIE}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {ORDER_STATUS_PIE.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {ORDER_STATUS_PIE.map((entry) => (
-                <div key={entry.name} className="flex items-center gap-2 text-xs">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
-                  <span className="text-muted-foreground">{entry.name}</span>
-                  <span className="ml-auto font-medium">{entry.value}%</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Top Products */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Produits les plus vendus</CardTitle>
-          <CardDescription>Classement par nombre de commandes</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>#</TableHead>
-                <TableHead>Produit</TableHead>
-                <TableHead className="text-center">Commandes</TableHead>
-                <TableHead className="text-right">Revenus</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {TOP_PRODUCTS.map((product, idx) => (
-                <TableRow key={product.name}>
-                  <TableCell>
-                    <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-bold ${
-                      idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-gray-100 text-gray-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'text-muted-foreground'
-                    }`}>
-                      {idx + 1}
-                    </span>
-                  </TableCell>
-                  <TableCell className="font-medium text-sm">{product.name}</TableCell>
-                  <TableCell className="text-center">{product.orders}</TableCell>
-                  <TableCell className="text-right font-semibold text-sm">{formatPrice(product.revenue)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: MARKETING
-// ═══════════════════════════════════════════════════════════════════════════════
-function MarketingView() {
-  const [promos, setPromos] = useState<Promotion[]>(MOCK_PROMOTIONS);
-  const [createDialog, setCreateDialog] = useState(false);
-  const [newPromo, setNewPromo] = useState({ title: '', type: 'percentage' as 'percentage' | 'fixed', value: '', code: '', maxUses: '100' });
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
-
-  // Coupon creation state
-  const [couponDialog, setCouponDialog] = useState(false);
-  const [couponForm, setCouponForm] = useState({ code: '', type: 'POURCENTAGE', value: '', minOrder: '', endDate: '' });
-  const [couponSaving, setCouponSaving] = useState(false);
-
-  const handleCreate = () => {
-    if (!newPromo.title || !newPromo.value || !newPromo.code) {
-      toast.error('Veuillez remplir tous les champs');
-      return;
-    }
-    const promo: Promotion = {
-      id: `promo-${Date.now()}`,
-      title: newPromo.title,
-      type: newPromo.type,
-      value: Number(newPromo.value),
-      code: newPromo.code.toUpperCase(),
-      usedCount: 0,
-      maxUses: Number(newPromo.maxUses),
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-      active: true,
-    };
-    setPromos((prev) => [...prev, promo]);
-    setNewPromo({ title: '', type: 'percentage', value: '', code: '', maxUses: '100' });
-    setCreateDialog(false);
-    toast.success('Promotion créée avec succès');
-  };
-
-  const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code).catch(() => {});
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
-  };
-
-  const togglePromo = (id: string) => {
-    setPromos((prev) => prev.map((p) => (p.id === id ? { ...p, active: !p.active } : p)));
-    toast.success('Statut de la promotion mis à jour');
-  };
-
-  const handleCreateCoupon = async () => {
-    if (!couponForm.code || !couponForm.value || !couponForm.endDate) {
-      toast.error('Veuillez remplir le code, la valeur et la date de fin');
-      return;
-    }
-    setCouponSaving(true);
-    try {
-      const res = await fetch('/api/coupons', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...couponForm,
-          value: Number(couponForm.value),
-          minOrder: Number(couponForm.minOrder) || 0,
-          merchantId: 'm1',
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Erreur serveur');
-      }
-      toast.success('Coupon créé avec succès');
-      setCouponForm({ code: '', type: 'POURCENTAGE', value: '', minOrder: '', endDate: '' });
-      setCouponDialog(false);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erreur lors de la création du coupon';
-      toast.error(msg);
-    } finally {
-      setCouponSaving(false);
-    }
-  };
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Marketing</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gérez vos promotions et codes de réduction</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setCouponDialog(true)} variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 gap-2">
-            <Tag className="w-4 h-4" />
-            Créer un coupon
-          </Button>
-          <Button onClick={() => setCreateDialog(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-            <Plus className="w-4 h-4" />
-            Créer une publicité
+        <div className="p-3 border-t">
+          <Button variant="ghost" size="sm" className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={logout}>
+            Déconnexion
           </Button>
         </div>
-      </div>
+      </aside>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Tag className="w-5 h-5" />
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Top bar for mobile */}
+        <header className="md:hidden flex items-center justify-between px-4 py-3 border-b bg-card/50 backdrop-blur-sm shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <Store className="w-4 h-4 text-primary-foreground" />
             </div>
-            <div>
-              <p className="text-2xl font-bold">{promos.filter((p) => p.active).length}</p>
-              <p className="text-xs text-muted-foreground">Promotions actives</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Gift className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{promos.reduce((s, p) => s + p.usedCount, 0)}</p>
-              <p className="text-xs text-muted-foreground">Codes utilisés</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
-              <Percent className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{promos.length}</p>
-              <p className="text-xs text-muted-foreground">Total promotions</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Promotions List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Mes promotions</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Promotion</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead className="text-center">Utilisation</TableHead>
-                <TableHead className="text-center">Statut</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {promos.map((promo) => (
-                <TableRow key={promo.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium text-sm">{promo.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {promo.type === 'percentage' ? `${promo.value}% de réduction` : `${formatPrice(promo.value)} de réduction`}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <code className="px-2 py-1 bg-muted rounded text-xs font-mono font-bold">{promo.code}</code>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyCode(promo.code)}>
-                        {copiedCode === promo.code ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                      </Button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex flex-col items-center">
-                      <span className="text-sm font-medium">{promo.usedCount}/{promo.maxUses}</span>
-                      <Progress value={(promo.usedCount / promo.maxUses) * 100} className="w-16 h-1.5 mt-1" />
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Switch checked={promo.active} onCheckedChange={() => togglePromo(promo.id)} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant={promo.active ? 'default' : 'secondary'} className="text-xs">
-                      {promo.active ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Create Dialog */}
-      <Dialog open={createDialog} onOpenChange={setCreateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Créer une promotion</DialogTitle>
-            <DialogDescription>Créez un nouveau code de réduction pour vos clients</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Titre</label>
-              <Input placeholder="Ex: Réduction de Noël" value={newPromo.title} onChange={(e) => setNewPromo((p) => ({ ...p, title: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Type</label>
-                <Select value={newPromo.type} onValueChange={(v: 'percentage' | 'fixed') => setNewPromo((p) => ({ ...p, type: v }))}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="percentage">Pourcentage</SelectItem>
-                    <SelectItem value="fixed">Montant fixe</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Valeur</label>
-                <Input type="number" placeholder="0" value={newPromo.value} onChange={(e) => setNewPromo((p) => ({ ...p, value: e.target.value }))} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Code</label>
-                <Input placeholder="PROMO2025" value={newPromo.code} onChange={(e) => setNewPromo((p) => ({ ...p, code: e.target.value }))} className="uppercase" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Utilisations max</label>
-                <Input type="number" placeholder="100" value={newPromo.maxUses} onChange={(e) => setNewPromo((p) => ({ ...p, maxUses: e.target.value }))} />
-              </div>
-            </div>
+            <span className="font-semibold text-sm gradient-text">Rapigo</span>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setCreateDialog(false)}>Annuler</Button>
-            <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white">Créer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Coupon Creation Dialog */}
-      <Dialog open={couponDialog} onOpenChange={setCouponDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Créer un coupon</DialogTitle>
-            <DialogDescription>Créez un code promo pour vos clients</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Code promo</label>
-              <Input placeholder="Ex: RAPIGO20" value={couponForm.code} onChange={(e) => setCouponForm((f) => ({ ...f, code: e.target.value }))} className="uppercase" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Type</label>
-                <Select value={couponForm.type} onValueChange={(v) => setCouponForm((f) => ({ ...f, type: v }))}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="POURCENTAGE">Pourcentage</SelectItem>
-                    <SelectItem value="FIXED">Montant fixe</SelectItem>
-                    <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Valeur</label>
-                <Input type="number" placeholder={couponForm.type === 'POURCENTAGE' ? '20' : '500'} value={couponForm.value} onChange={(e) => setCouponForm((f) => ({ ...f, value: e.target.value }))} disabled={couponForm.type === 'FREE_DELIVERY'} />
-                {couponForm.type === 'POURCENTAGE' && <p className="text-xs text-muted-foreground">Pourcentage de réduction</p>}
-                {couponForm.type === 'FIXED' && <p className="text-xs text-muted-foreground">Montant en FCFA</p>}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Commande minimum (FCFA)</label>
-              <Input type="number" placeholder="0" value={couponForm.minOrder} onChange={(e) => setCouponForm((f) => ({ ...f, minOrder: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Date de fin</label>
-              <Input type="date" value={couponForm.endDate} onChange={(e) => setCouponForm((f) => ({ ...f, endDate: e.target.value }))} />
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setCouponDialog(false)}>Annuler</Button>
-            <Button onClick={handleCreateCoupon} disabled={couponSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-              {couponSaving ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Création...
-                </>
-              ) : (
-                'Créer le coupon'
-              )}
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('notifications')}>
+              <Bell className="w-4 h-4" />
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: BILLING
-// ═══════════════════════════════════════════════════════════════════════════════
-function BillingView() {
-  const invoices = [
-    { id: 'FAC-2025-001', date: '15 Jan 2025', amount: 15000, status: 'Payée' },
-    { id: 'FAC-2024-012', date: '15 Déc 2024', amount: 15000, status: 'Payée' },
-    { id: 'FAC-2024-011', date: '15 Nov 2024', amount: 15000, status: 'Payée' },
-    { id: 'FAC-2024-010', date: '15 Oct 2024', amount: 0, status: 'Gratuite' },
-  ];
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Facturation</h1>
-        <p className="text-muted-foreground text-sm mt-1">Historique de vos factures et paiements</p>
-      </div>
-
-      <Card className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-emerald-100 text-sm">Plan actuel</p>
-              <p className="text-2xl font-bold mt-1">Starter - Gratuit</p>
-              <p className="text-emerald-200 text-sm mt-2">Prochaine facture : Aucune</p>
-            </div>
-            <div className="text-right">
-              <p className="text-emerald-100 text-sm">Coût mensuel</p>
-              <p className="text-3xl font-bold">0 FCFA</p>
-            </div>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('chat')}>
+              <MessageSquare className="w-4 h-4" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Historique des factures</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Facture</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Montant</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell className="font-medium text-sm">{inv.id}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{inv.date}</TableCell>
-                  <TableCell className="text-right font-semibold text-sm">{inv.amount === 0 ? 'Gratuit' : formatPrice(inv.amount)}</TableCell>
-                  <TableCell>
-                    <Badge variant={inv.status === 'Payée' ? 'default' : 'secondary'} className={`${inv.status === 'Payée' ? 'bg-emerald-100 text-emerald-700' : ''}`}>
-                      {inv.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" className="text-xs text-emerald-600">
-                      <Receipt className="w-3.5 h-3.5 mr-1" />
-                      Télécharger
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </motion.div>
+        {/* Page Content */}
+        <div className="flex-1 overflow-y-auto">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={view}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.2 }}
+              className="p-4 md:p-6 pb-24 md:pb-6"
+            >
+              {view === 'dashboard' && <DashboardView merchantId={merchantId} navigate={navigate} />}
+              {view === 'products' && <ProductsView merchantId={merchantId} navigate={navigate} />}
+              {view === 'add-product' && <AddProductView merchantId={merchantId} data={data} navigate={navigate} />}
+              {view === 'orders' && <OrdersView merchantId={merchantId} navigate={navigate} />}
+              {view === 'order-detail' && <OrderDetailView data={data} navigate={navigate} />}
+              {view === 'stats' && <StatsView merchantId={merchantId} />}
+              {view === 'marketing' && <MarketingView merchantId={merchantId} />}
+              {view === 'billing' && <BillingView merchantId={merchantId} />}
+              {view === 'settings' && <SettingsView merchant={merchant} userId={user?.id} setMerchant={setMerchant} />}
+              {view === 'subscription' && <SubscriptionView merchant={merchant} />}
+              {view === 'chat' && <EmptyState icon={MessageSquare} title="Aucune conversation" />}
+              {view === 'support' && <SupportView userId={user?.id} />}
+              {view === 'notifications' && <EmptyState icon={Bell} title="Aucune notification" />}
+              {view === 'profile' && <ProfileView />}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Mobile Bottom Tab Bar */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-lg border-t flex safe-area-bottom z-50">
+          {[
+            { id: 'dashboard' as const, label: 'Tableau de bord', icon: LayoutDashboard },
+            { id: 'products' as const, label: 'Produits', icon: Package },
+            { id: 'orders' as const, label: 'Commandes', icon: ShoppingCart },
+            { id: 'profile' as const, label: 'Profil', icon: User },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = view === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => navigate(tab.id)}
+                className={`flex-1 flex flex-col items-center gap-1 py-2 pt-2.5 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </main>
+    </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: SUBSCRIPTION
-// ═══════════════════════════════════════════════════════════════════════════════
-function SubscriptionView() {
-  const [plans, setPlans] = useState<Plan[]>(MOCK_PLANS);
+// ─── 1. DASHBOARD VIEW ───────────────────────────────────
+function DashboardView({ merchantId, navigate }: { merchantId?: string; navigate: (v: 'orders' | 'add-product' | 'order-detail', d?: Record<string, string>) => void }) {
+  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/plans')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setPlans(data);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    if (!merchantId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/stats/merchant?merchantId=${merchantId}`);
+        if (res.ok) setStats(await res.json());
+      } catch { /* silent */ }
+      setLoading(false);
+    })();
+  }, [merchantId]);
 
-  const handleUpgrade = (plan: Plan) => {
-    toast.success(`Demande de mise à niveau vers ${plan.name} envoyée !`);
-  };
+  const recentOrders = (stats?.recentOrders as Array<Record<string, unknown>>) || [];
+  const kpis = [
+    { label: 'Total commandes', value: stats?.totalOrders ?? 0, icon: ShoppingCart, color: 'text-blue-600 dark:text-blue-400' },
+    { label: "Revenu du jour", value: formatPrice((stats?.todayRevenue as number) || 0), icon: TrendingUp, color: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'En attente', value: stats?.pendingOrders ?? 0, icon: Clock, color: 'text-yellow-600 dark:text-yellow-400' },
+    { label: 'Note moyenne', value: `${((stats?.avgRating as number) || 0).toFixed(1)} ★`, icon: Star, color: 'text-orange-600 dark:text-orange-400' },
+  ];
 
   return (
-    <motion.div {...fadeIn} className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Abonnement</h1>
-        <p className="text-muted-foreground text-sm mt-1">Choisissez le plan qui correspond à vos besoins</p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold gradient-text">Tableau de bord</h1>
+          <p className="text-sm text-muted-foreground mt-1">Vue d&apos;ensemble de votre activité</p>
+        </div>
+        <Button size="sm" onClick={() => navigate('add-product')}>
+          <Plus className="w-4 h-4 mr-1" /> Produit
+        </Button>
       </div>
 
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-96 rounded-xl" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {plans.map((plan) => (
-            <Card
-              key={plan.id}
-              className={`relative overflow-hidden transition-shadow hover:shadow-lg ${
-                plan.current ? 'border-emerald-500 border-2' : ''
-              } ${plan.popular ? 'ring-2 ring-amber-400' : ''}`}
-            >
-              {plan.popular && (
-                <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
-                  Populaire
+      {loading ? <LoadingCards /> : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpis.map((kpi) => (
+            <Card key={kpi.label} className="glass-card">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">{kpi.label}</span>
+                  <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
                 </div>
-              )}
-              {plan.current && (
-                <div className="absolute top-0 left-0 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-br-lg">
-                  Plan actuel
-                </div>
-              )}
-              <CardHeader className="pt-8 pb-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-3">
-                  <Crown className={`w-6 h-6 ${plan.current ? 'text-emerald-600' : 'text-muted-foreground'}`} />
-                </div>
-                <CardTitle className="text-xl">{plan.name}</CardTitle>
-                <div className="mt-2">
-                  <span className="text-3xl font-bold">
-                    {plan.price === 0 ? 'Gratuit' : formatPrice(plan.price)}
-                  </span>
-                  {plan.price > 0 && <span className="text-muted-foreground text-sm">{plan.period}</span>}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2.5">
-                  {plan.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-center gap-2 text-sm">
-                      <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  className={`w-full mt-4 ${
-                    plan.current
-                      ? 'bg-muted text-muted-foreground cursor-default'
-                      : plan.popular
-                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                  }`}
-                  disabled={plan.current}
-                  onClick={() => handleUpgrade(plan)}
-                >
-                  {plan.current ? 'Plan actuel' : 'Passer à ce plan'}
-                </Button>
+                <p className="text-xl font-bold">{kpi.value}</p>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
-    </motion.div>
-  );
-}
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: SETTINGS
-// ═══════════════════════════════════════════════════════════════════════════════
-function SettingsView() {
-  const [form, setForm] = useState({
-    name: MOCK_MERCHANT.name,
-    description: MOCK_MERCHANT.description,
-    address: MOCK_MERCHANT.address,
-    phone: MOCK_MERCHANT.phone,
-    hours: MOCK_MERCHANT.hours,
-  });
-  const [saving, setSaving] = useState(false);
-
-  const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
-
-  const handleSave = () => {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      toast.success('Informations mises à jour avec succès');
-    }, 800);
-  };
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold">Paramètres</h1>
-        <p className="text-muted-foreground text-sm mt-1">Gérez les informations de votre boutique</p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Store className="w-4 h-4 text-emerald-600" />
-            Informations de la boutique
-          </CardTitle>
-          <CardDescription>Modifier les informations affichées sur votre page boutique</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Nom de la boutique</label>
-            <Input value={form.name} onChange={(e) => update('name', e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Description</label>
-            <Textarea value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Adresse</label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input value={form.address} onChange={(e) => update('address', e.target.value)} className="pl-9" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Téléphone</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input value={form.phone} onChange={(e) => update('phone', e.target.value)} className="pl-9" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Horaires d'ouverture</label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input value={form.hours} onChange={(e) => update('hours', e.target.value)} className="pl-9" />
-              </div>
-            </div>
-          </div>
-          <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[160px]">
-            {saving ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Enregistrement...
-              </>
-            ) : (
-              'Enregistrer les modifications'
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Danger Zone */}
-      <Card className="border-red-200">
-        <CardHeader>
-          <CardTitle className="text-base text-red-600">Zone de danger</CardTitle>
-          <CardDescription>Actions irréversibles pour votre compte</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      {/* Recent Orders */}
+      <Card className="glass-card">
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">Désactiver la boutique</p>
-              <p className="text-xs text-muted-foreground">Votre boutique ne sera plus visible par les clients</p>
-            </div>
-            <Button variant="outline" className="text-red-500 border-red-200 hover:bg-red-50">Désactiver</Button>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">Supprimer le compte</p>
-              <p className="text-xs text-muted-foreground">Cette action est définitive et irréversible</p>
-            </div>
-            <Button variant="destructive" size="sm">Supprimer</Button>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: SUPPORT
-// ═══════════════════════════════════════════════════════════════════════════════
-function SupportView() {
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
-  const [sending, setSending] = useState(false);
-
-  const faqs = [
-    { q: 'Comment ajouter un nouveau produit ?', a: 'Allez dans Produits > Ajouter un produit. Remplissez le formulaire avec les informations de votre produit et cliquez sur Enregistrer.' },
-    { q: 'Comment modifier le statut d\'une commande ?', a: 'Allez dans Commandes, cliquez sur une commande pour voir les détails, puis utilisez les boutons d\'action pour modifier le statut.' },
-    { q: 'Comment créer un code promotionnel ?', a: 'Allez dans Marketing > Créer une publicité. Remplissez les informations de la promotion et le code sera généré automatiquement.' },
-    { q: 'Quels sont les modes de paiement acceptés ?', a: 'Orange Money, MTN Mobile Money, Wave et espèces à la livraison sont acceptés.' },
-  ];
-
-  const handleSend = () => {
-    if (!subject || !message) {
-      toast.error('Veuillez remplir le sujet et le message');
-      return;
-    }
-    setSending(true);
-    setTimeout(() => {
-      setSending(false);
-      setSubject('');
-      setMessage('');
-      toast.success('Message envoyé avec succès. Nous vous répondrons sous 24h.');
-    }, 1000);
-  };
-
-  return (
-    <motion.div {...fadeIn} className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Support</h1>
-        <p className="text-muted-foreground text-sm mt-1">Besoin d'aide ? Nous sommes là pour vous</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Contact Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Headphones className="w-4 h-4 text-emerald-600" />
-              Nous contacter
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Sujet</label>
-              <Input placeholder="Décrivez brièvement votre problème" value={subject} onChange={(e) => setSubject(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Message</label>
-              <Textarea placeholder="Décrivez votre problème en détail..." value={message} onChange={(e) => setMessage(e.target.value)} rows={5} />
-            </div>
-            <Button onClick={handleSend} disabled={sending} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-              {sending ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Envoi en cours...
-                </>
-              ) : (
-                <>
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Envoyer le message
-                </>
-              )}
+            <CardTitle className="text-base">Commandes récentes</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => navigate('orders')}>
+              Voir tout <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* FAQ */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Questions fréquentes</CardTitle>
-            <CardDescription>Les réponses aux questions les plus courantes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {faqs.map((faq, idx) => (
-                <div key={idx} className="border-b last:border-0 pb-4 last:pb-0">
-                  <p className="text-sm font-medium text-foreground">{faq.q}</p>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{faq.a}</p>
-                </div>
-              ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+          ) : recentOrders.length === 0 ? (
+            <EmptyState icon={ShoppingCart} title="Aucune commande pour le moment" />
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {recentOrders.map((order: Record<string, unknown>) => {
+                const items = order.items as Array<Record<string, unknown>> | undefined;
+                return (
+                  <div
+                    key={order.id as string}
+                    className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => navigate('order-detail', { id: order.id as string })}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">#{order.orderNumber as string}</span>
+                        <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[order.status as string] || ''}`}>
+                          {ORDER_STATUS_LABELS[order.status as string] || order.status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {items?.length ?? 0} article(s) · {new Date(order.createdAt as string).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold">{formatPrice(order.total as number)}</span>
+                  </div>
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    </motion.div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: NOTIFICATIONS
-// ═══════════════════════════════════════════════════════════════════════════════
-function NotificationsView() {
-  const notifications = [
-    { id: 1, title: 'Nouvelle commande reçue', desc: 'Commande ORD-004 de Aïssata Coulibaly - 2 000 FCFA', time: 'Il y a 5 min', read: false, icon: ShoppingCart, color: 'text-emerald-600 bg-emerald-50' },
-    { id: 2, title: 'Commande livrée', desc: 'Commande ORD-001 a été livrée avec succès', time: 'Il y a 30 min', read: false, icon: Check, color: 'text-blue-600 bg-blue-50' },
-    { id: 3, title: 'Alerte stock', desc: 'Couscous poisson - Stock faible (15 restants)', time: 'Il y a 1h', read: false, icon: Package, color: 'text-amber-600 bg-amber-50' },
-    { id: 4, title: 'Nouvel avis client', desc: 'Amadou Diallo a laissé un avis 5 étoiles', time: 'Il y a 2h', read: true, icon: Star, color: 'text-orange-600 bg-orange-50' },
-    { id: 5, title: 'Paiement reçu', desc: 'Paiement de 15 000 FCFA pour la facture FAC-2025-001', time: 'Il y a 3h', read: true, icon: CreditCard, color: 'text-violet-600 bg-violet-50' },
-    { id: 6, title: 'Promotion expirée', desc: 'La promotion "Soldes d\'hiver" a expiré', time: 'Hier', read: true, icon: Megaphone, color: 'text-red-600 bg-red-50' },
-  ];
+// ─── 2. PRODUCTS VIEW ────────────────────────────────────
+function ProductsView({ merchantId, navigate }: { merchantId?: string; navigate: (v: 'add-product' | 'products', d?: Record<string, string>) => void }) {
+  const [products, setProducts] = useState<Array<Record<string, unknown>>>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const [fetchTrigger, setFetchTrigger] = useState(0);
+
+  useEffect(() => {
+    if (!merchantId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const q = search ? `&search=${encodeURIComponent(search)}` : '';
+        const res = await fetch(`/api/products?merchantId=${merchantId}&all=true${q}`);
+        if (res.ok && !cancelled) setProducts(await res.json());
+      } catch { /* silent */ }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [merchantId, search, fetchTrigger]);
+
+  const refetchProducts = () => setFetchTrigger((t) => t + 1);
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      const res = await fetch(`/api/products?id=${deleteId}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('Produit supprimé');
+        refetchProducts();
+      } else toast.error('Erreur lors de la suppression');
+    } catch { toast.error('Erreur serveur'); }
+    setDeleteId(null);
+  };
+
+  const handleToggle = async (product: Record<string, unknown>) => {
+    try {
+      const res = await fetch('/api/products', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: product.id, isAvailable: !product.isAvailable }),
+      });
+      if (res.ok) {
+        toast.success(product.isAvailable ? 'Produit désactivé' : 'Produit activé');
+        refetchProducts();
+      }
+    } catch { toast.error('Erreur serveur'); }
+  };
 
   return (
-    <motion.div {...fadeIn} className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Notifications</h1>
-          <p className="text-muted-foreground text-sm mt-1">{notifications.filter((n) => !n.read).length} non lues</p>
+          <h1 className="text-2xl font-bold gradient-text">Produits</h1>
+          <p className="text-sm text-muted-foreground mt-1">{products.length} produit(s)</p>
         </div>
-        <Button variant="outline" size="sm" className="text-emerald-600 text-xs" onClick={() => toast.success('Toutes les notifications marquées comme lues')}>
-          Tout marquer comme lu
+        <Button size="sm" onClick={() => navigate('add-product')}>
+          <Plus className="w-4 h-4 mr-1" /> Ajouter
         </Button>
       </div>
 
-      <div className="space-y-2">
-        {notifications.map((notif) => (
-          <Card key={notif.id} className={`transition-colors ${!notif.read ? 'bg-emerald-50/50 border-emerald-100' : ''}`}>
-            <CardContent className="p-4 flex items-start gap-3">
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${notif.color}`}>
-                <notif.icon className="w-4 h-4" />
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input placeholder="Rechercher un produit..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
+      ) : products.length === 0 ? (
+        <EmptyState icon={Package} title="Aucun produit" action="Ajouter un produit" onAction={() => navigate('add-product')} />
+      ) : (
+        <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto">
+          {products.map((p) => (
+            <Card key={p.id as string} className="glass-card">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                    {p.image ? (
+                      <img src={p.image as string} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">{p.name as string}</p>
+                      <Badge variant={p.isAvailable ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                        {p.isAvailable ? 'Actif' : 'Inactif'}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{p.category?.name || ''} · Stock: {p.stock as number}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm font-semibold">{formatPrice(p.price as number)}</span>
+                      {p.comparePrice && <span className="text-xs text-muted-foreground line-through">{formatPrice(p.comparePrice as number)}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Switch checked={p.isAvailable as boolean} onCheckedChange={() => handleToggle(p)} />
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('add-product', { id: p.id as string })}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => setDeleteId(p.id as string)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Supprimer le produit</DialogTitle>
+            <DialogDescription>Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Annuler</Button>
+            <Button variant="destructive" onClick={handleDelete}>Supprimer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── 3. ADD/EDIT PRODUCT VIEW ────────────────────────────
+function AddProductView({ merchantId, data, navigate }: { merchantId?: string; data?: Record<string, string>; navigate: (v: 'products') => void }) {
+  const isEditing = !!data?.id;
+  const [loading, setLoading] = useState(isEditing);
+  const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState<Array<Record<string, unknown>>>([]);
+  const [form, setForm] = useState({
+    name: '', description: '', price: '', comparePrice: '', stock: '', categoryId: '', image: '',
+  });
+
+  useEffect(() => {
+    fetch('/api/categories').then(r => r.ok && r.json()).then(setCategories).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!isEditing || !data?.id) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/products?merchantId=${merchantId}&all=true`);
+        if (res.ok) {
+          const products: Array<Record<string, unknown>> = await res.json();
+          const p = products.find((x) => x.id === data.id);
+          if (p) {
+            setForm({
+              name: p.name as string,
+              description: (p.description as string) || '',
+              price: String(p.price),
+              comparePrice: p.comparePrice ? String(p.comparePrice) : '',
+              stock: String(p.stock),
+              categoryId: (p.categoryId as string) || '',
+              image: (p.image as string) || '',
+            });
+          }
+        }
+      } catch { /* silent */ }
+      setLoading(false);
+    })();
+  }, [isEditing, data?.id, merchantId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!merchantId) return toast.error('Marchand non trouvé');
+    if (!form.name || !form.price) return toast.error('Nom et prix requis');
+    setSaving(true);
+    try {
+      const url = '/api/products';
+      const method = isEditing ? 'PUT' : 'POST';
+      const body: Record<string, unknown> = {
+        name: form.name,
+        description: form.description,
+        price: form.price,
+        comparePrice: form.comparePrice || null,
+        stock: parseInt(form.stock) || 0,
+        merchantId,
+        categoryId: form.categoryId || null,
+        image: form.image || null,
+      };
+      if (isEditing) body.id = data!.id;
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (res.ok) {
+        toast.success(isEditing ? 'Produit mis à jour' : 'Produit créé avec succès');
+        navigate('products');
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Erreur');
+      }
+    } catch { toast.error('Erreur serveur'); }
+    setSaving(false);
+  };
+
+  const setField = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+
+  if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate('products')}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <h1 className="text-2xl font-bold gradient-text">{isEditing ? 'Modifier le produit' : 'Ajouter un produit'}</h1>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Card className="glass-card">
+          <CardHeader><CardTitle className="text-base">Informations de base</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Nom du produit *</label>
+              <Input value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="Ex: Poulet Braisé" required />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Description</label>
+              <Textarea value={form.description} onChange={(e) => setField('description', e.target.value)} placeholder="Description du produit..." rows={3} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Prix (FCFA) *</label>
+                <Input type="number" value={form.price} onChange={(e) => setField('price', e.target.value)} placeholder="5000" required />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Prix barré (FCFA)</label>
+                <Input type="number" value={form.comparePrice} onChange={(e) => setField('comparePrice', e.target.value)} placeholder="6000" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Stock</label>
+                <Input type="number" value={form.stock} onChange={(e) => setField('stock', e.target.value)} placeholder="50" />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Catégorie</label>
+                <select
+                  value={form.categoryId}
+                  onChange={(e) => setField('categoryId', e.target.value)}
+                  className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                >
+                  <option value="">Aucune catégorie</option>
+                  {categories.map((c) => (
+                    <option key={c.id as string} value={c.id as string}>{c.name as string}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">URL de l&apos;image</label>
+              <div className="relative">
+                <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input value={form.image} onChange={(e) => setField('image', e.target.value)} placeholder="https://..." className="pl-9" />
+              </div>
+              {form.image && (
+                <div className="mt-2 w-20 h-20 rounded-xl overflow-hidden border bg-muted">
+                  <img src={form.image} alt="Aperçu" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex gap-3">
+          <Button type="button" variant="outline" onClick={() => navigate('products')} className="flex-1">Annuler</Button>
+          <Button type="submit" disabled={saving} className="flex-1">
+            {saving ? 'Enregistrement...' : isEditing ? 'Mettre à jour' : 'Créer le produit'}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ─── 4. ORDERS VIEW ──────────────────────────────────────
+function OrdersView({ merchantId, navigate }: { merchantId?: string; navigate: (v: 'order-detail' | 'orders', d?: Record<string, string>) => void }) {
+  const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('all');
+
+  useEffect(() => {
+    if (!merchantId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const statusParam = tab !== 'all' ? `&status=${tab}` : '';
+        const res = await fetch(`/api/orders?merchantId=${merchantId}${statusParam}`);
+        if (res.ok && !cancelled) setOrders(await res.json());
+      } catch { /* silent */ }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [merchantId, tab]);
+
+  const tabs = [
+    { id: 'all', label: 'Toutes' },
+    { id: 'PENDING', label: 'En attente' },
+    { id: 'CONFIRMED', label: 'Confirmées' },
+    { id: 'PREPARING', label: 'En cours' },
+    { id: 'DELIVERED', label: 'Livrées' },
+    { id: 'CANCELLED', label: 'Annulées' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold gradient-text">Commandes</h1>
+        <p className="text-sm text-muted-foreground mt-1">{orders.length} commande(s)</p>
+      </div>
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="w-full overflow-x-auto flex">
+          {tabs.map((t) => (
+            <TabsTrigger key={t.id} value={t.id} className="text-xs whitespace-nowrap">{t.label}</TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      {loading ? (
+        <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+      ) : orders.length === 0 ? (
+        <EmptyState icon={ShoppingCart} title="Aucune commande trouvée" />
+      ) : (
+        <div className="space-y-2 max-h-[calc(100vh-230px)] overflow-y-auto">
+          {orders.map((order) => {
+            const items = order.items as Array<Record<string, unknown>> | undefined;
+            return (
+              <Card key={order.id as string} className="glass-card cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('order-detail', { id: order.id as string })}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium">#{order.orderNumber as string}</span>
+                        <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[order.status as string] || ''}`}>
+                          {ORDER_STATUS_LABELS[order.status as string] || order.status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {items?.length ?? 0} article(s) · {new Date(order.createdAt as string).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{order.deliveryAddress as string}</p>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-sm font-bold">{formatPrice(order.total as number)}</p>
+                      <p className="text-[10px] text-muted-foreground">{order.paymentMethod as string}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 5. ORDER DETAIL VIEW ────────────────────────────────
+function OrderDetailView({ data, navigate }: { data?: Record<string, string>; navigate: (v: 'orders') => void }) {
+  const [order, setOrder] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    if (!data?.id) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/orders/${data.id}`);
+        if (res.ok) setOrder(await res.json());
+      } catch { /* silent */ }
+      setLoading(false);
+    })();
+  }, [data?.id]);
+
+  const updateStatus = async (status: string) => {
+    if (!order) return;
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setOrder(updated);
+        toast.success(`Commande mise à jour: ${ORDER_STATUS_LABELS[status]}`);
+      } else toast.error('Erreur lors de la mise à jour');
+    } catch { toast.error('Erreur serveur'); }
+    setUpdating(false);
+  };
+
+  if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-32" /><Skeleton className="h-48 w-full" /></div>;
+  if (!order) return <EmptyState icon={ShoppingCart} title="Commande non trouvée" action="Retour aux commandes" onAction={() => navigate('orders')} />;
+
+  const items = (order.items as Array<Record<string, unknown>>) || [];
+  const status = order.status as string;
+  const merchantFlow = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'];
+  const currentIndex = merchantFlow.indexOf(status);
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate('orders')}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-bold">Commande #{order.orderNumber as string}</h1>
+          <p className="text-xs text-muted-foreground">{new Date(order.createdAt as string).toLocaleString('fr-FR')}</p>
+        </div>
+      </div>
+
+      {/* Status Badge */}
+      <Card className="glass-card">
+        <CardContent className="p-4">
+          <Badge className={`text-sm px-3 py-1 ${ORDER_STATUS_COLORS[status]}`}>
+            {ORDER_STATUS_LABELS[status]}
+          </Badge>
+          <div className="flex items-center gap-2 mt-3">
+            {merchantFlow.map((s, i) => (
+              <React.Fragment key={s}>
+                <div className={`w-3 h-3 rounded-full ${i <= currentIndex ? 'bg-primary' : 'bg-muted'}`} />
+                {i < merchantFlow.length - 1 && <div className={`flex-1 h-0.5 ${i < currentIndex ? 'bg-primary' : 'bg-muted'}`} />}
+              </React.Fragment>
+            ))}
+          </div>
+          <div className="flex justify-between mt-1">
+            {merchantFlow.map((s) => (
+              <span key={s} className="text-[9px] text-muted-foreground text-center flex-1">{ORDER_STATUS_LABELS[s]}</span>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Action Buttons */}
+      {status !== 'DELIVERED' && status !== 'CANCELLED' && (
+        <div className="flex gap-2 flex-wrap">
+          {status === 'PENDING' && (
+            <Button size="sm" onClick={() => updateStatus('CONFIRMED')} disabled={updating}>
+              <Check className="w-4 h-4 mr-1" /> Confirmer
+            </Button>
+          )}
+          {status === 'CONFIRMED' && (
+            <Button size="sm" onClick={() => updateStatus('PREPARING')} disabled={updating}>
+              <Package className="w-4 h-4 mr-1" /> Préparer
+            </Button>
+          )}
+          {status === 'PREPARING' && (
+            <Button size="sm" onClick={() => updateStatus('READY')} disabled={updating}>
+              <Check className="w-4 h-4 mr-1" /> Prête
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Items */}
+      <Card className="glass-card">
+        <CardHeader><CardTitle className="text-base">Articles</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {items.map((item) => (
+            <div key={item.id as string} className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                {item.productImage ? <img src={item.productImage as string} alt="" className="w-full h-full object-cover" /> : <Package className="w-4 h-4 text-muted-foreground" />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <p className={`text-sm ${!notif.read ? 'font-semibold' : 'font-medium'}`}>{notif.title}</p>
-                  {!notif.read && <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />}
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{notif.desc}</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">{notif.time}</p>
+                <p className="text-sm font-medium truncate">{item.productName as string}</p>
+                <p className="text-xs text-muted-foreground">x{item.quantity as number}</p>
               </div>
+              <span className="text-sm font-semibold">{formatPrice(item.totalPrice as number)}</span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Customer & Delivery */}
+      <Card className="glass-card">
+        <CardHeader><CardTitle className="text-base">Livraison</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-muted-foreground shrink-0" /><span>{order.deliveryAddress as string}, {order.deliveryCity as string}</span></div>
+          <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-muted-foreground shrink-0" /><span>~{order.estimatedTime as number} min</span></div>
+          <div className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-muted-foreground shrink-0" /><span>{order.paymentMethod as string}</span></div>
+        </CardContent>
+      </Card>
+
+      {/* Totals */}
+      <Card className="glass-card">
+        <CardContent className="p-4 space-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Sous-total</span><span>{formatPrice(order.subtotal as number)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Livraison</span><span>{formatPrice(order.deliveryFee as number)}</span></div>
+          {(order.discount as number) > 0 && (
+            <div className="flex justify-between text-emerald-600"><span>Remise</span><span>-{formatPrice(order.discount as number)}</span></div>
+          )}
+          <Separator />
+          <div className="flex justify-between font-bold text-base"><span>Total</span><span>{formatPrice(order.total as number)}</span></div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── 6. STATS VIEW ───────────────────────────────────────
+function StatsView({ merchantId }: { merchantId?: string }) {
+  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!merchantId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/stats/merchant?merchantId=${merchantId}`);
+        if (res.ok) setStats(await res.json());
+      } catch { /* silent */ }
+      setLoading(false);
+    })();
+  }, [merchantId]);
+
+  if (loading) return <div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}</div>;
+  if (!stats) return <EmptyState icon={BarChart3} title="Aucune donnée statistique" />;
+
+  const weeklyRevenue = (stats.weeklyRevenue as Array<{ day: string; revenue: number }>) || [];
+  const ordersByStatus = (stats.ordersByStatus as Array<{ status: string; count: number }>) || [];
+  const topProducts = (stats.topProducts as Array<{ productName: string; _sum: { quantity: number; totalPrice: number } }>) || [];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold gradient-text">Statistiques</h1>
+        <p className="text-sm text-muted-foreground mt-1">Analyse de votre activité</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total commandes', value: stats.totalOrders, icon: ShoppingCart, color: 'text-blue-600' },
+          { label: 'Revenu total', value: formatPrice((stats.totalRevenue as number) || 0), icon: TrendingUp, color: 'text-emerald-600' },
+          { label: 'En attente', value: stats.pendingOrders, icon: Clock, color: 'text-yellow-600' },
+          { label: 'Produits', value: stats.productCount, icon: Package, color: 'text-purple-600' },
+        ].map((kpi) => (
+          <Card key={kpi.label} className="glass-card">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">{kpi.label}</span>
+                <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+              </div>
+              <p className="text-xl font-bold">{kpi.value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
-    </motion.div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Revenue Chart */}
+        <Card className="glass-card">
+          <CardHeader><CardTitle className="text-base">Revenu des 7 derniers jours</CardTitle></CardHeader>
+          <CardContent>
+            {weeklyRevenue.length === 0 ? (
+              <EmptyState icon={TrendingUp} title="Aucune donnée de revenu" />
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={weeklyRevenue}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="day" fontSize={11} tickLine={false} />
+                  <YAxis fontSize={11} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: number) => formatPrice(value)} />
+                  <Line type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Orders by Status */}
+        <Card className="glass-card">
+          <CardHeader><CardTitle className="text-base">Commandes par statut</CardTitle></CardHeader>
+          <CardContent>
+            {ordersByStatus.length === 0 ? (
+              <EmptyState icon={ShoppingCart} title="Aucune donnée" />
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={ordersByStatus}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="status" fontSize={11} tickLine={false} tickFormatter={(v) => ORDER_STATUS_LABELS[v]?.substring(0, 8) || v} />
+                  <YAxis fontSize={11} tickLine={false} allowDecimals={false} />
+                  <Tooltip formatter={(value: number) => [value, 'Commandes']} labelFormatter={(v) => ORDER_STATUS_LABELS[v] || v} />
+                  <Bar dataKey="count" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top Products */}
+      <Card className="glass-card">
+        <CardHeader><CardTitle className="text-base">Produits les plus vendus</CardTitle></CardHeader>
+        <CardContent>
+          {topProducts.length === 0 ? (
+            <EmptyState icon={Package} title="Aucune donnée" />
+          ) : (
+            <div className="space-y-3">
+              {topProducts.map((p, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">{i + 1}</span>
+                    <span className="text-sm">{p.productName}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold">{formatPrice(p._sum.totalPrice)}</p>
+                    <p className="text-[10px] text-muted-foreground">{p._sum.quantity} vendu(s)</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: CHAT
-// ═══════════════════════════════════════════════════════════════════════════════
-function ChatView() {
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState([
-    { id: 1, text: 'Bonjour ! Comment puis-je vous aider ?', from: 'support', time: '10:00' },
-    { id: 2, text: 'Bonjour, j\'ai une question sur la livraison de ma commande.', from: 'me', time: '10:02' },
-    { id: 3, text: 'Bien sûr ! Quelle est votre commande ? Je vais vérifier le statut pour vous.', from: 'support', time: '10:03' },
-  ]);
+// ─── 7. MARKETING VIEW ───────────────────────────────────
+function MarketingView({ merchantId }: { merchantId?: string }) {
+  const [coupons, setCoupons] = useState<Array<Record<string, unknown>>>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ title: '', type: 'PERCENTAGE', value: '', code: '', startDate: '', endDate: '', maxUses: '' });
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const newMsg = { id: Date.now(), text: input.trim(), from: 'me' as const, time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) };
-    setMessages((prev) => [...prev, newMsg]);
-    setInput('');
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          text: 'Merci pour votre message. Un agent va vous répondre très prochainement.',
-          from: 'support' as const,
-          time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
-    }, 1500);
+  const [couponTrigger, setCouponTrigger] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/coupons')
+      .then((r) => r.ok ? r.json() : [])
+      .then((all) => {
+        if (!cancelled) setCoupons((all as Array<Record<string, unknown>>).filter((c) => c.merchantId === merchantId));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [merchantId, couponTrigger]);
+
+  const refetchCoupons = () => setCouponTrigger((t) => t + 1);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.code || !form.value || !form.endDate) return toast.error('Code, valeur et date de fin requis');
+    setSaving(true);
+    try {
+      const res = await fetch('/api/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          value: parseFloat(form.value),
+          maxUses: form.maxUses ? parseInt(form.maxUses) : null,
+          merchantId,
+          startDate: form.startDate || new Date().toISOString().split('T')[0],
+        }),
+      });
+      if (res.ok) {
+        toast.success('Promotion créée avec succès');
+        setDialogOpen(false);
+        setForm({ title: '', type: 'PERCENTAGE', value: '', code: '', startDate: '', endDate: '', maxUses: '' });
+        refetchCoupons();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Erreur');
+      }
+    } catch { toast.error('Erreur serveur'); }
+    setSaving(false);
   };
 
   return (
-    <motion.div {...fadeIn} className="space-y-4 flex flex-col h-[calc(100vh-10rem)]">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-emerald-100 text-emerald-700 font-bold">SA</AvatarFallback>
-            </Avatar>
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-background" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold">Support Rapigo</h1>
-            <p className="text-xs text-emerald-600">En ligne</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold gradient-text">Marketing</h1>
+          <p className="text-sm text-muted-foreground mt-1">Gérez vos promotions</p>
         </div>
+        <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Plus className="w-4 h-4 mr-1" /> Créer une promotion
+        </Button>
       </div>
 
-      <Card className="flex-1 flex flex-col overflow-hidden">
-        <ScrollArea className="flex-1 p-4">
-          <div className="space-y-3">
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.from === 'me' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                  msg.from === 'me'
-                    ? 'bg-emerald-600 text-white rounded-br-md'
-                    : 'bg-muted rounded-bl-md'
-                }`}>
-                  <p className="text-sm">{msg.text}</p>
-                  <p className={`text-[10px] mt-1 ${msg.from === 'me' ? 'text-emerald-200' : 'text-muted-foreground'}`}>
-                    {msg.time}
-                  </p>
+      {loading ? (
+        <div className="space-y-3">{Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
+      ) : coupons.length === 0 ? (
+        <EmptyState icon={Megaphone} title="Aucune promotion active" action="Créer une promotion" onAction={() => setDialogOpen(true)} />
+      ) : (
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {coupons.map((c) => (
+            <Card key={c.id as string} className="glass-card">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-primary" />
+                      <span className="font-mono font-bold text-sm">{c.code as string}</span>
+                      <Badge variant="outline" className="text-[10px]">{c.type as string}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {c.type === 'PERCENTAGE' ? `${c.value}%` : formatPrice(c.value as number)} · Expire le {new Date(c.endDate as string).toLocaleDateString('fr-FR')}
+                    </p>
+                  </div>
+                  <Badge variant={c.isActive ? 'default' : 'secondary'} className="text-[10px]">
+                    {c.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
                 </div>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
-        <div className="p-3 border-t">
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Écrivez votre message..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              className="flex-1"
-            />
-            <Button onClick={handleSend} size="icon" className="bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0">
-              <MessageSquare className="w-4 h-4" />
-            </Button>
-          </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </Card>
-    </motion.div>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Créer une promotion</DialogTitle>
+            <DialogDescription>Configurez votre coupon de réduction</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Titre</label>
+              <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Promo d'été" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Type</label>
+                <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+                  <option value="PERCENTAGE">Pourcentage</option>
+                  <option value="FIXED">Montant fixe</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Valeur {form.type === 'PERCENTAGE' ? '(%)' : '(FCFA)'}</label>
+                <Input type="number" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))} placeholder={form.type === 'PERCENTAGE' ? '10' : '500'} required />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Code promo</label>
+              <Input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="PROMO10" required />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Date début</label>
+                <Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Date fin *</label>
+                <Input type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} required />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Utilisations max</label>
+              <Input type="number" value={form.maxUses} onChange={(e) => setForm((f) => ({ ...f, maxUses: e.target.value }))} placeholder="Illimité" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+              <Button type="submit" disabled={saving}>{saving ? 'Création...' : 'Créer'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW: PROFILE
-// ═══════════════════════════════════════════════════════════════════════════════
-function ProfileView() {
-  const user = useAuthStore((s) => s.user);
-  const [form, setForm] = useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
-  });
+// ─── 8. BILLING VIEW ─────────────────────────────────────
+function BillingView({ merchantId }: { merchantId?: string }) {
+  const [plans, setPlans] = useState<Array<Record<string, unknown>>>([]);
+  const [loading, setLoading] = useState(true);
 
-  const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/plans');
+        if (res.ok) setPlans(await res.json());
+      } catch { /* silent */ }
+      setLoading(false);
+    })();
+  }, []);
 
   return (
-    <motion.div {...fadeIn} className="space-y-6 max-w-2xl">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Mon profil</h1>
-        <p className="text-muted-foreground text-sm mt-1">Gérez vos informations personnelles</p>
+        <h1 className="text-2xl font-bold gradient-text">Facturation</h1>
+        <p className="text-sm text-muted-foreground mt-1">Historique et informations de facturation</p>
       </div>
 
-      <Card>
-        <CardContent className="p-6 space-y-5">
-          <div className="flex items-center gap-4 pb-4">
-            <Avatar className="h-16 w-16">
-              <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xl font-bold">
-                {form.firstName?.charAt(0)}{form.lastName?.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="text-lg font-semibold">{form.firstName} {form.lastName}</p>
-              <p className="text-sm text-muted-foreground">Marchand · {MOCK_MERCHANT.name}</p>
+      <EmptyState icon={Receipt} title="Aucune facture" />
+
+      {loading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : plans.length > 0 ? (
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="text-base">Formules disponibles</CardTitle>
+            <CardDescription>Votre plan actuel et les options disponibles</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {plans.map((plan) => {
+                const features = plan.features ? (typeof plan.features === 'string' ? JSON.parse(plan.features) : plan.features) as string[] : [];
+                return (
+                  <div key={plan.id as string} className="flex items-center justify-between p-3 rounded-xl border">
+                    <div>
+                      <p className="text-sm font-medium">{plan.name as string}</p>
+                      <p className="text-xs text-muted-foreground">{features.slice(0, 3).join(' · ')}</p>
+                    </div>
+                    <span className="text-sm font-bold">{formatPrice(plan.price as number)}<span className="text-xs text-muted-foreground font-normal">/{plan.duration as number}j</span></span>
+                  </div>
+                );
+              })}
             </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+// ─── 9. SETTINGS VIEW ────────────────────────────────────
+function SettingsView({ merchant, userId, setMerchant }: { merchant?: MerchantInfo | null; userId?: string; setMerchant: (m: MerchantInfo) => void }) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    businessName: '', description: '', address: '', phone: '', operatingHours: '', businessType: '',
+  });
+
+  const initializedRef = React.useRef(false);
+
+  useEffect(() => {
+    if (merchant && !initializedRef.current) {
+      initializedRef.current = true;
+      (async () => {
+        setForm({
+          businessName: merchant.businessName || '',
+          description: merchant.description || '',
+          address: merchant.address || '',
+          phone: merchant.phone || '',
+          operatingHours: merchant.operatingHours || '',
+          businessType: merchant.businessType || '',
+        });
+      })();
+    }
+  }, [merchant]);
+
+  const handleSave = async () => {
+    if (!userId) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/merchants/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, ...form }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setMerchant(updated);
+        toast.success('Paramètres enregistrés');
+      } else toast.error('Erreur lors de l\'enregistrement');
+    } catch { toast.error('Erreur serveur'); }
+    setSaving(false);
+  };
+
+  const setField = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div>
+        <h1 className="text-2xl font-bold gradient-text">Paramètres</h1>
+        <p className="text-sm text-muted-foreground mt-1">Informations de votre commerce</p>
+      </div>
+
+      <Card className="glass-card">
+        <CardContent className="p-4 space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1 block">Nom du commerce</label>
+            <Input value={form.businessName} onChange={(e) => setField('businessName', e.target.value)} />
           </div>
-
-          <Separator />
-
+          <div>
+            <label className="text-sm font-medium mb-1 block">Description</label>
+            <Textarea value={form.description} onChange={(e) => setField('description', e.target.value)} rows={3} />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">Adresse</label>
+            <Input value={form.address} onChange={(e) => setField('address', e.target.value)} />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Prénom</label>
-              <Input value={form.firstName} onChange={(e) => update('firstName', e.target.value)} />
+            <div>
+              <label className="text-sm font-medium mb-1 block">Téléphone</label>
+              <Input value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Nom</label>
-              <Input value={form.lastName} onChange={(e) => update('lastName', e.target.value)} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Email</label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input value={form.email} onChange={(e) => update('email', e.target.value)} className="pl-9" type="email" />
+            <div>
+              <label className="text-sm font-medium mb-1 block">Horaires</label>
+              <Input value={form.operatingHours} onChange={(e) => setField('operatingHours', e.target.value)} placeholder="08:00-22:00" />
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Téléphone</label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input value={form.phone} onChange={(e) => update('phone', e.target.value)} className="pl-9" />
-            </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">Type de commerce</label>
+            <select value={form.businessType} onChange={(e) => setField('businessType', e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="RESTAURANT">Restaurant</option>
+              <option value="SUPERMARKET">Supermarché</option>
+              <option value="PHARMACY">Pharmacie</option>
+              <option value="BOUTIQUE">Boutique</option>
+              <option value="COLIS">Service de colis</option>
+            </select>
           </div>
-
-          <Button onClick={() => toast.success('Profil mis à jour')} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            Enregistrer les modifications
+          <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+            {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
           </Button>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// VIEW ROUTER
-// ═══════════════════════════════════════════════════════════════════════════════
-function ViewRouter() {
-  const { view } = useMerchantNav();
+// ─── 10. SUBSCRIPTION VIEW ───────────────────────────────
+function SubscriptionView({ merchant }: { merchant?: MerchantInfo | null }) {
+  const [plans, setPlans] = useState<Array<Record<string, unknown>>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/plans');
+        if (res.ok) setPlans(await res.json());
+      } catch { /* silent */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  const currentPlan = merchant?.subscriptions?.[0]?.plan;
 
   return (
-    <AnimatePresence mode="wait">
-      {view === 'dashboard' && <DashboardView key="dashboard" />}
-      {view === 'products' && <ProductsView key="products" />}
-      {view === 'add-product' && <AddProductView key="add-product" />}
-      {view === 'orders' && <OrdersView key="orders" />}
-      {view === 'order-detail' && <OrderDetailView key="order-detail" />}
-      {view === 'stats' && <StatsView key="stats" />}
-      {view === 'marketing' && <MarketingView key="marketing" />}
-      {view === 'billing' && <BillingView key="billing" />}
-      {view === 'subscription' && <SubscriptionView key="subscription" />}
-      {view === 'settings' && <SettingsView key="settings" />}
-      {view === 'support' && <SupportView key="support" />}
-      {view === 'notifications' && <NotificationsView key="notifications" />}
-      {view === 'chat' && <ChatView key="chat" />}
-      {view === 'profile' && <ProfileView key="profile" />}
-    </AnimatePresence>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
-export default function MerchantApp() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Desktop Sidebar */}
-      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-
-      {/* Mobile Sidebar */}
-      <MobileSidebar open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <TopBar onMenuClick={() => setMobileMenuOpen(true)} />
-
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-4 lg:p-6">
-            <ViewRouter />
-          </div>
-        </main>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold gradient-text">Abonnement</h1>
+        <p className="text-sm text-muted-foreground mt-1">Gérez votre formule</p>
       </div>
+
+      {currentPlan && (
+        <Card className="glass-card border-primary/30 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Crown className="w-8 h-8 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Plan actuel</p>
+                <p className="text-lg font-bold gradient-text">{currentPlan.name}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-60 w-full" />)}
+        </div>
+      ) : plans.length === 0 ? (
+        <EmptyState icon={Crown} title="Aucun plan disponible" />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {plans.map((plan) => {
+            const features = plan.features ? (typeof plan.features === 'string' ? JSON.parse(plan.features) : plan.features) as string[] : [];
+            const isCurrent = currentPlan?.name === plan.name;
+            return (
+              <Card key={plan.id as string} className={`glass-card ${isCurrent ? 'border-primary/50 ring-1 ring-primary/20' : ''}`}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">{plan.name as string}</CardTitle>
+                  <CardDescription className="text-xs">{plan.duration as number} jours</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <span className="text-2xl font-bold">{formatPrice(plan.price as number)}</span>
+                    <span className="text-xs text-muted-foreground"> / {plan.duration as number}j</span>
+                  </div>
+                  {features.length > 0 && (
+                    <ul className="space-y-1.5">
+                      {features.map((f, i) => (
+                        <li key={i} className="flex items-center gap-2 text-xs">
+                          <Check className="w-3 h-3 text-primary shrink-0" />
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Button
+                    className="w-full"
+                    variant={isCurrent ? 'outline' : 'default'}
+                    disabled={isCurrent}
+                    onClick={() => toast.success('Demande d\'abonnement envoyée')}
+                  >
+                    {isCurrent ? 'Plan actuel' : "S'abonner"}
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 12. SUPPORT VIEW ────────────────────────────────────
+function SupportView({ userId }: { userId?: string }) {
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subject || !message) return toast.error('Veuillez remplir tous les champs');
+    setSending(true);
+    try {
+      const res = await fetch('/api/support', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, subject, description: message }),
+      });
+      if (res.ok) {
+        toast.success('Message envoyé avec succès');
+        setSubject('');
+        setMessage('');
+      } else toast.error('Erreur lors de l\'envoi');
+    } catch { toast.error('Erreur serveur'); }
+    setSending(false);
+  };
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div>
+        <h1 className="text-2xl font-bold gradient-text">Support</h1>
+        <p className="text-sm text-muted-foreground mt-1">Besoin d&apos;aide ? Contactez notre équipe</p>
+      </div>
+
+      <Card className="glass-card">
+        <CardContent className="p-4 space-y-4">
+          <form onSubmit={handleSend} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Sujet</label>
+              <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Décrivez brièvement votre problème" required />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Message</label>
+              <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Décrivez votre problème en détail..." rows={5} required />
+            </div>
+            <Button type="submit" disabled={sending} className="w-full sm:w-auto">
+              {sending ? 'Envoi en cours...' : 'Envoyer le message'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── 14. PROFILE VIEW ────────────────────────────────────
+function ProfileView() {
+  const { user, logout } = useAuthStore();
+
+  return (
+    <div className="space-y-4 max-w-md mx-auto">
+      <div>
+        <h1 className="text-2xl font-bold gradient-text">Profil</h1>
+      </div>
+
+      <Card className="glass-card">
+        <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
+          <Avatar className="w-20 h-20">
+            <AvatarFallback className="text-2xl bg-primary/10 text-primary">
+              {(user?.firstName?.[0] || 'M')}{(user?.lastName?.[0] || '')}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-semibold">{user?.firstName} {user?.lastName}</p>
+            <p className="text-sm text-muted-foreground">{user?.email}</p>
+          </div>
+          <Separator />
+          <div className="w-full space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Rôle</span>
+              <Badge>Marchand</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Statut</span>
+              <Badge variant={user?.isVerified ? 'default' : 'secondary'}>
+                {user?.isVerified ? 'Vérifié' : 'Non vérifié'}
+              </Badge>
+            </div>
+          </div>
+          <Separator />
+          <Button variant="outline" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={logout}>
+            Se déconnecter
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

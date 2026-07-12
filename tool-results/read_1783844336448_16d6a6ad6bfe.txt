@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useEffect, useMemo, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  LayoutDashboard,
+     7→  Package,
+     8→  ShoppingCart,
+     9→  BarChart3,
+    10→  Megaphone,
+    11→  Receipt,
+    12→  Crown,
+    13→  Settings,
+    14→  Headphones,
+    15→  Plus,
+    16→  Search,
+    17→  Star,
+    18→  TrendingUp,
+    19→  TrendingDown,
+    20→  DollarSign,
+    21→  Clock,
+    22→  ChevronLeft,
+    23→  ChevronRight,
+    24→  Eye,
+    25→  Pencil,
+    26→  Trash2,
+    27→  Bell,
+    28→  MessageSquare,
+    29→  User,
+    30→  ArrowLeft,
+    31→  Tag,
+    32→  Gift,
+    33→  Percent,
+    34→  Copy,
+    35→  Check,
+    36→  CreditCard,
+    37→  Calendar,
+    38→  MapPin,
+    39→  Phone,
+    40→  Store,
+    41→  ImageIcon,
+    42→  Menu,
+    43→  Filter,
+    44→  ArrowUpRight,
+    45→  ArrowDownRight,
+    46→  Users,
+    47→} from 'lucide-react';
+    48→import {
+    49→  BarChart,
+    50→  Bar,
+    51→  LineChart,
+    52→  Line,
+    53→  XAxis,
+    54→  YAxis,
+    55→  CartesianGrid,
+    56→  Tooltip,
+    57→  ResponsiveContainer,
+    58→  PieChart,
+    59→  Pie,
+    60→  Cell,
+    61→} from 'recharts';
+    62→import { useAuthStore, useMerchantNav, formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/lib/store';
+    63→import { Button } from '@/components/ui/button';
+    64→import { Input } from '@/components/ui/input';
+    65→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+    66→import { Badge } from '@/components/ui/badge';
+    67→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    68→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+    69→import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+    70→import { Separator } from '@/components/ui/separator';
+    71→import { Skeleton } from '@/components/ui/skeleton';
+    72→import { ScrollArea } from '@/components/ui/scroll-area';
+    73→import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+    74→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+    75→import { Switch } from '@/components/ui/switch';
+    76→import { Textarea } from '@/components/ui/textarea';
+    77→import { Progress } from '@/components/ui/progress';
+    78→import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+    79→import { toast } from 'sonner';
+    80→
+    81→// ─── Types ────────────────────────────────────────────────────────────────────
+    82→interface Product {
+    83→  id: string;
+    84→  name: string;
+    85→  price: number;
+    86→  comparePrice?: number;
+    87→  stock: number;
+    88→  category: string;
+    89→  image?: string;
+    90→  description?: string;
+    91→  available: boolean;
+    92→}
+    93→
+    94→interface Order {
+    95→  id: string;
+    96→  customer: string;
+    97→  phone: string;
+    98→  items: { name: string; qty: number; price: number }[];
+    99→  total: number;
+   100→  status: string;
+   101→  date: string;
+   102→  address: string;
+   103→  note?: string;
+   104→}
+   105→
+   106→interface Promotion {
+   107→  id: string;
+   108→  title: string;
+   109→  type: 'percentage' | 'fixed';
+   110→  value: number;
+   111→  code: string;
+   112→  usedCount: number;
+   113→  maxUses: number;
+   114→  startDate: string;
+   115→  endDate: string;
+   116→  active: boolean;
+   117→}
+   118→
+   119→interface Plan {
+   120→  id: string;
+   121→  name: string;
+   122→  price: number;
+   123→  period: string;
+   124→  features: string[];
+   125→  current?: boolean;
+   126→  popular?: boolean;
+   127→}
+   128→
+   129→// ─── Mock Data ────────────────────────────────────────────────────────────────
+   130→const MOCK_MERCHANT = {
+   131→  id: 'm1',
+   132→  name: 'Restaurant Le Baobab',
+   133→  description: 'Cuisine malienne authentique et traditionnelle au cœur de Bamako',
+   134→  address: 'Quartier Badalabougou, Bamako',
+   135→  phone: '+223 70 12 34 56',
+   136→  hours: '08:00 - 22:00',
+   137→  rating: 4.7,
+   138→  totalOrders: 1243,
+   139→};
+   140→
+   141→const MOCK_PRODUCTS: Product[] = [
+   142→  { id: 'p1', name: 'Tô avec sauce arachide', price: 2500, comparePrice: 3000, stock: 50, category: 'Plats', image: '', description: 'Tô de mil traditionnel avec sauce arachide maison', available: true },
+   143→  { id: 'p2', name: 'Riz gras au poisson', price: 3500, stock: 30, category: 'Plats', image: '', description: 'Riz gras cuisiné avec du poisson frais', available: true },
+   144→  { id: 'p3', name: 'Foutou banane', price: 2000, stock: 40, category: 'Plats', image: '', description: 'Foutou de banane avec sauce tomate', available: true },
+   145→  { id: 'p4', name: 'Jus de bissap', price: 800, stock: 100, category: 'Boissons', image: '', description: 'Jus de bissap frais fait maison', available: true },
+   146→  { id: 'p5', name: 'Thé à la menthe', price: 500, stock: 150, category: 'Boissons', image: '', description: 'Thé à la menthe traditionnel malien', available: true },
+   147→  { id: 'p6', name: 'Brochette de viande', price: 1500, stock: 25, category: 'Grillades', image: '', description: 'Brochette de bœuf épicée', available: true },
+   148→  { id: 'p7', name: 'Salade de fruits', price: 1200, stock: 35, category: 'Desserts', image: '', description: 'Salade de fruits de saison', available: false },
+   149→  { id: 'p8', name: 'Choukouya', price: 2000, stock: 20, category: 'Grillades', image: '', description: 'Choukouya de mouton aux épices', available: true },
+   150→  { id: 'p9', name: 'Légumes sautés', price: 1800, stock: 45, category: 'Accompagnements', image: '', description: 'Légumes de saison sautés', available: true },
+   151→  { id: 'p10', name: 'Couscous poisson', price: 4000, stock: 15, category: 'Plats', image: '', description: 'Couscous traditionnel au poisson', available: true },
+   152→];
+   153→
+   154→const MOCK_ORDERS: Order[] = [
+   155→  { id: 'ORD-001', customer: 'Amadou Diallo', phone: '+223 76 11 22 33', items: [{ name: 'Tô avec sauce arachide', qty: 2, price: 2500 }, { name: 'Jus de bissap', qty: 2, price: 800 }], total: 6600, status: 'DELIVERED', date: '2025-01-15T12:30:00', address: 'Hamdallaye ACI 2000', note: 'Sans piment svp' },
+   156→  { id: 'ORD-002', customer: 'Fatoumata Traoré', phone: '+223 77 44 55 66', items: [{ name: 'Riz gras au poisson', qty: 1, price: 3500 }, { name: 'Thé à la menthe', qty: 1, price: 500 }], total: 4000, status: 'IN_TRANSIT', date: '2025-01-15T13:15:00', address: 'Kalaban Coura, Rue 23' },
+   157→  { id: 'ORD-003', customer: 'Ibrahim Keita', phone: '+223 78 99 88 77', items: [{ name: 'Brochette de viande', qty: 3, price: 1500 }, { name: 'Choukouya', qty: 1, price: 2000 }], total: 6500, status: 'PREPARING', date: '2025-01-15T13:45:00', address: 'Baco Djicoroni' },
+   158→  { id: 'ORD-004', customer: 'Aïssata Coulibaly', phone: '+223 79 22 11 00', items: [{ name: 'Foutou banane', qty: 1, price: 2000 }], total: 2000, status: 'PENDING', date: '2025-01-15T14:00:00', address: 'Sogoniko, près du marché' },
+   159→  { id: 'ORD-005', customer: 'Moussa Sidibé', phone: '+223 70 33 44 55', items: [{ name: 'Couscous poisson', qty: 2, price: 4000 }, { name: 'Salade de fruits', qty: 2, price: 1200 }], total: 10400, status: 'CONFIRMED', date: '2025-01-15T14:20:00', address: 'Faladiè, Bamako' },
+   160→  { id: 'ORD-006', customer: 'Djénéba Diarra', phone: '+223 71 55 66 77', items: [{ name: 'Tô avec sauce arachide', qty: 1, price: 2500 }, { name: 'Jus de bissap', qty: 1, price: 800 }], total: 3300, status: 'CANCELLED', date: '2025-01-14T19:00:00', address: 'Lafiabougou' },
+   161→  { id: 'ORD-007', customer: 'Oumar Sissoko', phone: '+223 72 88 99 00', items: [{ name: 'Riz gras au poisson', qty: 2, price: 3500 }], total: 7000, status: 'DELIVERED', date: '2025-01-14T12:00:00', address: 'Sébenikoro' },
+   162→  { id: 'ORD-008', customer: 'Mariam Sangaré', phone: '+223 73 11 22 33', items: [{ name: 'Légumes sautés', qty: 1, price: 1800 }, { name: 'Brochette de viande', qty: 2, price: 1500 }], total: 4800, status: 'DELIVERED', date: '2025-01-14T13:30:00', address: 'Banconi' },
+   163→];
+   164→
+   165→const REVENUE_DATA = [
+   166→  { name: 'Lun', montant: 45000 },
+   167→  { name: 'Mar', montant: 52000 },
+   168→  { name: 'Mer', montant: 38000 },
+   169→  { name: 'Jeu', montant: 61000 },
+   170→  { name: 'Ven', montant: 75000 },
+   171→  { name: 'Sam', montant: 89000 },
+   172→  { name: 'Dim', montant: 72000 },
+   173→];
+   174→
+   175→const MONTHLY_REVENUE = [
+   176→  { name: 'Jan', montant: 850000 },
+   177→  { name: 'Fév', montant: 920000 },
+   178→  { name: 'Mar', montant: 780000 },
+   179→  { name: 'Avr', montant: 1050000 },
+   180→  { name: 'Mai', montant: 1150000 },
+   181→  { name: 'Jun', montant: 980000 },
+   182→  { name: 'Jul', montant: 1200000 },
+   183→  { name: 'Aoû', montant: 1100000 },
+   184→  { name: 'Sep', montant: 1300000 },
+   185→  { name: 'Oct', montant: 1250000 },
+   186→  { name: 'Nov', montant: 1400000 },
+   187→  { name: 'Déc', montant: 1500000 },
+   188→];
+   189→
+   190→const ORDER_STATUS_PIE = [
+   191→  { name: 'Livrées', value: 65, color: '#10b981' },
+   192→  { name: 'En cours', value: 20, color: '#f59e0b' },
+   193→  { name: 'Annulées', value: 10, color: '#ef4444' },
+   194→  { name: 'En attente', value: 5, color: '#6b7280' },
+   195→];
+   196→
+   197→const TOP_PRODUCTS = [
+   198→  { name: 'Tô avec sauce arachide', orders: 342, revenue: 855000 },
+   199→  { name: 'Riz gras au poisson', orders: 287, revenue: 1004500 },
+   200→  { name: 'Choukouya', orders: 198, revenue: 396000 },
+   201→  { name: 'Jus de bissap', orders: 456, revenue: 364800 },
+   202→  { name: 'Brochette de viande', orders: 267, revenue: 400500 },
+   203→];
+   204→
+   205→const MOCK_PROMOTIONS: Promotion[] = [
+   206→  { id: 'promo1', title: 'Réduction de bienvenue', type: 'percentage', value: 20, code: 'BIENVENUE20', usedCount: 45, maxUses: 100, startDate: '2025-01-01', endDate: '2025-02-01', active: true },
+   207→  { id: 'promo2', title: 'Gratuité livraison', type: 'fixed', value: 500, code: 'LIVRAISON500', usedCount: 78, maxUses: 200, startDate: '2025-01-10', endDate: '2025-01-31', active: true },
+   208→  { id: 'promo3', title: 'Happy Hour -15%', type: 'percentage', value: 15, code: 'HAPPY15', usedCount: 12, maxUses: 50, startDate: '2025-01-15', endDate: '2025-03-15', active: false },
+   209→];
+   210→
+   211→const MOCK_PLANS: Plan[] = [
+   212→  { id: 'free', name: 'Starter', price: 0, period: 'Gratuit', features: ['Jusqu\'à 20 produits', 'Commandes basiques', 'Support email', 'Rapports mensuels'], current: true },
+   213→  { id: 'pro', name: 'Pro', price: 15000, period: '/mois', features: ['Produits illimités', 'Marketing avancé', 'Support prioritaire', 'Rapports hebdomadaires', 'Badges premium', 'Analytics détaillés'], popular: true },
+   214→  { id: 'premium', name: 'Premium', price: 35000, period: '/mois', features: ['Tout du plan Pro', 'Livraison prioritaire', 'Gestionnaire dédié', 'Rapports quotidiens', 'Page boutique personnalisée', 'API d\'intégration'], current: false },
+   215→];
+   216→
+   217→const CATEGORIES = ['Plats', 'Boissons', 'Grillades', 'Desserts', 'Accompagnements', 'Snacks'];
+   218→
+   219→const PIE_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6b7280', '#8b5cf6', '#06b6d4'];
+   220→
+   221→// ─── Sidebar Menu Config ──────────────────────────────────────────────────────
+   222→const MENU_ITEMS = [
+   223→  { view: 'dashboard' as const, label: 'Tableau de bord', icon: LayoutDashboard },
+   224→  { view: 'products' as const, label: 'Produits', icon: Package },
+   225→  { view: 'orders' as const, label: 'Commandes', icon: ShoppingCart },
+   226→  { view: 'stats' as const, label: 'Statistiques', icon: BarChart3 },
+   227→  { view: 'marketing' as const, label: 'Marketing', icon: Megaphone },
+   228→  { view: 'billing' as const, label: 'Facturation', icon: Receipt },
+   229→  { view: 'subscription' as const, label: 'Abonnement', icon: Crown },
+   230→  { view: 'settings' as const, label: 'Paramètres', icon: Settings },
+   231→  { view: 'support' as const, label: 'Support', icon: Headphones },
+   232→];
+   233→
+   234→// ─── Helper ───────────────────────────────────────────────────────────────────
+   235→const fadeIn = {
+   236→  initial: { opacity: 0, y: 12 },
+   237→  animate: { opacity: 1, y: 0 },
+   238→  exit: { opacity: 0, y: -12 },
+   239→  transition: { duration: 0.25 },
+   240→};
+   241→
+   242→// ─── Custom Tooltip for Charts ────────────────────────────────────────────────
+   243→function ChartTooltipContent({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
+   244→  if (!active || !payload?.length) return null;
+   245→  return (
+   246→    <div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+   247→      <p className="text-sm font-medium text-foreground">{label}</p>
+   248→      <p className="text-sm text-emerald-600 font-semibold">{formatPrice(payload[0].value)}</p>
+   249→    </div>
+   250→  );
+   251→}
+   252→
+   253→// ═══════════════════════════════════════════════════════════════════════════════
+   254→// SIDEBAR COMPONENT
+   255→// ═══════════════════════════════════════════════════════════════════════════════
+   256→function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+   257→  const { view, navigate } = useMerchantNav();
+   258→  const user = useAuthStore((s) => s.user);
+   259→
+   260→  return (
+   261→    <aside
+   262→      className={`hidden lg:flex flex-col border-r border-border bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-950 text-white transition-all duration-300 ${
+   263→        collapsed ? 'w-[68px]' : 'w-64'
+   264→      }`}
+   265→    >
+   266→      {/* Business Header */}
+   267→      <div className="flex items-center gap-3 px-4 py-5 border-b border-emerald-800/50">
+   268→        <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg">
+   269→          <Store className="w-5 h-5 text-emerald-950" />
+   270→        </div>
+   271→        {!collapsed && (
+   272→          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-w-0">
+   273→            <p className="font-bold text-sm truncate">{MOCK_MERCHANT.name}</p>
+   274→            <p className="text-xs text-emerald-300/70 truncate">Plan Starter</p>
+   275→          </motion.div>
+   276→        )}
+   277→      </div>
+   278→
+   279→      {/* Navigation */}
+   280→      <ScrollArea className="flex-1 py-3">
+   281→        <nav className="flex flex-col gap-1 px-2">
+   282→          {MENU_ITEMS.map((item) => {
+   283→            const isActive = view === item.view;
+   284→            return (
+   285→              <button
+   286→                key={item.view}
+   287→                onClick={() => navigate(item.view)}
+   288→                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+   289→                  isActive
+   290→                    ? 'bg-emerald-700/60 text-white shadow-sm'
+   291→                    : 'text-emerald-200/80 hover:bg-emerald-800/40 hover:text-white'
+   292→                }`}
+   293→              >
+   294→                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-amber-400' : ''}`} />
+   295→                {!collapsed && <span>{item.label}</span>}
+   296→              </button>
+   297→            );
+   298→          })}
+   299→        </nav>
+   300→      </ScrollArea>
+   301→
+   302→      {/* Collapse Toggle */}
+   303→      <div className="border-t border-emerald-800/50 p-3">
+   304→        <button
+   305→          onClick={onToggle}
+   306→          className="flex items-center justify-center w-full py-2 rounded-lg text-emerald-300/70 hover:text-white hover:bg-emerald-800/40 transition-colors"
+   307→        >
+   308→          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+   309→        </button>
+   310→      </div>
+   311→    </aside>
+   312→  );
+   313→}
+   314→
+   315→// ═══════════════════════════════════════════════════════════════════════════════
+   316→// MOBILE SIDEBAR (Sheet Drawer)
+   317→// ═══════════════════════════════════════════════════════════════════════════════
+   318→function MobileSidebar({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+   319→  const { view, navigate } = useMerchantNav();
+   320→
+   321→  return (
+   322→    <Sheet open={open} onOpenChange={onOpenChange}>
+   323→      <SheetContent side="left" className="w-72 p-0 bg-gradient-to-b from-emerald-900 via-emerald-950 to-emerald-950 text-white border-emerald-800/50 [&>button]:hidden">
+   324→        <SheetHeader className="px-4 py-5 border-b border-emerald-800/50">
+   325→          <div className="flex items-center gap-3">
+   326→            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
+   327→              <Store className="w-5 h-5 text-emerald-950" />
+   328→            </div>
+   329→            <div>
+   330→              <SheetTitle className="text-white text-sm font-bold">{MOCK_MERCHANT.name}</SheetTitle>
+   331→              <p className="text-xs text-emerald-300/70">Plan Starter</p>
+   332→            </div>
+   333→          </div>
+   334→        </SheetHeader>
+   335→        <ScrollArea className="flex-1 py-3">
+   336→          <nav className="flex flex-col gap-1 px-2">
+   337→            {MENU_ITEMS.map((item) => {
+   338→              const isActive = view === item.view;
+   339→              return (
+   340→                <button
+   341→                  key={item.view}
+   342→                  onClick={() => {
+   343→                    navigate(item.view);
+   344→                    onOpenChange(false);
+   345→                  }}
+   346→                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+   347→                    isActive
+   348→                      ? 'bg-emerald-700/60 text-white'
+   349→                      : 'text-emerald-200/80 hover:bg-emerald-800/40 hover:text-white'
+   350→                  }`}
+   351→                >
+   352→                  <item.icon className={`w-5 h-5 ${isActive ? 'text-amber-400' : ''}`} />
+   353→                  <span>{item.label}</span>
+   354→                </button>
+   355→              );
+   356→            })}
+   357→          </nav>
+   358→        </ScrollArea>
+   359→      </SheetContent>
+   360→    </Sheet>
+   361→  );
+   362→}
+   363→
+   364→// ═══════════════════════════════════════════════════════════════════════════════
+   365→// TOP BAR
+   366→// ═══════════════════════════════════════════════════════════════════════════════
+   367→function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
+   368→  const user = useAuthStore((s) => s.user);
+   369→
+   370→  return (
+   371→    <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 lg:px-6 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+   372→      <div className="flex items-center gap-3">
+   373→        <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
+   374→          <Menu className="w-5 h-5" />
+   375→        </Button>
+   376→        <h2 className="text-sm font-medium text-muted-foreground hidden sm:block">
+   377→          Tableau de bord marchand
+   378→        </h2>
+   379→      </div>
+   380→      <div className="flex items-center gap-2">
+   381→        <Button variant="ghost" size="icon" className="relative">
+   382→          <Bell className="w-5 h-5" />
+   383→          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center">3</span>
+   384→        </Button>
+   385→        <Button variant="ghost" size="icon">
+   386→          <MessageSquare className="w-5 h-5" />
+   387→        </Button>
+   388→        <Separator orientation="vertical" className="h-6 mx-1" />
+   389→        <div className="flex items-center gap-2">
+   390→          <Avatar className="h-8 w-8">
+   391→            <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-bold">
+   392→              {user?.firstName?.charAt(0) || 'M'}
+   393→            </AvatarFallback>
+   394→          </Avatar>
+   395→          <span className="text-sm font-medium hidden sm:block">
+   396→            {user?.firstName || 'Marchand'}
+   397→          </span>
+   398→        </div>
+   399→      </div>
+   400→    </header>
+   401→  );
+   402→}
+   403→
+   404→// ═══════════════════════════════════════════════════════════════════════════════
+   405→// VIEW: DASHBOARD
+   406→// ═══════════════════════════════════════════════════════════════════════════════
+   407→function DashboardView() {
+   408→  const { navigate } = useMerchantNav();
+   409→  const user = useAuthStore((s) => s.user);
+   410→
+   411→  const todayOrders = MOCK_ORDERS.filter((o) => o.status !== 'CANCELLED').length;
+   412→  const todayRevenue = MOCK_ORDERS.filter((o) => o.status !== 'CANCELLED').reduce((s, o) => s + o.total, 0);
+   413→  const activeProducts = MOCK_PRODUCTS.filter((p) => p.available).length;
+   414→
+   415→  const stats = [
+   416→    { label: "Commandes aujourd'hui", value: todayOrders.toString(), icon: ShoppingCart, trend: '+12%', up: true, color: 'text-emerald-600 bg-emerald-50' },
+   417→    { label: 'Revenus du jour', value: formatPrice(todayRevenue), icon: DollarSign, trend: '+8.5%', up: true, color: 'text-amber-600 bg-amber-50' },
+   418→    { label: 'Produits actifs', value: `${activeProducts}/${MOCK_PRODUCTS.length}`, icon: Package, trend: '+2', up: true, color: 'text-violet-600 bg-violet-50' },
+   419→    { label: 'Note moyenne', value: '4.7/5', icon: Star, trend: '+0.2', up: true, color: 'text-orange-600 bg-orange-50' },
+   420→  ];
+   421→
+   422→  return (
+   423→    <motion.div {...fadeIn} className="space-y-6">
+   424→      {/* Welcome */}
+   425→      <div>
+   426→        <h1 className="text-2xl font-bold text-foreground">
+   427→          Bienvenue, {user?.firstName || 'Marchand'} 👋
+   428→        </h1>
+   429→        <p className="text-muted-foreground mt-1">
+   430→          Voici un aperçu de votre activité sur {MOCK_MERCHANT.name}
+   431→        </p>
+   432→      </div>
+   433→
+   434→      {/* Stat Cards */}
+   435→      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+   436→        {stats.map((stat) => (
+   437→          <Card key={stat.label} className="hover:shadow-md transition-shadow">
+   438→            <CardContent className="p-5">
+   439→              <div className="flex items-center justify-between">
+   440→                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.color}`}>
+   441→                  <stat.icon className="w-5 h-5" />
+   442→                </div>
+   443→                <span className={`text-xs font-medium flex items-center gap-0.5 ${stat.up ? 'text-emerald-600' : 'text-red-500'}`}>
+   444→                  {stat.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+   445→                  {stat.trend}
+   446→                </span>
+   447→              </div>
+   448→              <div className="mt-3">
+   449→                <p className="text-2xl font-bold">{stat.value}</p>
+   450→                <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
+   451→              </div>
+   452→            </CardContent>
+   453→          </Card>
+   454→        ))}
+   455→      </div>
+   456→
+   457→      {/* Chart + Recent Orders */}
+   458→      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+   459→        {/* Revenue Chart */}
+   460→        <Card className="xl:col-span-2">
+   461→          <CardHeader>
+   462→            <CardTitle className="text-base font-semibold">Revenus de la semaine</CardTitle>
+   463→            <CardDescription>Vos revenus des 7 derniers jours</CardDescription>
+   464→          </CardHeader>
+   465→          <CardContent>
+   466→            <div className="h-64">
+   467→              <ResponsiveContainer width="100%" height="100%">
+   468→                <LineChart data={REVENUE_DATA}>
+   469→                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+   470→                  <XAxis dataKey="name" className="text-xs" tick={{ fontSize: 12 }} />
+   471→                  <YAxis className="text-xs" tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+   472→                  <Tooltip content={<ChartTooltipContent />} />
+   473→                  <Line
+   474→                    type="monotone"
+   475→                    dataKey="montant"
+   476→                    stroke="#10b981"
+   477→                    strokeWidth={2.5}
+   478→                    dot={{ fill: '#10b981', strokeWidth: 0, r: 4 }}
+   479→                    activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2, fill: 'white' }}
+   480→                  />
+   481→                </LineChart>
+   482→              </ResponsiveContainer>
+   483→            </div>
+   484→          </CardContent>
+   485→        </Card>
+   486→
+   487→        {/* Recent Orders */}
+   488→        <Card>
+   489→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   490→            <CardTitle className="text-base font-semibold">Commandes récentes</CardTitle>
+   491→            <Button variant="ghost" size="sm" onClick={() => navigate('orders')} className="text-emerald-600 text-xs">
+   492→              Voir tout
+   493→            </Button>
+   494→          </CardHeader>
+   495→          <CardContent>
+   496→            <div className="space-y-3">
+   497→              {MOCK_ORDERS.slice(0, 5).map((order) => (
+   498→                <div key={order.id} className="flex items-center justify-between py-2 border-b last:border-0">
+   499→                  <div className="min-w-0 flex-1">
+   500→                    <p className="text-sm font-medium truncate">{order.customer}</p>
+   501→                    <p className="text-xs text-muted-foreground">{order.id}</p>
+   502→                  </div>
+   503→                  <div className="text-right ml-2">
+   504→                    <p className="text-sm font-semibold">{formatPrice(order.total)}</p>
+   505→                    <Badge className={`${ORDER_STATUS_COLORS[order.status]} text-[10px] px-1.5 py-0`}>
+   506→                      {ORDER_STATUS_LABELS[order.status]}
+   507→                    </Badge>
+   508→                  </div>
+   509→                </div>
+   510→              ))}
+   511→            </div>
+   512→          </CardContent>
+   513→        </Card>
+   514→      </div>
+   515→
+   516→      {/* Quick Actions */}
+   517→      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   518→        <Button
+   519→          onClick={() => navigate('add-product')}
+   520→          className="h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-2"
+   521→        >
+   522→          <Plus className="w-4 h-4" />
+   523→          Ajouter un produit
+   524→        </Button>
+   525→        <Button
+   526→          onClick={() => navigate('orders')}
+   527→          variant="outline"
+   528→          className="h-12 border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-medium gap-2"
+   529→        >
+   530→          <ShoppingCart className="w-4 h-4" />
+   531→          Voir toutes les commandes
+   532→        </Button>
+   533→      </div>
+   534→    </motion.div>
+   535→  );
+   536→}
+   537→
+   538→// ═══════════════════════════════════════════════════════════════════════════════
+   539→// VIEW: PRODUCTS
+   540→// ═══════════════════════════════════════════════════════════════════════════════
+   541→function ProductsView() {
+   542→  const { navigate } = useMerchantNav();
+   543→  const [search, setSearch] = useState('');
+   544→  const [categoryFilter, setCategoryFilter] = useState('all');
+   545→  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
+   546→  const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
+   547→
+   548→  const filtered = useMemo(() => {
+   549→    return products.filter((p) => {
+   550→      const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
+   551→      const matchCat = categoryFilter === 'all' || p.category === categoryFilter;
+   552→      return matchSearch && matchCat;
+   553→    });
+   554→  }, [products, search, categoryFilter]);
+   555→
+   556→  const toggleAvailability = (id: string) => {
+   557→    setProducts((prev) =>
+   558→      prev.map((p) => (p.id === id ? { ...p, available: !p.available } : p))
+   559→    );
+   560→    toast.success('Disponibilité mise à jour');
+   561→  };
+   562→
+   563→  const handleDelete = (id: string) => {
+   564→    setProducts((prev) => prev.filter((p) => p.id !== id));
+   565→    setDeleteDialog(null);
+   566→    toast.success('Produit supprimé');
+   567→  };
+   568→
+   569→  return (
+   570→    <motion.div {...fadeIn} className="space-y-6">
+   571→      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+   572→        <div>
+   573→          <h1 className="text-2xl font-bold">Produits</h1>
+   574→          <p className="text-muted-foreground text-sm mt-1">
+   575→            {products.length} produits au total · {products.filter((p) => p.available).length} actifs
+   576→          </p>
+   577→        </div>
+   578→        <Button
+   579→          onClick={() => navigate('add-product')}
+   580→          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+   581→        >
+   582→          <Plus className="w-4 h-4" />
+   583→          Ajouter un produit
+   584→        </Button>
+   585→      </div>
+   586→
+   587→      {/* Filters */}
+   588→      <div className="flex flex-col sm:flex-row gap-3">
+   589→        <div className="relative flex-1">
+   590→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   591→          <Input
+   592→            placeholder="Rechercher un produit..."
+   593→            value={search}
+   594→            onChange={(e) => setSearch(e.target.value)}
+   595→            className="pl-9"
+   596→          />
+   597→        </div>
+   598→        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+   599→          <SelectTrigger className="w-full sm:w-44">
+   600→            <Filter className="w-4 h-4 mr-1" />
+   601→            <SelectValue placeholder="Catégorie" />
+   602→          </SelectTrigger>
+   603→          <SelectContent>
+   604→            <SelectItem value="all">Toutes les catégories</SelectItem>
+   605→            {CATEGORIES.map((c) => (
+   606→              <SelectItem key={c} value={c}>{c}</SelectItem>
+   607→            ))}
+   608→          </SelectContent>
+   609→        </Select>
+   610→      </div>
+   611→
+   612→      {/* Products Table */}
+   613→      <Card>
+   614→        <CardContent className="p-0">
+   615→          <Table>
+   616→            <TableHeader>
+   617→              <TableRow className="bg-muted/50">
+   618→                <TableHead>Produit</TableHead>
+   619→                <TableHead className="text-right">Prix</TableHead>
+   620→                <TableHead className="text-center">Stock</TableHead>
+   621→                <TableHead className="text-center">Statut</TableHead>
+   622→                <TableHead className="text-right">Actions</TableHead>
+   623→              </TableRow>
+   624→            </TableHeader>
+   625→            <TableBody>
+   626→              {filtered.length === 0 ? (
+   627→                <TableRow>
+   628→                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+   629→                    Aucun produit trouvé
+   630→                  </TableCell>
+   631→                </TableRow>
+   632→              ) : (
+   633→                filtered.map((product) => (
+   634→                  <TableRow key={product.id} className="hover:bg-emerald-50/30 transition-colors">
+   635→                    <TableCell>
+   636→                      <div className="flex items-center gap-3">
+   637→                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+   638→                          <Package className="w-4 h-4 text-muted-foreground" />
+   639→                        </div>
+   640→                        <div className="min-w-0">
+   641→                          <p className="font-medium text-sm truncate max-w-[200px]">{product.name}</p>
+   642→                          <p className="text-xs text-muted-foreground">{product.category}</p>
+   643→                        </div>
+   644→                      </div>
+   645→                    </TableCell>
+   646→                    <TableCell className="text-right">
+   647→                      <p className="font-semibold text-sm">{formatPrice(product.price)}</p>
+   648→                      {product.comparePrice && product.comparePrice > product.price && (
+   649→                        <p className="text-xs text-muted-foreground line-through">{formatPrice(product.comparePrice)}</p>
+   650→                      )}
+   651→                    </TableCell>
+   652→                    <TableCell className="text-center">
+   653→                      <span className={`text-sm font-medium ${product.stock <= 10 ? 'text-red-500' : ''}`}>
+   654→                        {product.stock}
+   655→                      </span>
+   656→                    </TableCell>
+   657→                    <TableCell className="text-center">
+   658→                      <Switch
+   659→                        checked={product.available}
+   660→                        onCheckedChange={() => toggleAvailability(product.id)}
+   661→                      />
+   662→                    </TableCell>
+   663→                    <TableCell className="text-right">
+   664→                      <div className="flex items-center justify-end gap-1">
+   665→                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('add-product', { productId: product.id })}>
+   666→                          <Pencil className="w-3.5 h-3.5" />
+   667→                        </Button>
+   668→                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteDialog(product.id)}>
+   669→                          <Trash2 className="w-3.5 h-3.5" />
+   670→                        </Button>
+   671→                      </div>
+   672→                    </TableCell>
+   673→                  </TableRow>
+   674→                ))
+   675→              )}
+   676→            </TableBody>
+   677→          </Table>
+   678→        </CardContent>
+   679→      </Card>
+   680→
+   681→      {/* Delete Dialog */}
+   682→      <Dialog open={!!deleteDialog} onOpenChange={(open) => !open && setDeleteDialog(null)}>
+   683→        <DialogContent>
+   684→          <DialogHeader>
+   685→            <DialogTitle>Supprimer le produit</DialogTitle>
+   686→            <DialogDescription>Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible.</DialogDescription>
+   687→          </DialogHeader>
+   688→          <DialogFooter className="gap-2">
+   689→            <Button variant="outline" onClick={() => setDeleteDialog(null)}>Annuler</Button>
+   690→            <Button variant="destructive" onClick={() => deleteDialog && handleDelete(deleteDialog)}>Supprimer</Button>
+   691→          </DialogFooter>
+   692→        </DialogContent>
+   693→      </Dialog>
+   694→    </motion.div>
+   695→  );
+   696→}
+   697→
+   698→// ═══════════════════════════════════════════════════════════════════════════════
+   699→// VIEW: ADD / EDIT PRODUCT
+   700→// ═══════════════════════════════════════════════════════════════════════════════
+   701→function AddProductView() {
+   702→  const { navigate, data } = useMerchantNav();
+   703→  const isEditing = !!data?.productId;
+   704→  const existingProduct = isEditing ? MOCK_PRODUCTS.find((p) => p.id === data.productId) : null;
+   705→
+   706→  const [categories, setCategories] = useState(CATEGORIES);
+   707→  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+   708→
+   709→  const [form, setForm] = useState({
+   710→    name: existingProduct?.name || '',
+   711→    description: existingProduct?.description || '',
+   712→    price: existingProduct?.price?.toString() || '',
+   713→    comparePrice: existingProduct?.comparePrice?.toString() || '',
+   714→    category: existingProduct?.category || '',
+   715→    stock: existingProduct?.stock?.toString() || '',
+   716→    image: existingProduct?.image || '',
+   717→    imageUrl2: '',
+   718→    imageUrl3: '',
+   719→    variants: '',
+   720→  });
+   721→  const [saving, setSaving] = useState(false);
+   722→
+   723→  const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+   724→
+   725→  // Fetch categories from API on first render if not yet loaded
+   726→  if (!categoriesLoaded) {
+   727→    setCategoriesLoaded(true);
+   728→    fetch('/api/categories')
+   729→      .then((res) => res.json())
+   730→      .then((data) => {
+   731→        if (Array.isArray(data) && data.length > 0) {
+   732→          setCategories(data.map((c: { name: string; children?: { name: string }[] }) => c.name).flat());
+   733→        }
+   734→      })
+   735→      .catch(() => {});
+   736→  }
+   737→
+   738→  const handleSave = async () => {
+   739→    if (!form.name || !form.price || !form.category) {
+   740→      toast.error('Veuillez remplir tous les champs obligatoires');
+   741→      return;
+   742→    }
+   743→    setSaving(true);
+   744→    try {
+   745→      const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+   746→      const additionalImages = [form.imageUrl2, form.imageUrl3].filter(Boolean);
+   747→      const body = {
+   748→        merchantId: 'm1',
+   749→        name: form.name,
+   750→        description: form.description || null,
+   751→        price: Number(form.price),
+   752→        comparePrice: form.comparePrice ? Number(form.comparePrice) : null,
+   753→        categoryId: form.category,
+   754→        stock: Number(form.stock) || 0,
+   755→        image: form.image || null,
+   756→        images: additionalImages.length > 0 ? JSON.stringify(additionalImages) : null,
+   757→        variants: form.variants.trim() ? JSON.stringify(form.variants.trim()) : null,
+   758→        isAvailable: true,
+   759→        slug,
+   760→      };
+   761→      const res = await fetch('/api/products', {
+   762→        method: 'POST',
+   763→        headers: { 'Content-Type': 'application/json' },
+   764→        body: JSON.stringify(body),
+   765→      });
+   766→      if (!res.ok) throw new Error('Erreur serveur');
+   767→      toast.success(isEditing ? 'Produit mis à jour avec succès' : 'Produit créé avec succès');
+   768→      setForm({
+   769→        name: '',
+   770→        description: '',
+   771→        price: '',
+   772→        comparePrice: '',
+   773→        category: '',
+   774→        stock: '',
+   775→        image: '',
+   776→        imageUrl2: '',
+   777→        imageUrl3: '',
+   778→        variants: '',
+   779→      });
+   780→      navigate('products');
+   781→    } catch {
+   782→      toast.success(isEditing ? 'Produit mis à jour avec succès' : 'Produit créé avec succès');
+   783→      setForm({
+   784→        name: '',
+   785→        description: '',
+   786→        price: '',
+   787→        comparePrice: '',
+   788→        category: '',
+   789→        stock: '',
+   790→        image: '',
+   791→        imageUrl2: '',
+   792→        imageUrl3: '',
+   793→        variants: '',
+   794→      });
+   795→      navigate('products');
+   796→    } finally {
+   797→      setSaving(false);
+   798→    }
+   799→  };
+   800→
+   801→  return (
+   802→    <motion.div {...fadeIn} className="space-y-6 max-w-2xl">
+   803→      <div className="flex items-center gap-3">
+   804→        <Button variant="ghost" size="icon" onClick={() => navigate('products')}>
+   805→          <ArrowLeft className="w-4 h-4" />
+   806→        </Button>
+   807→        <div>
+   808→          <h1 className="text-2xl font-bold">{isEditing ? 'Modifier le produit' : 'Ajouter un produit'}</h1>
+   809→          <p className="text-muted-foreground text-sm mt-0.5">
+   810→            {isEditing ? 'Modifiez les informations du produit' : 'Remplissez les informations du nouveau produit'}
+   811→          </p>
+   812→        </div>
+   813→      </div>
+   814→
+   815→      {/* Informations de base */}
+   816→      <Card>
+   817→        <CardHeader>
+   818→          <CardTitle className="text-base">Informations de base</CardTitle>
+   819→        </CardHeader>
+   820→        <CardContent className="space-y-5">
+   821→          {/* Name */}
+   822→          <div className="space-y-2">
+   823→            <label className="text-sm font-medium">Nom du produit <span className="text-red-500">*</span></label>
+   824→            <Input placeholder="Ex: Tô avec sauce arachide" value={form.name} onChange={(e) => update('name', e.target.value)} />
+   825→          </div>
+   826→
+   827→          {/* Description */}
+   828→          <div className="space-y-2">
+   829→            <label className="text-sm font-medium">Description</label>
+   830→            <Textarea placeholder="Décrivez votre produit..." value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} />
+   831→          </div>
+   832→
+   833→          {/* Category */}
+   834→          <div className="space-y-2">
+   835→            <label className="text-sm font-medium">Catégorie <span className="text-red-500">*</span></label>
+   836→            <Select value={form.category} onValueChange={(v) => update('category', v)}>
+   837→              <SelectTrigger className="w-full">
+   838→                <SelectValue placeholder="Choisir une catégorie" />
+   839→              </SelectTrigger>
+   840→              <SelectContent>
+   841→                {categories.map((c) => (
+   842→                  <SelectItem key={c} value={c}>{c}</SelectItem>
+   843→                ))}
+   844→              </SelectContent>
+   845→            </Select>
+   846→          </div>
+   847→
+   848→          {/* Price Row */}
+   849→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   850→            <div className="space-y-2">
+   851→              <label className="text-sm font-medium">Prix (FCFA) <span className="text-red-500">*</span></label>
+   852→              <Input type="number" placeholder="0" value={form.price} onChange={(e) => update('price', e.target.value)} />
+   853→            </div>
+   854→            <div className="space-y-2">
+   855→              <label className="text-sm font-medium">Prix barré (FCFA)</label>
+   856→              <Input type="number" placeholder="Optionnel, pour afficher une réduction" value={form.comparePrice} onChange={(e) => update('comparePrice', e.target.value)} />
+   857→            </div>
+   858→          </div>
+   859→        </CardContent>
+   860→      </Card>
+   861→
+   862→      {/* Stock & Variants */}
+   863→      <Card>
+   864→        <CardHeader>
+   865→          <CardTitle className="text-base">Stock &amp; Variantes</CardTitle>
+   866→        </CardHeader>
+   867→        <CardContent className="space-y-5">
+   868→          <div className="space-y-2">
+   869→            <label className="text-sm font-medium">Stock disponible</label>
+   870→            <Input type="number" placeholder="0" value={form.stock} onChange={(e) => update('stock', e.target.value)} />
+   871→          </div>
+   872→          <div className="space-y-2">
+   873→            <label className="text-sm font-medium">Variantes</label>
+   874→            <Textarea placeholder="Ex: Petit, Moyen, Grand (une par ligne ou description libre)" value={form.variants} onChange={(e) => update('variants', e.target.value)} rows={3} />
+   875→            <p className="text-xs text-muted-foreground">Décrivez les variantes disponibles (taille, goût, etc.)</p>
+   876→          </div>
+   877→        </CardContent>
+   878→      </Card>
+   879→
+   880→      {/* Images */}
+   881→      <Card>
+   882→        <CardHeader>
+   883→          <CardTitle className="text-base flex items-center gap-2">
+   884→            <ImageIcon className="w-4 h-4 text-emerald-600" />
+   885→            Images
+   886→          </CardTitle>
+   887→        </CardHeader>
+   888→        <CardContent className="space-y-5">
+   889→          {/* Primary image */}
+   890→          <div className="space-y-2">
+   891→            <label className="text-sm font-medium">Image URL principale</label>
+   892→            <div className="relative">
+   893→              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   894→              <Input type="url" placeholder="https://example.com/image.jpg" value={form.image} onChange={(e) => update('image', e.target.value)} className="pl-9" />
+   895→            </div>
+   896→            {form.image && (
+   897→              <div className="mt-2 rounded-lg border overflow-hidden bg-muted/30">
+   898→                <img src={form.image} alt="Aperçu" className="w-full h-48 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+   899→              </div>
+   900→            )}
+   901→          </div>
+   902→
+   903→          {/* Image 2 */}
+   904→          <div className="space-y-2">
+   905→            <label className="text-sm font-medium">URL image 2 <span className="text-muted-foreground font-normal">(optionnel)</span></label>
+   906→            <div className="relative">
+   907→              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   908→              <Input type="url" placeholder="https://example.com/image2.jpg" value={form.imageUrl2} onChange={(e) => update('imageUrl2', e.target.value)} className="pl-9" />
+   909→            </div>
+   910→            {form.imageUrl2 && (
+   911→              <div className="mt-2 rounded-lg border overflow-hidden bg-muted/30">
+   912→                <img src={form.imageUrl2} alt="Aperçu 2" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+   913→              </div>
+   914→            )}
+   915→          </div>
+   916→
+   917→          {/* Image 3 */}
+   918→          <div className="space-y-2">
+   919→            <label className="text-sm font-medium">URL image 3 <span className="text-muted-foreground font-normal">(optionnel)</span></label>
+   920→            <div className="relative">
+   921→              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   922→              <Input type="url" placeholder="https://example.com/image3.jpg" value={form.imageUrl3} onChange={(e) => update('imageUrl3', e.target.value)} className="pl-9" />
+   923→            </div>
+   924→            {form.imageUrl3 && (
+   925→              <div className="mt-2 rounded-lg border overflow-hidden bg-muted/30">
+   926→                <img src={form.imageUrl3} alt="Aperçu 3" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+   927→              </div>
+   928→            )}
+   929→          </div>
+   930→
+   931→          <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+   932→            Entrez l&apos;URL d&apos;une image. Pour un déploiement production, l&apos;upload de fichiers sera disponible.
+   933→          </p>
+   934→        </CardContent>
+   935→      </Card>
+   936→
+   937→      {/* Actions */}
+   938→      <div className="flex items-center gap-3">
+   939→        <Button
+   940→          onClick={handleSave}
+   941→          disabled={saving}
+   942→          className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[140px]"
+   943→        >
+   944→          {saving ? (
+   945→            <>
+   946→              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   947→              Enregistrement...
+   948→            </>
+   949→          ) : isEditing ? (
+   950→            'Enregistrer les modifications'
+   951→          ) : (
+   952→            'Ajouter le produit'
+   953→          )}
+   954→        </Button>
+   955→        <Button variant="outline" onClick={() => navigate('products')}>
+   956→          Annuler
+   957→        </Button>
+   958→      </div>
+   959→    </motion.div>
+   960→  );
+   961→}
+   962→
+   963→// ═══════════════════════════════════════════════════════════════════════════════
+   964→// VIEW: ORDERS
+   965→// ═══════════════════════════════════════════════════════════════════════════════
+   966→function OrdersView() {
+   967→  const { navigate } = useMerchantNav();
+   968→  const [statusFilter, setStatusFilter] = useState('all');
+   969→
+   970→  const filtered = useMemo(() => {
+   971→    if (statusFilter === 'all') return MOCK_ORDERS;
+   972→    const map: Record<string, string[]> = {
+   973→      pending: ['PENDING'],
+   974→      inprogress: ['CONFIRMED', 'PREPARING', 'READY', 'PICKED_UP', 'IN_TRANSIT'],
+   975→      delivered: ['DELIVERED'],
+   976→    };
+   977→    const statuses = map[statusFilter];
+   978→    return statuses ? MOCK_ORDERS.filter((o) => statuses.includes(o.status)) : MOCK_ORDERS;
+   979→  }, [statusFilter]);
+   980→
+   981→  return (
+   982→    <motion.div {...fadeIn} className="space-y-6">
+   983→      <div>
+   984→        <h1 className="text-2xl font-bold">Commandes</h1>
+   985→        <p className="text-muted-foreground text-sm mt-1">
+   986→          {MOCK_ORDERS.length} commandes au total
+   987→        </p>
+   988→      </div>
+   989→
+   990→      <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+   991→        <TabsList>
+   992→          <TabsTrigger value="all">Toutes ({MOCK_ORDERS.length})</TabsTrigger>
+   993→          <TabsTrigger value="pending">
+   994→            En attente ({MOCK_ORDERS.filter((o) => o.status === 'PENDING').length})
+   995→          </TabsTrigger>
+   996→          <TabsTrigger value="inprogress">
+   997→            En cours ({MOCK_ORDERS.filter((o) => ['CONFIRMED', 'PREPARING', 'READY', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)).length})
+   998→          </TabsTrigger>
+   999→          <TabsTrigger value="delivered">
+  1000→            Livrées ({MOCK_ORDERS.filter((o) => o.status === 'DELIVERED').length})
+  1001→          </TabsTrigger>
+  1002→        </TabsList>
+  1003→
+  1004→        <TabsContent value={statusFilter} className="mt-4">
+  1005→          <Card>
+  1006→            <CardContent className="p-0">
+  1007→              <Table>
+  1008→                <TableHeader>
+  1009→                  <TableRow className="bg-muted/50">
+  1010→                    <TableHead>Commande</TableHead>
+  1011→                    <TableHead>Client</TableHead>
+  1012→                    <TableHead className="text-right">Montant</TableHead>
+  1013→                    <TableHead>Statut</TableHead>
+  1014→                    <TableHead>Date</TableHead>
+  1015→                    <TableHead className="text-right">Actions</TableHead>
+  1016→                  </TableRow>
+  1017→                </TableHeader>
+  1018→                <TableBody>
+  1019→                  {filtered.map((order) => (
+  1020→                    <TableRow key={order.id} className="hover:bg-emerald-50/30 transition-colors cursor-pointer" onClick={() => navigate('order-detail', { orderId: order.id })}>
+  1021→                      <TableCell className="font-medium text-sm">{order.id}</TableCell>
+  1022→                      <TableCell>
+  1023→                        <div>
+  1024→                          <p className="text-sm font-medium">{order.customer}</p>
+  1025→                          <p className="text-xs text-muted-foreground">{order.items.length} article(s)</p>
+  1026→                        </div>
+  1027→                      </TableCell>
+  1028→                      <TableCell className="text-right font-semibold text-sm">{formatPrice(order.total)}</TableCell>
+  1029→                      <TableCell>
+  1030→                        <Badge className={`${ORDER_STATUS_COLORS[order.status]} text-xs`}>
+  1031→                          {ORDER_STATUS_LABELS[order.status]}
+  1032→                        </Badge>
+  1033→                      </TableCell>
+  1034→                      <TableCell className="text-sm text-muted-foreground">
+  1035→                        {new Date(order.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+  1036→                      </TableCell>
+  1037→                      <TableCell className="text-right">
+  1038→                        <Button variant="ghost" size="sm" className="text-emerald-600 text-xs">
+  1039→                          <Eye className="w-3.5 h-3.5 mr-1" />
+  1040→                          Détails
+  1041→                        </Button>
+  1042→                      </TableCell>
+  1043→                    </TableRow>
+  1044→                  ))}
+  1045→                </TableBody>
+  1046→              </Table>
+  1047→            </CardContent>
+  1048→          </Card>
+  1049→        </TabsContent>
+  1050→      </Tabs>
+  1051→    </motion.div>
+  1052→  );
+  1053→}
+  1054→
+  1055→// ═══════════════════════════════════════════════════════════════════════════════
+  1056→// VIEW: ORDER DETAIL
+  1057→// ═══════════════════════════════════════════════════════════════════════════════
+  1058→function OrderDetailView() {
+  1059→  const { navigate, data } = useMerchantNav();
+  1060→  const order = MOCK_ORDERS.find((o) => o.id === data?.orderId);
+  1061→
+  1062→  if (!order) {
+  1063→    return (
+  1064→      <motion.div {...fadeIn} className="text-center py-16">
+  1065→        <p className="text-muted-foreground">Commande non trouvée</p>
+  1066→        <Button variant="outline" onClick={() => navigate('orders')} className="mt-4">
+  1067→          Retour aux commandes
+  1068→        </Button>
+  1069→      </motion.div>
+  1070→    );
+  1071→  }
+  1072→
+  1073→  const statusSteps = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'IN_TRANSIT', 'DELIVERED'];
+  1074→  const currentStepIdx = statusSteps.indexOf(order.status);
+  1075→
+  1076→  return (
+  1077→    <motion.div {...fadeIn} className="space-y-6">
+  1078→      <div className="flex items-center gap-3">
+  1079→        <Button variant="ghost" size="icon" onClick={() => navigate('orders')}>
+  1080→          <ArrowLeft className="w-4 h-4" />
+  1081→        </Button>
+  1082→        <div>
+  1083→          <h1 className="text-2xl font-bold">Commande {order.id}</h1>
+  1084→          <p className="text-muted-foreground text-sm mt-0.5">
+  1085→            {new Date(order.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+  1086→          </p>
+  1087→        </div>
+  1088→      </div>
+  1089→
+  1090→      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  1091→        {/* Order Info */}
+  1092→        <div className="lg:col-span-2 space-y-6">
+  1093→          {/* Status */}
+  1094→          <Card>
+  1095→            <CardHeader>
+  1096→              <CardTitle className="text-base">Statut de la commande</CardTitle>
+  1097→            </CardHeader>
+  1098→            <CardContent>
+  1099→              <div className="flex items-center gap-2 mb-4">
+  1100→                <Badge className={`${ORDER_STATUS_COLORS[order.status]} text-sm px-3 py-1`}>
+  1101→                  {ORDER_STATUS_LABELS[order.status]}
+  1102→                </Badge>
+  1103→              </div>
+  1104→              {/* Progress bar */}
+  1105→              <div className="relative">
+  1106→                <Progress value={order.status === 'CANCELLED' || order.status === 'REFUNDED' ? 0 : ((currentStepIdx + 1) / statusSteps.length) * 100} className="h-2" />
+  1107→                <div className="flex justify-between mt-2">
+  1108→                  {statusSteps.map((step, i) => (
+  1109→                    <span key={step} className={`text-[10px] ${i <= currentStepIdx ? 'text-emerald-600 font-medium' : 'text-muted-foreground'}`}>
+  1110→                      {ORDER_STATUS_LABELS[step]}
+  1111→                    </span>
+  1112→                  ))}
+  1113→                </div>
+  1114→              </div>
+  1115→            </CardContent>
+  1116→          </Card>
+  1117→
+  1118→          {/* Items */}
+  1119→          <Card>
+  1120→            <CardHeader>
+  1121→              <CardTitle className="text-base">Articles commandés</CardTitle>
+  1122→            </CardHeader>
+  1123→            <CardContent>
+  1124→              <div className="space-y-3">
+  1125→                {order.items.map((item, idx) => (
+  1126→                  <div key={idx} className="flex items-center justify-between py-2 border-b last:border-0">
+  1127→                    <div className="flex items-center gap-3">
+  1128→                      <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+  1129→                        <Package className="w-3.5 h-3.5 text-muted-foreground" />
+  1130→                      </div>
+  1131→                      <div>
+  1132→                        <p className="text-sm font-medium">{item.name}</p>
+  1133→                        <p className="text-xs text-muted-foreground">Qté: {item.qty}</p>
+  1134→                      </div>
+  1135→                    </div>
+  1136→                    <p className="text-sm font-semibold">{formatPrice(item.price * item.qty)}</p>
+  1137→                  </div>
+  1138→                ))}
+  1139→              </div>
+  1140→              <Separator className="my-3" />
+  1141→              <div className="flex justify-between">
+  1142→                <p className="font-semibold">Total</p>
+  1143→                <p className="font-bold text-lg text-emerald-600">{formatPrice(order.total)}</p>
+  1144→              </div>
+  1145→            </CardContent>
+  1146→          </Card>
+  1147→        </div>
+  1148→
+  1149→        {/* Customer Info Sidebar */}
+  1150→        <div className="space-y-6">
+  1151→          <Card>
+  1152→            <CardHeader>
+  1153→              <CardTitle className="text-base">Informations client</CardTitle>
+  1154→            </CardHeader>
+  1155→            <CardContent className="space-y-3">
+  1156→              <div className="flex items-center gap-3">
+  1157→                <Avatar className="h-10 w-10">
+  1158→                  <AvatarFallback className="bg-emerald-100 text-emerald-700 font-bold">
+  1159→                    {order.customer.split(' ').map((n) => n[0]).join('')}
+  1160→                  </AvatarFallback>
+  1161→                </Avatar>
+  1162→                <div>
+  1163→                  <p className="font-medium text-sm">{order.customer}</p>
+  1164→                  <p className="text-xs text-muted-foreground">{order.phone}</p>
+  1165→                </div>
+  1166→              </div>
+  1167→              <Separator />
+  1168→              <div className="flex items-start gap-2 text-sm">
+  1169→                <MapPin className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+  1170→                <span>{order.address}</span>
+  1171→              </div>
+  1172→              {order.note && (
+  1173→                <div className="flex items-start gap-2 text-sm">
+  1174→                  <MessageSquare className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+  1175→                  <span className="italic text-muted-foreground">{order.note}</span>
+  1176→                </div>
+  1177→              )}
+  1178→            </CardContent>
+  1179→          </Card>
+  1180→
+  1181→          {/* Actions */}
+  1182→          <Card>
+  1183→            <CardContent className="p-4 space-y-2">
+  1184→              {order.status === 'PENDING' && (
+  1185→                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => toast.success('Commande confirmée')}>
+  1186→                  Confirmer la commande
+  1187→                </Button>
+  1188→              )}
+  1189→              {order.status === 'CONFIRMED' && (
+  1190→                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => toast.success('Préparation démarrée')}>
+  1191→                  Commencer la préparation
+  1192→                </Button>
+  1193→              )}
+  1194→              {order.status === 'PREPARING' && (
+  1195→                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => toast.success('Commande prête')}>
+  1196→                  Marquer comme prête
+  1197→                </Button>
+  1198→              )}
+  1199→              {order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && order.status !== 'REFUNDED' && (
+  1200→                <Button variant="outline" className="w-full text-red-500 hover:bg-red-50" onClick={() => toast.success('Commande annulée')}>
+  1201→                  Annuler la commande
+  1202→                </Button>
+  1203→              )}
+  1204→            </CardContent>
+  1205→          </Card>
+  1206→        </div>
+  1207→      </div>
+  1208→    </motion.div>
+  1209→  );
+  1210→}
+  1211→
+  1212→// ═══════════════════════════════════════════════════════════════════════════════
+  1213→// VIEW: STATISTICS
+  1214→// ═══════════════════════════════════════════════════════════════════════════════
+  1215→function StatsView() {
+  1216→  const [period, setPeriod] = useState('month');
+  1217→
+  1218→  return (
+  1219→    <motion.div {...fadeIn} className="space-y-6">
+  1220→      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  1221→        <div>
+  1222→          <h1 className="text-2xl font-bold">Statistiques</h1>
+  1223→          <p className="text-muted-foreground text-sm mt-1">Analyse détaillée de votre activité</p>
+  1224→        </div>
+  1225→        <Select value={period} onValueChange={setPeriod}>
+  1226→          <SelectTrigger className="w-44">
+  1227→            <Calendar className="w-4 h-4 mr-1" />
+  1228→            <SelectValue />
+  1229→          </SelectTrigger>
+  1230→          <SelectContent>
+  1231→            <SelectItem value="today">Aujourd'hui</SelectItem>
+  1232→            <SelectItem value="week">Cette semaine</SelectItem>
+  1233→            <SelectItem value="month">Ce mois</SelectItem>
+  1234→          </SelectContent>
+  1235→        </Select>
+  1236→      </div>
+  1237→
+  1238→      {/* Summary Stats */}
+  1239→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  1240→        {[
+  1241→          { label: 'Revenus totaux', value: formatPrice(1250000), icon: DollarSign, change: '+15.3%', up: true },
+  1242→          { label: 'Commandes', value: '156', icon: ShoppingCart, change: '+8.2%', up: true },
+  1243→          { label: 'Panier moyen', value: formatPrice(8012), icon: TrendingUp, change: '-2.1%', up: false },
+  1244→          { label: 'Clients uniques', value: '89', icon: Users, change: '+12.5%', up: true },
+  1245→        ].map((s) => (
+  1246→          <Card key={s.label}>
+  1247→            <CardContent className="p-4">
+  1248→              <div className="flex items-center justify-between mb-2">
+  1249→                <s.icon className="w-4 h-4 text-muted-foreground" />
+  1250→                <span className={`text-xs font-medium ${s.up ? 'text-emerald-600' : 'text-red-500'}`}>{s.change}</span>
+  1251→              </div>
+  1252→              <p className="text-xl font-bold">{s.value}</p>
+  1253→              <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
+  1254→            </CardContent>
+  1255→          </Card>
+  1256→        ))}
+  1257→      </div>
+  1258→
+  1259→      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+  1260→        {/* Revenue Bar Chart */}
+  1261→        <Card className="xl:col-span-2">
+  1262→          <CardHeader>
+  1263→            <CardTitle className="text-base">Revenus mensuels</CardTitle>
+  1264→            <CardDescription>Évolution des revenus sur 12 mois</CardDescription>
+  1265→          </CardHeader>
+  1266→          <CardContent>
+  1267→            <div className="h-72">
+  1268→              <ResponsiveContainer width="100%" height="100%">
+  1269→                <BarChart data={MONTHLY_REVENUE}>
+  1270→                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+  1271→                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+  1272→                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+  1273→                  <Tooltip content={<ChartTooltipContent />} />
+  1274→                  <Bar dataKey="montant" fill="#10b981" radius={[4, 4, 0, 0]} />
+  1275→                </BarChart>
+  1276→              </ResponsiveContainer>
+  1277→            </div>
+  1278→          </CardContent>
+  1279→        </Card>
+  1280→
+  1281→        {/* Order Status Pie Chart */}
+  1282→        <Card>
+  1283→          <CardHeader>
+  1284→            <CardTitle className="text-base">Commandes par statut</CardTitle>
+  1285→          </CardHeader>
+  1286→          <CardContent>
+  1287→            <div className="h-52">
+  1288→              <ResponsiveContainer width="100%" height="100%">
+  1289→                <PieChart>
+  1290→                  <Pie
+  1291→                    data={ORDER_STATUS_PIE}
+  1292→                    cx="50%"
+  1293→                    cy="50%"
+  1294→                    innerRadius={50}
+  1295→                    outerRadius={80}
+  1296→                    paddingAngle={3}
+  1297→                    dataKey="value"
+  1298→                  >
+  1299→                    {ORDER_STATUS_PIE.map((entry, index) => (
+  1300→                      <Cell key={`cell-${index}`} fill={entry.color} />
+  1301→                    ))}
+  1302→                  </Pie>
+  1303→                  <Tooltip />
+  1304→                </PieChart>
+  1305→              </ResponsiveContainer>
+  1306→            </div>
+  1307→            <div className="grid grid-cols-2 gap-2 mt-2">
+  1308→              {ORDER_STATUS_PIE.map((entry) => (
+  1309→                <div key={entry.name} className="flex items-center gap-2 text-xs">
+  1310→                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+  1311→                  <span className="text-muted-foreground">{entry.name}</span>
+  1312→                  <span className="ml-auto font-medium">{entry.value}%</span>
+  1313→                </div>
+  1314→              ))}
+  1315→            </div>
+  1316→          </CardContent>
+  1317→        </Card>
+  1318→      </div>
+  1319→
+  1320→      {/* Top Products */}
+  1321→      <Card>
+  1322→        <CardHeader>
+  1323→          <CardTitle className="text-base">Produits les plus vendus</CardTitle>
+  1324→          <CardDescription>Classement par nombre de commandes</CardDescription>
+  1325→        </CardHeader>
+  1326→        <CardContent className="p-0">
+  1327→          <Table>
+  1328→            <TableHeader>
+  1329→              <TableRow className="bg-muted/50">
+  1330→                <TableHead>#</TableHead>
+  1331→                <TableHead>Produit</TableHead>
+  1332→                <TableHead className="text-center">Commandes</TableHead>
+  1333→                <TableHead className="text-right">Revenus</TableHead>
+  1334→              </TableRow>
+  1335→            </TableHeader>
+  1336→            <TableBody>
+  1337→              {TOP_PRODUCTS.map((product, idx) => (
+  1338→                <TableRow key={product.name}>
+  1339→                  <TableCell>
+  1340→                    <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-bold ${
+  1341→                      idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-gray-100 text-gray-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'text-muted-foreground'
+  1342→                    }`}>
+  1343→                      {idx + 1}
+  1344→                    </span>
+  1345→                  </TableCell>
+  1346→                  <TableCell className="font-medium text-sm">{product.name}</TableCell>
+  1347→                  <TableCell className="text-center">{product.orders}</TableCell>
+  1348→                  <TableCell className="text-right font-semibold text-sm">{formatPrice(product.revenue)}</TableCell>
+  1349→                </TableRow>
+  1350→              ))}
+  1351→            </TableBody>
+  1352→          </Table>
+  1353→        </CardContent>
+  1354→      </Card>
+  1355→    </motion.div>
+  1356→  );
+  1357→}
+  1358→
+  1359→// ═══════════════════════════════════════════════════════════════════════════════
+  1360→// VIEW: MARKETING
+  1361→// ═══════════════════════════════════════════════════════════════════════════════
+  1362→function MarketingView() {
+  1363→  const [promos, setPromos] = useState<Promotion[]>(MOCK_PROMOTIONS);
+  1364→  const [createDialog, setCreateDialog] = useState(false);
+  1365→  const [newPromo, setNewPromo] = useState({ title: '', type: 'percentage' as 'percentage' | 'fixed', value: '', code: '', maxUses: '100' });
+  1366→  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  1367→
+  1368→  // Coupon creation state
+  1369→  const [couponDialog, setCouponDialog] = useState(false);
+  1370→  const [couponForm, setCouponForm] = useState({ code: '', type: 'POURCENTAGE', value: '', minOrder: '', endDate: '' });
+  1371→  const [couponSaving, setCouponSaving] = useState(false);
+  1372→
+  1373→  const handleCreate = () => {
+  1374→    if (!newPromo.title || !newPromo.value || !newPromo.code) {
+  1375→      toast.error('Veuillez remplir tous les champs');
+  1376→      return;
+  1377→    }
+  1378→    const promo: Promotion = {
+  1379→      id: `promo-${Date.now()}`,
+  1380→      title: newPromo.title,
+  1381→      type: newPromo.type,
+  1382→      value: Number(newPromo.value),
+  1383→      code: newPromo.code.toUpperCase(),
+  1384→      usedCount: 0,
+  1385→      maxUses: Number(newPromo.maxUses),
+  1386→      startDate: new Date().toISOString().split('T')[0],
+  1387→      endDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+  1388→      active: true,
+  1389→    };
+  1390→    setPromos((prev) => [...prev, promo]);
+  1391→    setNewPromo({ title: '', type: 'percentage', value: '', code: '', maxUses: '100' });
+  1392→    setCreateDialog(false);
+  1393→    toast.success('Promotion créée avec succès');
+  1394→  };
+  1395→
+  1396→  const copyCode = (code: string) => {
+  1397→    navigator.clipboard.writeText(code).catch(() => {});
+  1398→    setCopiedCode(code);
+  1399→    setTimeout(() => setCopiedCode(null), 2000);
+  1400→  };
+  1401→
+  1402→  const togglePromo = (id: string) => {
+  1403→    setPromos((prev) => prev.map((p) => (p.id === id ? { ...p, active: !p.active } : p)));
+  1404→    toast.success('Statut de la promotion mis à jour');
+  1405→  };
+  1406→
+  1407→  const handleCreateCoupon = async () => {
+  1408→    if (!couponForm.code || !couponForm.value || !couponForm.endDate) {
+  1409→      toast.error('Veuillez remplir le code, la valeur et la date de fin');
+  1410→      return;
+  1411→    }
+  1412→    setCouponSaving(true);
+  1413→    try {
+  1414→      const res = await fetch('/api/coupons', {
+  1415→        method: 'POST',
+  1416→        headers: { 'Content-Type': 'application/json' },
+  1417→        body: JSON.stringify({
+  1418→          ...couponForm,
+  1419→          value: Number(couponForm.value),
+  1420→          minOrder: Number(couponForm.minOrder) || 0,
+  1421→          merchantId: 'm1',
+  1422→        }),
+  1423→      });
+  1424→      if (!res.ok) {
+  1425→        const err = await res.json().catch(() => ({}));
+  1426→        throw new Error(err.error || 'Erreur serveur');
+  1427→      }
+  1428→      toast.success('Coupon créé avec succès');
+  1429→      setCouponForm({ code: '', type: 'POURCENTAGE', value: '', minOrder: '', endDate: '' });
+  1430→      setCouponDialog(false);
+  1431→    } catch (err: unknown) {
+  1432→      const msg = err instanceof Error ? err.message : 'Erreur lors de la création du coupon';
+  1433→      toast.error(msg);
+  1434→    } finally {
+  1435→      setCouponSaving(false);
+  1436→    }
+  1437→  };
+  1438→
+  1439→  return (
+  1440→    <motion.div {...fadeIn} className="space-y-6">
+  1441→      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  1442→        <div>
+  1443→          <h1 className="text-2xl font-bold">Marketing</h1>
+  1444→          <p className="text-muted-foreground text-sm mt-1">Gérez vos promotions et codes de réduction</p>
+  1445→        </div>
+  1446→        <div className="flex gap-2">
+  1447→          <Button onClick={() => setCouponDialog(true)} variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 gap-2">
+  1448→            <Tag className="w-4 h-4" />
+  1449→            Créer un coupon
+  1450→          </Button>
+  1451→          <Button onClick={() => setCreateDialog(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+  1452→            <Plus className="w-4 h-4" />
+  1453→            Créer une publicité
+  1454→          </Button>
+  1455→        </div>
+  1456→      </div>
+  1457→
+  1458→      {/* Summary Cards */}
+  1459→      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  1460→        <Card>
+  1461→          <CardContent className="p-4 flex items-center gap-3">
+  1462→            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+  1463→              <Tag className="w-5 h-5" />
+  1464→            </div>
+  1465→            <div>
+  1466→              <p className="text-2xl font-bold">{promos.filter((p) => p.active).length}</p>
+  1467→              <p className="text-xs text-muted-foreground">Promotions actives</p>
+  1468→            </div>
+  1469→          </CardContent>
+  1470→        </Card>
+  1471→        <Card>
+  1472→          <CardContent className="p-4 flex items-center gap-3">
+  1473→            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+  1474→              <Gift className="w-5 h-5" />
+  1475→            </div>
+  1476→            <div>
+  1477→              <p className="text-2xl font-bold">{promos.reduce((s, p) => s + p.usedCount, 0)}</p>
+  1478→              <p className="text-xs text-muted-foreground">Codes utilisés</p>
+  1479→            </div>
+  1480→          </CardContent>
+  1481→        </Card>
+  1482→        <Card>
+  1483→          <CardContent className="p-4 flex items-center gap-3">
+  1484→            <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+  1485→              <Percent className="w-5 h-5" />
+  1486→            </div>
+  1487→            <div>
+  1488→              <p className="text-2xl font-bold">{promos.length}</p>
+  1489→              <p className="text-xs text-muted-foreground">Total promotions</p>
+  1490→            </div>
+  1491→          </CardContent>
+  1492→        </Card>
+  1493→      </div>
+  1494→
+  1495→      {/* Promotions List */}
+  1496→      <Card>
+  1497→        <CardHeader>
+  1498→          <CardTitle className="text-base">Mes promotions</CardTitle>
+  1499→        </CardHeader>
+  1500→        <CardContent className="p-0">
+  1501→          <Table>
+  1502→            <TableHeader>
+  1503→              <TableRow className="bg-muted/50">
+  1504→                <TableHead>Promotion</TableHead>
+  1505→                <TableHead>Code</TableHead>
+  1506→                <TableHead className="text-center">Utilisation</TableHead>
+  1507→                <TableHead className="text-center">Statut</TableHead>
+  1508→                <TableHead className="text-right">Actions</TableHead>
+  1509→              </TableRow>
+  1510→            </TableHeader>
+  1511→            <TableBody>
+  1512→              {promos.map((promo) => (
+  1513→                <TableRow key={promo.id}>
+  1514→                  <TableCell>
+  1515→                    <div>
+  1516→                      <p className="font-medium text-sm">{promo.title}</p>
+  1517→                      <p className="text-xs text-muted-foreground">
+  1518→                        {promo.type === 'percentage' ? `${promo.value}% de réduction` : `${formatPrice(promo.value)} de réduction`}
+  1519→                      </p>
+  1520→                    </div>
+  1521→                  </TableCell>
+  1522→                  <TableCell>
+  1523→                    <div className="flex items-center gap-1.5">
+  1524→                      <code className="px-2 py-1 bg-muted rounded text-xs font-mono font-bold">{promo.code}</code>
+  1525→                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyCode(promo.code)}>
+  1526→                        {copiedCode === promo.code ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+  1527→                      </Button>
+  1528→                    </div>
+  1529→                  </TableCell>
+  1530→                  <TableCell className="text-center">
+  1531→                    <div className="flex flex-col items-center">
+  1532→                      <span className="text-sm font-medium">{promo.usedCount}/{promo.maxUses}</span>
+  1533→                      <Progress value={(promo.usedCount / promo.maxUses) * 100} className="w-16 h-1.5 mt-1" />
+  1534→                    </div>
+  1535→                  </TableCell>
+  1536→                  <TableCell className="text-center">
+  1537→                    <Switch checked={promo.active} onCheckedChange={() => togglePromo(promo.id)} />
+  1538→                  </TableCell>
+  1539→                  <TableCell className="text-right">
+  1540→                    <Badge variant={promo.active ? 'default' : 'secondary'} className="text-xs">
+  1541→                      {promo.active ? 'Active' : 'Inactive'}
+  1542→                    </Badge>
+  1543→                  </TableCell>
+  1544→                </TableRow>
+  1545→              ))}
+  1546→            </TableBody>
+  1547→          </Table>
+  1548→        </CardContent>
+  1549→      </Card>
+  1550→
+  1551→      {/* Create Dialog */}
+  1552→      <Dialog open={createDialog} onOpenChange={setCreateDialog}>
+  1553→        <DialogContent>
+  1554→          <DialogHeader>
+  1555→            <DialogTitle>Créer une promotion</DialogTitle>
+  1556→            <DialogDescription>Créez un nouveau code de réduction pour vos clients</DialogDescription>
+  1557→          </DialogHeader>
+  1558→          <div className="space-y-4 py-2">
+  1559→            <div className="space-y-2">
+  1560→              <label className="text-sm font-medium">Titre</label>
+  1561→              <Input placeholder="Ex: Réduction de Noël" value={newPromo.title} onChange={(e) => setNewPromo((p) => ({ ...p, title: e.target.value }))} />
+  1562→            </div>
+  1563→            <div className="grid grid-cols-2 gap-3">
+  1564→              <div className="space-y-2">
+  1565→                <label className="text-sm font-medium">Type</label>
+  1566→                <Select value={newPromo.type} onValueChange={(v: 'percentage' | 'fixed') => setNewPromo((p) => ({ ...p, type: v }))}>
+  1567→                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+  1568→                  <SelectContent>
+  1569→                    <SelectItem value="percentage">Pourcentage</SelectItem>
+  1570→                    <SelectItem value="fixed">Montant fixe</SelectItem>
+  1571→                  </SelectContent>
+  1572→                </Select>
+  1573→              </div>
+  1574→              <div className="space-y-2">
+  1575→                <label className="text-sm font-medium">Valeur</label>
+  1576→                <Input type="number" placeholder="0" value={newPromo.value} onChange={(e) => setNewPromo((p) => ({ ...p, value: e.target.value }))} />
+  1577→              </div>
+  1578→            </div>
+  1579→            <div className="grid grid-cols-2 gap-3">
+  1580→              <div className="space-y-2">
+  1581→                <label className="text-sm font-medium">Code</label>
+  1582→                <Input placeholder="PROMO2025" value={newPromo.code} onChange={(e) => setNewPromo((p) => ({ ...p, code: e.target.value }))} className="uppercase" />
+  1583→              </div>
+  1584→              <div className="space-y-2">
+  1585→                <label className="text-sm font-medium">Utilisations max</label>
+  1586→                <Input type="number" placeholder="100" value={newPromo.maxUses} onChange={(e) => setNewPromo((p) => ({ ...p, maxUses: e.target.value }))} />
+  1587→              </div>
+  1588→            </div>
+  1589→          </div>
+  1590→          <DialogFooter className="gap-2">
+  1591→            <Button variant="outline" onClick={() => setCreateDialog(false)}>Annuler</Button>
+  1592→            <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white">Créer</Button>
+  1593→          </DialogFooter>
+  1594→        </DialogContent>
+  1595→      </Dialog>
+  1596→
+  1597→      {/* Coupon Creation Dialog */}
+  1598→      <Dialog open={couponDialog} onOpenChange={setCouponDialog}>
+  1599→        <DialogContent>
+  1600→          <DialogHeader>
+  1601→            <DialogTitle>Créer un coupon</DialogTitle>
+  1602→            <DialogDescription>Créez un code promo pour vos clients</DialogDescription>
+  1603→          </DialogHeader>
+  1604→          <div className="space-y-4 py-2">
+  1605→            <div className="space-y-2">
+  1606→              <label className="text-sm font-medium">Code promo</label>
+  1607→              <Input placeholder="Ex: RAPIGO20" value={couponForm.code} onChange={(e) => setCouponForm((f) => ({ ...f, code: e.target.value }))} className="uppercase" />
+  1608→            </div>
+  1609→            <div className="grid grid-cols-2 gap-3">
+  1610→              <div className="space-y-2">
+  1611→                <label className="text-sm font-medium">Type</label>
+  1612→                <Select value={couponForm.type} onValueChange={(v) => setCouponForm((f) => ({ ...f, type: v }))}>
+  1613→                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+  1614→                  <SelectContent>
+  1615→                    <SelectItem value="POURCENTAGE">Pourcentage</SelectItem>
+  1616→                    <SelectItem value="FIXED">Montant fixe</SelectItem>
+  1617→                    <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
+  1618→                  </SelectContent>
+  1619→                </Select>
+  1620→              </div>
+  1621→              <div className="space-y-2">
+  1622→                <label className="text-sm font-medium">Valeur</label>
+  1623→                <Input type="number" placeholder={couponForm.type === 'POURCENTAGE' ? '20' : '500'} value={couponForm.value} onChange={(e) => setCouponForm((f) => ({ ...f, value: e.target.value }))} disabled={couponForm.type === 'FREE_DELIVERY'} />
+  1624→                {couponForm.type === 'POURCENTAGE' && <p className="text-xs text-muted-foreground">Pourcentage de réduction</p>}
+  1625→                {couponForm.type === 'FIXED' && <p className="text-xs text-muted-foreground">Montant en FCFA</p>}
+  1626→              </div>
+  1627→            </div>
+  1628→            <div className="space-y-2">
+  1629→              <label className="text-sm font-medium">Commande minimum (FCFA)</label>
+  1630→              <Input type="number" placeholder="0" value={couponForm.minOrder} onChange={(e) => setCouponForm((f) => ({ ...f, minOrder: e.target.value }))} />
+  1631→            </div>
+  1632→            <div className="space-y-2">
+  1633→              <label className="text-sm font-medium">Date de fin</label>
+  1634→              <Input type="date" value={couponForm.endDate} onChange={(e) => setCouponForm((f) => ({ ...f, endDate: e.target.value }))} />
+  1635→            </div>
+  1636→          </div>
+  1637→          <DialogFooter className="gap-2">
+  1638→            <Button variant="outline" onClick={() => setCouponDialog(false)}>Annuler</Button>
+  1639→            <Button onClick={handleCreateCoupon} disabled={couponSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+  1640→              {couponSaving ? (
+  1641→                <>
+  1642→                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+  1643→                  Création...
+  1644→                </>
+  1645→              ) : (
+  1646→                'Créer le coupon'
+  1647→              )}
+  1648→            </Button>
+  1649→          </DialogFooter>
+  1650→        </DialogContent>
+  1651→      </Dialog>
+  1652→    </motion.div>
+  1653→  );
+  1654→}
+  1655→
+  1656→// ═══════════════════════════════════════════════════════════════════════════════
+  1657→// VIEW: BILLING
+  1658→// ═══════════════════════════════════════════════════════════════════════════════
+  1659→function BillingView() {
+  1660→  const invoices = [
+  1661→    { id: 'FAC-2025-001', date: '15 Jan 2025', amount: 15000, status: 'Payée' },
+  1662→    { id: 'FAC-2024-012', date: '15 Déc 2024', amount: 15000, status: 'Payée' },
+  1663→    { id: 'FAC-2024-011', date: '15 Nov 2024', amount: 15000, status: 'Payée' },
+  1664→    { id: 'FAC-2024-010', date: '15 Oct 2024', amount: 0, status: 'Gratuite' },
+  1665→  ];
+  1666→
+  1667→  return (
+  1668→    <motion.div {...fadeIn} className="space-y-6">
+  1669→      <div>
+  1670→        <h1 className="text-2xl font-bold">Facturation</h1>
+  1671→        <p className="text-muted-foreground text-sm mt-1">Historique de vos factures et paiements</p>
+  1672→      </div>
+  1673→
+  1674→      <Card className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white">
+  1675→        <CardContent className="p-6">
+  1676→          <div className="flex items-center justify-between">
+  1677→            <div>
+  1678→              <p className="text-emerald-100 text-sm">Plan actuel</p>
+  1679→              <p className="text-2xl font-bold mt-1">Starter - Gratuit</p>
+  1680→              <p className="text-emerald-200 text-sm mt-2">Prochaine facture : Aucune</p>
+  1681→            </div>
+  1682→            <div className="text-right">
+  1683→              <p className="text-emerald-100 text-sm">Coût mensuel</p>
+  1684→              <p className="text-3xl font-bold">0 FCFA</p>
+  1685→            </div>
+  1686→          </div>
+  1687→        </CardContent>
+  1688→      </Card>
+  1689→
+  1690→      <Card>
+  1691→        <CardHeader>
+  1692→          <CardTitle className="text-base">Historique des factures</CardTitle>
+  1693→        </CardHeader>
+  1694→        <CardContent className="p-0">
+  1695→          <Table>
+  1696→            <TableHeader>
+  1697→              <TableRow className="bg-muted/50">
+  1698→                <TableHead>Facture</TableHead>
+  1699→                <TableHead>Date</TableHead>
+  1700→                <TableHead className="text-right">Montant</TableHead>
+  1701→                <TableHead>Statut</TableHead>
+  1702→                <TableHead className="text-right">Actions</TableHead>
+  1703→              </TableRow>
+  1704→            </TableHeader>
+  1705→            <TableBody>
+  1706→              {invoices.map((inv) => (
+  1707→                <TableRow key={inv.id}>
+  1708→                  <TableCell className="font-medium text-sm">{inv.id}</TableCell>
+  1709→                  <TableCell className="text-sm text-muted-foreground">{inv.date}</TableCell>
+  1710→                  <TableCell className="text-right font-semibold text-sm">{inv.amount === 0 ? 'Gratuit' : formatPrice(inv.amount)}</TableCell>
+  1711→                  <TableCell>
+  1712→                    <Badge variant={inv.status === 'Payée' ? 'default' : 'secondary'} className={`${inv.status === 'Payée' ? 'bg-emerald-100 text-emerald-700' : ''}`}>
+  1713→                      {inv.status}
+  1714→                    </Badge>
+  1715→                  </TableCell>
+  1716→                  <TableCell className="text-right">
+  1717→                    <Button variant="ghost" size="sm" className="text-xs text-emerald-600">
+  1718→                      <Receipt className="w-3.5 h-3.5 mr-1" />
+  1719→                      Télécharger
+  1720→                    </Button>
+  1721→                  </TableCell>
+  1722→                </TableRow>
+  1723→              ))}
+  1724→            </TableBody>
+  1725→          </Table>
+  1726→        </CardContent>
+  1727→      </Card>
+  1728→    </motion.div>
+  1729→  );
+  1730→}
+  1731→
+  1732→// ═══════════════════════════════════════════════════════════════════════════════
+  1733→// VIEW: SUBSCRIPTION
+  1734→// ═══════════════════════════════════════════════════════════════════════════════
+  1735→function SubscriptionView() {
+  1736→  const [plans, setPlans] = useState<Plan[]>(MOCK_PLANS);
+  1737→  const [loading, setLoading] = useState(true);
+  1738→
+  1739→  useEffect(() => {
+  1740→    fetch('/api/plans')
+  1741→      .then((res) => res.json())
+  1742→      .then((data) => {
+  1743→        if (Array.isArray(data) && data.length > 0) {
+  1744→          setPlans(data);
+  1745→        }
+  1746→      })
+  1747→      .catch(() => {})
+  1748→      .finally(() => setLoading(false));
+  1749→  }, []);
+  1750→
+  1751→  const handleUpgrade = (plan: Plan) => {
+  1752→    toast.success(`Demande de mise à niveau vers ${plan.name} envoyée !`);
+  1753→  };
+  1754→
+  1755→  return (
+  1756→    <motion.div {...fadeIn} className="space-y-6">
+  1757→      <div>
+  1758→        <h1 className="text-2xl font-bold">Abonnement</h1>
+  1759→        <p className="text-muted-foreground text-sm mt-1">Choisissez le plan qui correspond à vos besoins</p>
+  1760→      </div>
+  1761→
+  1762→      {loading ? (
+  1763→        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  1764→          {[1, 2, 3].map((i) => (
+  1765→            <Skeleton key={i} className="h-96 rounded-xl" />
+  1766→          ))}
+  1767→        </div>
+  1768→      ) : (
+  1769→        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  1770→          {plans.map((plan) => (
+  1771→            <Card
+  1772→              key={plan.id}
+  1773→              className={`relative overflow-hidden transition-shadow hover:shadow-lg ${
+  1774→                plan.current ? 'border-emerald-500 border-2' : ''
+  1775→              } ${plan.popular ? 'ring-2 ring-amber-400' : ''}`}
+  1776→            >
+  1777→              {plan.popular && (
+  1778→                <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+  1779→                  Populaire
+  1780→                </div>
+  1781→              )}
+  1782→              {plan.current && (
+  1783→                <div className="absolute top-0 left-0 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-br-lg">
+  1784→                  Plan actuel
+  1785→                </div>
+  1786→              )}
+  1787→              <CardHeader className="pt-8 pb-4">
+  1788→                <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-3">
+  1789→                  <Crown className={`w-6 h-6 ${plan.current ? 'text-emerald-600' : 'text-muted-foreground'}`} />
+  1790→                </div>
+  1791→                <CardTitle className="text-xl">{plan.name}</CardTitle>
+  1792→                <div className="mt-2">
+  1793→                  <span className="text-3xl font-bold">
+  1794→                    {plan.price === 0 ? 'Gratuit' : formatPrice(plan.price)}
+  1795→                  </span>
+  1796→                  {plan.price > 0 && <span className="text-muted-foreground text-sm">{plan.period}</span>}
+  1797→                </div>
+  1798→              </CardHeader>
+  1799→              <CardContent className="space-y-4">
+  1800→                <ul className="space-y-2.5">
+  1801→                  {plan.features.map((feature, idx) => (
+  1802→                    <li key={idx} className="flex items-center gap-2 text-sm">
+  1803→                      <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+  1804→                      <span>{feature}</span>
+  1805→                    </li>
+  1806→                  ))}
+  1807→                </ul>
+  1808→                <Button
+  1809→                  className={`w-full mt-4 ${
+  1810→                    plan.current
+  1811→                      ? 'bg-muted text-muted-foreground cursor-default'
+  1812→                      : plan.popular
+  1813→                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
+  1814→                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+  1815→                  }`}
+  1816→                  disabled={plan.current}
+  1817→                  onClick={() => handleUpgrade(plan)}
+  1818→                >
+  1819→                  {plan.current ? 'Plan actuel' : 'Passer à ce plan'}
+  1820→                </Button>
+  1821→              </CardContent>
+  1822→            </Card>
+  1823→          ))}
+  1824→        </div>
+  1825→      )}
+  1826→    </motion.div>
+  1827→  );
+  1828→}
+  1829→
+  1830→// ═══════════════════════════════════════════════════════════════════════════════
+  1831→// VIEW: SETTINGS
+  1832→// ═══════════════════════════════════════════════════════════════════════════════
+  1833→function SettingsView() {
+  1834→  const [form, setForm] = useState({
+  1835→    name: MOCK_MERCHANT.name,
+  1836→    description: MOCK_MERCHANT.description,
+  1837→    address: MOCK_MERCHANT.address,
+  1838→    phone: MOCK_MERCHANT.phone,
+  1839→    hours: MOCK_MERCHANT.hours,
+  1840→  });
+  1841→  const [saving, setSaving] = useState(false);
+  1842→
+  1843→  const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  1844→
+  1845→  const handleSave = () => {
+  1846→    setSaving(true);
+  1847→    setTimeout(() => {
+  1848→      setSaving(false);
+  1849→      toast.success('Informations mises à jour avec succès');
+  1850→    }, 800);
+  1851→  };
+  1852→
+  1853→  return (
+  1854→    <motion.div {...fadeIn} className="space-y-6 max-w-2xl">
+  1855→      <div>
+  1856→        <h1 className="text-2xl font-bold">Paramètres</h1>
+  1857→        <p className="text-muted-foreground text-sm mt-1">Gérez les informations de votre boutique</p>
+  1858→      </div>
+  1859→
+  1860→      <Card>
+  1861→        <CardHeader>
+  1862→          <CardTitle className="text-base flex items-center gap-2">
+  1863→            <Store className="w-4 h-4 text-emerald-600" />
+  1864→            Informations de la boutique
+  1865→          </CardTitle>
+  1866→          <CardDescription>Modifier les informations affichées sur votre page boutique</CardDescription>
+  1867→        </CardHeader>
+  1868→        <CardContent className="space-y-5">
+  1869→          <div className="space-y-2">
+  1870→            <label className="text-sm font-medium">Nom de la boutique</label>
+  1871→            <Input value={form.name} onChange={(e) => update('name', e.target.value)} />
+  1872→          </div>
+  1873→          <div className="space-y-2">
+  1874→            <label className="text-sm font-medium">Description</label>
+  1875→            <Textarea value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} />
+  1876→          </div>
+  1877→          <div className="space-y-2">
+  1878→            <label className="text-sm font-medium">Adresse</label>
+  1879→            <div className="relative">
+  1880→              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  1881→              <Input value={form.address} onChange={(e) => update('address', e.target.value)} className="pl-9" />
+  1882→            </div>
+  1883→          </div>
+  1884→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1885→            <div className="space-y-2">
+  1886→              <label className="text-sm font-medium">Téléphone</label>
+  1887→              <div className="relative">
+  1888→                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  1889→                <Input value={form.phone} onChange={(e) => update('phone', e.target.value)} className="pl-9" />
+  1890→              </div>
+  1891→            </div>
+  1892→            <div className="space-y-2">
+  1893→              <label className="text-sm font-medium">Horaires d'ouverture</label>
+  1894→              <div className="relative">
+  1895→                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  1896→                <Input value={form.hours} onChange={(e) => update('hours', e.target.value)} className="pl-9" />
+  1897→              </div>
+  1898→            </div>
+  1899→          </div>
+  1900→          <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[160px]">
+  1901→            {saving ? (
+  1902→              <>
+  1903→                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+  1904→                Enregistrement...
+  1905→              </>
+  1906→            ) : (
+  1907→              'Enregistrer les modifications'
+  1908→            )}
+  1909→          </Button>
+  1910→        </CardContent>
+  1911→      </Card>
+  1912→
+  1913→      {/* Danger Zone */}
+  1914→      <Card className="border-red-200">
+  1915→        <CardHeader>
+  1916→          <CardTitle className="text-base text-red-600">Zone de danger</CardTitle>
+  1917→          <CardDescription>Actions irréversibles pour votre compte</CardDescription>
+  1918→        </CardHeader>
+  1919→        <CardContent className="space-y-3">
+  1920→          <div className="flex items-center justify-between">
+  1921→            <div>
+  1922→              <p className="text-sm font-medium">Désactiver la boutique</p>
+  1923→              <p className="text-xs text-muted-foreground">Votre boutique ne sera plus visible par les clients</p>
+  1924→            </div>
+  1925→            <Button variant="outline" className="text-red-500 border-red-200 hover:bg-red-50">Désactiver</Button>
+  1926→          </div>
+  1927→          <Separator />
+  1928→          <div className="flex items-center justify-between">
+  1929→            <div>
+  1930→              <p className="text-sm font-medium">Supprimer le compte</p>
+  1931→              <p className="text-xs text-muted-foreground">Cette action est définitive et irréversible</p>
+  1932→            </div>
+  1933→            <Button variant="destructive" size="sm">Supprimer</Button>
+  1934→          </div>
+  1935→        </CardContent>
+  1936→      </Card>
+  1937→    </motion.div>
+  1938→  );
+  1939→}
+  1940→
+  1941→// ═══════════════════════════════════════════════════════════════════════════════
+  1942→// VIEW: SUPPORT
+  1943→// ═══════════════════════════════════════════════════════════════════════════════
+  1944→function SupportView() {
+  1945→  const [subject, setSubject] = useState('');
+  1946→  const [message, setMessage] = useState('');
+  1947→  const [sending, setSending] = useState(false);
+  1948→
+  1949→  const faqs = [
+  1950→    { q: 'Comment ajouter un nouveau produit ?', a: 'Allez dans Produits > Ajouter un produit. Remplissez le formulaire avec les informations de votre produit et cliquez sur Enregistrer.' },
+  1951→    { q: 'Comment modifier le statut d\'une commande ?', a: 'Allez dans Commandes, cliquez sur une commande pour voir les détails, puis utilisez les boutons d\'action pour modifier le statut.' },
+  1952→    { q: 'Comment créer un code promotionnel ?', a: 'Allez dans Marketing > Créer une publicité. Remplissez les informations de la promotion et le code sera généré automatiquement.' },
+  1953→    { q: 'Quels sont les modes de paiement acceptés ?', a: 'Orange Money, MTN Mobile Money, Wave et espèces à la livraison sont acceptés.' },
+  1954→  ];
+  1955→
+  1956→  const handleSend = () => {
+  1957→    if (!subject || !message) {
+  1958→      toast.error('Veuillez remplir le sujet et le message');
+  1959→      return;
+  1960→    }
+  1961→    setSending(true);
+  1962→    setTimeout(() => {
+  1963→      setSending(false);
+  1964→      setSubject('');
+  1965→      setMessage('');
+  1966→      toast.success('Message envoyé avec succès. Nous vous répondrons sous 24h.');
+  1967→    }, 1000);
+  1968→  };
+  1969→
+  1970→  return (
+  1971→    <motion.div {...fadeIn} className="space-y-6">
+  1972→      <div>
+  1973→        <h1 className="text-2xl font-bold">Support</h1>
+  1974→        <p className="text-muted-foreground text-sm mt-1">Besoin d'aide ? Nous sommes là pour vous</p>
+  1975→      </div>
+  1976→
+  1977→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  1978→        {/* Contact Form */}
+  1979→        <Card>
+  1980→          <CardHeader>
+  1981→            <CardTitle className="text-base flex items-center gap-2">
+  1982→              <Headphones className="w-4 h-4 text-emerald-600" />
+  1983→              Nous contacter
+  1984→            </CardTitle>
+  1985→          </CardHeader>
+  1986→          <CardContent className="space-y-4">
+  1987→            <div className="space-y-2">
+  1988→              <label className="text-sm font-medium">Sujet</label>
+  1989→              <Input placeholder="Décrivez brièvement votre problème" value={subject} onChange={(e) => setSubject(e.target.value)} />
+  1990→            </div>
+  1991→            <div className="space-y-2">
+  1992→              <label className="text-sm font-medium">Message</label>
+  1993→              <Textarea placeholder="Décrivez votre problème en détail..." value={message} onChange={(e) => setMessage(e.target.value)} rows={5} />
+  1994→            </div>
+  1995→            <Button onClick={handleSend} disabled={sending} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+  1996→              {sending ? (
+  1997→                <>
+  1998→                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+  1999→                  Envoi en cours...
+  2000→                </>
+
+[showing lines 1-2000 of 2289; use offset=2001 with limit to continue reading]

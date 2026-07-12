@@ -1,0 +1,1905 @@
+     1→'use client';
+     2→
+     3→import { useState, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import { toast } from 'sonner';
+     6→import {
+     7→  BarChart,
+     8→  Bar,
+     9→  XAxis,
+    10→  YAxis,
+    11→  CartesianGrid,
+    12→  Tooltip,
+    13→  ResponsiveContainer,
+    14→} from 'recharts';
+    15→import {
+    16→  useAuthStore,
+    17→  useDriverNav,
+    18→  formatPrice,
+    19→  ORDER_STATUS_LABELS,
+    20→  ORDER_STATUS_COLORS,
+    21→} from '@/lib/store';
+    22→
+    23→import { Button } from '@/components/ui/button';
+    24→import { Input } from '@/components/ui/input';
+    25→import {
+    26→  Card,
+    27→  CardContent,
+    28→  CardHeader,
+    29→  CardTitle,
+    30→  CardDescription,
+    31→} from '@/components/ui/card';
+    32→import { Badge } from '@/components/ui/badge';
+    33→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    34→import {
+    35→  Dialog,
+    36→  DialogContent,
+    37→  DialogHeader,
+    38→  DialogTitle,
+    39→  DialogDescription,
+    40→  DialogFooter,
+    41→} from '@/components/ui/dialog';
+    42→import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+    43→import { Separator } from '@/components/ui/separator';
+    44→import { Skeleton } from '@/components/ui/skeleton';
+    45→import { ScrollArea } from '@/components/ui/scroll-area';
+    46→import { Progress } from '@/components/ui/progress';
+    47→import { Switch } from '@/components/ui/switch';
+    48→import {
+    49→  ChartContainer,
+    50→  ChartTooltip,
+    51→  ChartTooltipContent,
+    52→} from '@/components/ui/chart';
+    53→
+    54→import {
+    55→  Home,
+    56→  Package,
+    57→  Clock,
+    58→  User,
+    59→  MapPin,
+    60→  Navigation,
+    61→  Phone,
+    62→  Star,
+    63→  Wallet,
+    64→  FileText,
+    65→  Headphones,
+    66→  Bell,
+    67→  MessageCircle,
+    68→  ChevronRight,
+    69→  CheckCircle2,
+    70→  Circle,
+    71→  Truck,
+    72→  TrendingUp,
+    73→  Award,
+    74→  ArrowLeft,
+    75→  Upload,
+    76→  ShieldCheck,
+    77→  AlertCircle,
+    78→  Plus,
+    79→  Minus,
+    80→  Send,
+    81→  LogOut,
+    82→  Car,
+    83→  CreditCard,
+    84→  ArrowUpRight,
+    85→  ArrowDownLeft,
+    86→  Route,
+    87→  Timer,
+    88→  CircleDot,
+    89→} from 'lucide-react';
+    90→
+    91→// ─── Mock Data ────────────────────────────────────────────────────────────────
+    92→
+    93→const MOCK_AVAILABLE_ORDERS = [
+    94→  {
+    95→    id: 'ord-001',
+    96→    pickup: 'Restaurant Le Djoliba, ACI 2000, Bamako',
+    97→    delivery: 'Quartier Badalabougou, Bamako',
+    98→    earnings: 2500,
+    99→    distance: '4.2 km',
+   100→    estimatedTime: '15 min',
+   101→    merchant: 'Restaurant Le Djoliba',
+   102→    customer: 'Amadou Diallo',
+   103→  },
+   104→  {
+   105→    id: 'ord-002',
+   106→    pickup: 'Supermarché Koutouba, Hamdallaye, Bamako',
+   107→    delivery: 'Kalaban-Coura, Bamako',
+   108→    earnings: 3500,
+   109→    distance: '6.8 km',
+   110→    estimatedTime: '22 min',
+   111→    merchant: 'Supermarché Koutouba',
+   112→    customer: 'Fatoumata Traoré',
+   113→  },
+   114→  {
+   115→    id: 'ord-003',
+   116→    pickup: 'Pharmacie du Fleuve, Korofina, Bamako',
+   117→    delivery: 'Sotuba, Bamako',
+   118→    earnings: 4200,
+   119→    distance: '9.1 km',
+   120→    estimatedTime: '30 min',
+   121→    merchant: 'Pharmacie du Fleuve',
+   122→    customer: 'Ibrahim Keita',
+   123→  },
+   124→];
+   125→
+   126→const MOCK_ACTIVE_RIDE = {
+   127→  id: 'ord-001',
+   128→  customer: 'Amadou Diallo',
+   129→  customerPhone: '+223 70 12 34 56',
+   130→  pickup: 'Restaurant Le Djoliba, ACI 2000, Bamako',
+   131→  delivery: 'Quartier Badalabougou, Bamako',
+   132→  earnings: 2500,
+   133→  distance: '4.2 km',
+   134→  estimatedTime: '15 min',
+   135→  status: 'picking_up' as const,
+   136→  merchant: 'Restaurant Le Djoliba',
+   137→  orderId: 'RPG-20250115-0042',
+   138→};
+   139→
+   140→const MOCK_HISTORY = [
+   141→  { id: 'h1', date: '15/01/2025', merchant: 'Boutique Aminata', customer: 'Moussa Coulibaly', amount: 2800, status: 'DELIVERED', distance: '5.1 km' },
+   142→  { id: 'h2', date: '15/01/2025', merchant: 'Alimentation Kadiatou', customer: 'Awa Sissoko', amount: 3200, status: 'DELIVERED', distance: '7.3 km' },
+   143→  { id: 'h3', date: '14/01/2025', merchant: 'Épicerie Moderne', customer: 'Bakary Diarra', amount: 1900, status: 'DELIVERED', distance: '3.4 km' },
+   144→  { id: 'h4', date: '14/01/2025', merchant: 'Restaurant Chez Boubacar', customer: 'Mariam Sanogo', amount: 4100, status: 'CANCELLED', distance: '8.7 km' },
+   145→  { id: 'h5', date: '13/01/2025', merchant: 'Pharmacie Centrale', customer: 'Oumar Sidibé', amount: 5200, status: 'DELIVERED', distance: '11.2 km' },
+   146→  { id: 'h6', date: '13/01/2025', merchant: 'Supermarché Bim, Bamako', customer: 'Djénéba Konaté', amount: 2400, status: 'DELIVERED', distance: '4.8 km' },
+   147→  { id: 'h7', date: '12/01/2025', merchant: 'Boulangerie du Sahel', customer: 'Seydou Traoré', amount: 1800, status: 'DELIVERED', distance: '2.9 km' },
+   148→  { id: 'h8', date: '11/01/2025', merchant: 'Marché Médina Coura', customer: 'Kadiatou Bah', amount: 3600, status: 'DELIVERED', distance: '6.5 km' },
+   149→  { id: 'h9', date: '10/01/2025', merchant: 'Café Restaurant Bolomba', customer: 'Adama Camara', amount: 2100, status: 'DELIVERED', distance: '3.8 km' },
+   150→  { id: 'h10', date: '09/01/2025', merchant: 'Librairie du Mali', customer: 'Fatoumata Dembélé', amount: 2900, status: 'DELIVERED', distance: '5.5 km' },
+   151→];
+   152→
+   153→const MOCK_WEEKLY_EARNINGS = [
+   154→  { day: 'Lun', amount: 18500 },
+   155→  { day: 'Mar', amount: 22300 },
+   156→  { day: 'Mer', amount: 15800 },
+   157→  { day: 'Jeu', amount: 27400 },
+   158→  { day: 'Ven', amount: 31200 },
+   159→  { day: 'Sam', amount: 38600 },
+   160→  { day: 'Dim', amount: 24100 },
+   161→];
+   162→
+   163→const MOCK_RATINGS = {
+   164→  average: 4.7,
+   165→  total: 238,
+   166→  distribution: [
+   167→    { stars: 5, count: 156, percentage: 66 },
+   168→    { stars: 4, count: 52, percentage: 22 },
+   169→    { stars: 3, count: 18, percentage: 7 },
+   170→    { stars: 2, count: 8, percentage: 3 },
+   171→    { stars: 1, count: 4, percentage: 2 },
+   172→  ],
+   173→  reviews: [
+   174→    { id: 'r1', name: 'Fatoumata T.', rating: 5, comment: 'Très ponctuel et professionnel. La commande est arrivée en parfait état.', date: '14/01/2025' },
+   175→    { id: 'r2', name: 'Ibrahim K.', rating: 5, comment: 'Excellent livreur, toujours souriant et poli.', date: '13/01/2025' },
+   176→    { id: 'r3', name: 'Awa S.', rating: 4, comment: 'Bon service, juste un petit retard.', date: '12/01/2025' },
+   177→    { id: 'r4', name: 'Moussa C.', rating: 5, comment: 'Le meilleur livreur de Bamako ! Rapide et fiable.', date: '11/01/2025' },
+   178→    { id: 'r5', name: 'Djénéba K.', rating: 4, comment: 'Correct, je recommande.', date: '10/01/2025' },
+   179→  ],
+   180→};
+   181→
+   182→const MOCK_DOCUMENTS = [
+   183→  { id: 'doc1', name: "Carte d'identité nationale", status: 'verified' as const, description: 'Pièce d\'identité en cours de validité' },
+   184→  { id: 'doc2', name: 'Permis de conduire', status: 'verified' as const, description: 'Permis moto ou voiture catégorie A/B' },
+   185→  { id: 'doc3', name: "Carte grise du véhicule", status: 'pending' as const, description: 'Enregistrement du véhicule' },
+   186→  { id: 'doc4', name: 'Selfie avec pièce', status: 'verified' as const, description: 'Photo de vous avec votre pièce d\'identité' },
+   187→];
+   188→
+   189→const MOCK_WALLET = {
+   190→  balance: 47500,
+   191→  transactions: [
+   192→    { id: 't1', type: 'credit' as const, description: 'Course RPG-20250115-0042', amount: 2500, date: '15/01/2025' },
+   193→    { id: 't2', type: 'credit' as const, description: 'Course RPG-20250115-0038', amount: 3200, date: '15/01/2025' },
+   194→    { id: 't3', type: 'debit' as const, description: 'Retrait Mobile Money', amount: 20000, date: '14/01/2025' },
+   195→    { id: 't4', type: 'credit' as const, description: 'Bonus hebdomadaire', amount: 5000, date: '14/01/2025' },
+   196→    { id: 't5', type: 'credit' as const, description: 'Course RPG-20250113-0029', amount: 4100, date: '13/01/2025' },
+   197→    { id: 't6', type: 'debit' as const, description: 'Commission plateforme', amount: -615, date: '13/01/2025' },
+   198→    { id: 't7', type: 'credit' as const, description: 'Pourboire client', amount: 1000, date: '12/01/2025' },
+   199→    { id: 't8', type: 'credit' as const, description: 'Course RPG-20250112-0021', amount: 2800, date: '12/01/2025' },
+   200→  ],
+   201→};
+   202→
+   203→const MOCK_NOTIFICATIONS = [
+   204→  { id: 'n1', title: 'Nouveau bonus disponible', message: 'Effectuez 10 courses cette semaine et gagnez 5 000 FCFA de bonus.', time: 'Il y a 2h', read: false },
+   205→  { id: 'n2', title: 'Course annulée', message: 'La course RPG-20250114-0041 a été annulée par le client.', time: 'Il y a 5h', read: false },
+   206→  { id: 'n3', title: 'Paiement reçu', message: 'Vous avez reçu 3 200 FCFA pour la course RPG-20250115-0038.', time: 'Hier', read: true },
+   207→  { id: 'n4', title: 'Rappel documents', message: 'Veuillez mettre à jour votre carte grise dans la section Documents.', time: 'Il y a 3 jours', read: true },
+   208→  { id: 'n5', title: 'Félicitations !', message: 'Vous avez atteint 4.7 étoiles. Continuez ainsi !', time: 'Il y a 5 jours', read: true },
+   209→];
+   210→
+   211→const MOCK_CHATS = [
+   212→  { id: 'c1', name: 'Support Rapigo', lastMessage: 'Votre problème a été résolu. N\'hésitez pas à nous recontacter.', time: 'Hier', unread: 0 },
+   213→  { id: 'c2', name: 'Amadou Diallo', lastMessage: 'Je suis à l\'entrée principale.', time: '14/01', unread: 0 },
+   214→  { id: 'c3', name: 'Fatoumata Traoré', lastMessage: 'Merci beaucoup !', time: '13/01', unread: 2 },
+   215→];
+   216→
+   217→const CHAT_MESSAGES = [
+   218→  { id: 'm1', sender: 'them', text: 'Bonjour, je suis près du restaurant. Où êtes-vous exactement ?', time: '14:32' },
+   219→  { id: 'm2', sender: 'me', text: 'Je suis à la porte principale du marché, côté rue.', time: '14:34' },
+   220→  { id: 'm3', sender: 'them', text: 'D\'accord, j\'arrive dans 2 minutes.', time: '14:35' },
+   221→  { id: 'm4', sender: 'me', text: 'Parfait, merci !', time: '14:35' },
+   222→  { id: 'm5', sender: 'them', text: 'Merci beaucoup !', time: '14:42' },
+   223→];
+   224→
+   225→// ─── Step Progress Component ──────────────────────────────────────────────────
+   226→
+   227→const RIDE_STEPS = [
+   228→  { key: 'assigned', label: 'Assignée' },
+   229→  { key: 'picking_up', label: 'Récupération' },
+   230→  { key: 'in_transit', label: 'En transit' },
+   231→  { key: 'delivered', label: 'Livrée' },
+   232→] as const;
+   233→
+   234→type RideStep = (typeof RIDE_STEPS)[number]['key'];
+   235→
+   236→function StepProgress({ current }: { current: RideStep }) {
+   237→  const currentIndex = RIDE_STEPS.findIndex((s) => s.key === current);
+   238→
+   239→  return (
+   240→    <div className="flex items-center justify-between px-2">
+   241→      {RIDE_STEPS.map((step, i) => {
+   242→        const isCompleted = i < currentIndex;
+   243→        const isCurrent = i === currentIndex;
+   244→
+   245→        return (
+   246→          <div key={step.key} className="flex flex-1 flex-col items-center gap-1.5">
+   247→            <div className="flex w-full items-center">
+   248→              {i > 0 && (
+   249→                <div
+   250→                  className={`h-0.5 flex-1 transition-colors ${
+   251→                    i <= currentIndex ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-700'
+   252→                  }`}
+   253→                />
+   254→              )}
+   255→              <motion.div
+   256→                animate={{
+   257→                  scale: isCurrent ? 1.15 : 1,
+   258→                  backgroundColor: isCompleted
+   259→                    ? '#10b981'
+   260→                    : isCurrent
+   261→                    ? '#10b981'
+   262→                    : '#e5e7eb',
+   263→                }}
+   264→                className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full"
+   265→              >
+   266→                {isCompleted ? (
+   267→                  <CheckCircle2 className="h-5 w-5 text-white" />
+   268→                ) : isCurrent ? (
+   269→                  <div className="h-3 w-3 rounded-full bg-white" />
+   270→                ) : (
+   271→                  <Circle className="h-5 w-5 text-gray-400" />
+   272→                )}
+   273→              </motion.div>
+   274→              {i < RIDE_STEPS.length - 1 && (
+   275→                <div
+   276→                  className={`h-0.5 flex-1 transition-colors ${
+   277→                    i < currentIndex ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-700'
+   278→                  }`}
+   279→                />
+   280→              )}
+   281→            </div>
+   282→            <span
+   283→              className={`text-[10px] font-medium ${
+   284→                isCompleted || isCurrent
+   285→                  ? 'text-emerald-700 dark:text-emerald-400'
+   286→                  : 'text-gray-400'
+   287→              }`}
+   288→            >
+   289→              {step.label}
+   290→            </span>
+   291→          </div>
+   292→        );
+   293→      })}
+   294→    </div>
+   295→  );
+   296→}
+   297→
+   298→// ─── Home View ────────────────────────────────────────────────────────────────
+   299→
+   300→function HomeView() {
+   301→  const { navigate } = useDriverNav();
+   302→  const [isOnline, setIsOnline] = useState(false);
+   303→  const [showOrders, setShowOrders] = useState(true);
+   304→
+   305→  const handleToggleOnline = () => {
+   306→    const newState = !isOnline;
+   307→    setIsOnline(newState);
+   308→    toast.success(newState ? 'Vous êtes en ligne' : 'Vous êtes hors ligne');
+   309→  };
+   310→
+   311→  const handleAcceptOrder = (orderId: string) => {
+   312→    toast.success('Course acceptée !');
+   313→    navigate('ride', { orderId });
+   314→  };
+   315→
+   316→  return (
+   317→    <ScrollArea className="h-full">
+   318→      <div className="space-y-5 pb-4">
+   319→        {/* Online Toggle */}
+   320→        <motion.div
+   321→          className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 p-5 text-white shadow-lg"
+   322→          initial={{ opacity: 0, y: -10 }}
+   323→          animate={{ opacity: 1, y: 0 }}
+   324→          transition={{ duration: 0.4 }}
+   325→        >
+   326→          <div className="flex items-center gap-3">
+   327→            <motion.div
+   328→              animate={{
+   329→                scale: isOnline ? [1, 1.2, 1] : 1,
+   330→                opacity: isOnline ? 1 : 0.5,
+   331→              }}
+   332→              transition={{ repeat: isOnline ? Infinity : 0, duration: 2 }}
+   333→            >
+   334→              <div
+   335→                className={`h-4 w-4 rounded-full ${
+   336→                  isOnline ? 'bg-white' : 'bg-white/40'
+   337→                }`}
+   338→              />
+   339→            </motion.div>
+   340→            <div>
+   341→              <p className="text-sm font-medium text-white/80">Statut</p>
+   342→              <p className="text-lg font-bold">{isOnline ? 'En ligne' : 'Hors ligne'}</p>
+   343→            </div>
+   344→          </div>
+   345→          <button
+   346→            onClick={handleToggleOnline}
+   347→            className={`relative h-14 w-24 rounded-full transition-all duration-500 ${
+   348→              isOnline
+   349→                ? 'bg-white/30 shadow-inner'
+   350→                : 'bg-black/20 shadow-inner'
+   351→            }`}
+   352→            aria-label="Toggle online status"
+   353→          >
+   354→            <motion.div
+   355→              className="absolute top-1 flex h-12 w-[46px] items-center justify-center rounded-full bg-white shadow-lg"
+   356→              animate={{ left: isOnline ? 'calc(100% - 50px)' : '2px' }}
+   357→              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+   358→            >
+   359→              <Truck className={`h-5 w-5 ${isOnline ? 'text-emerald-600' : 'text-gray-400'}`} />
+   360→            </motion.div>
+   361→          </button>
+   362→        </motion.div>
+   363→
+   364→        {/* Driver Status Card */}
+   365→        <motion.div
+   366→          initial={{ opacity: 0, y: 10 }}
+   367→          animate={{ opacity: 1, y: 0 }}
+   368→          transition={{ delay: 0.1 }}
+   369→        >
+   370→          <Card className="border-0 shadow-md">
+   371→            <CardContent className="p-4">
+   372→              <div className="flex items-center gap-3 mb-4">
+   373→                <Avatar className="h-12 w-12 border-2 border-emerald-500">
+   374→                  <AvatarFallback className="bg-emerald-100 text-emerald-700 text-lg font-bold">
+   375→                    MK
+   376→                  </AvatarFallback>
+   377→                </Avatar>
+   378→                <div className="flex-1 min-w-0">
+   379→                  <p className="font-bold text-base truncate">Mamadou Konaté</p>
+   380→                  <p className="text-sm text-muted-foreground">Honda PCX 150 • AK-0452-BM</p>
+   381→                </div>
+   382→                <div className="text-right">
+   383→                  <p className="text-xs text-muted-foreground">Aujourd&apos;hui</p>
+   384→                  <p className="text-lg font-bold text-emerald-600">12 courses</p>
+   385→                </div>
+   386→              </div>
+   387→              <div className="grid grid-cols-3 gap-3">
+   388→                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-3 text-center">
+   389→                  <TrendingUp className="mx-auto mb-1 h-5 w-5 text-emerald-600" />
+   390→                  <p className="text-lg font-bold">12</p>
+   391→                  <p className="text-[10px] text-muted-foreground">Courses</p>
+   392→                </div>
+   393→                <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 p-3 text-center">
+   394→                  <Star className="mx-auto mb-1 h-5 w-5 text-amber-500" />
+   395→                  <p className="text-lg font-bold">4.7</p>
+   396→                  <p className="text-[10px] text-muted-foreground">Note</p>
+   397→                </div>
+   398→                <div className="rounded-xl bg-blue-50 dark:bg-blue-950/30 p-3 text-center">
+   399→                  <Wallet className="mx-auto mb-1 h-5 w-5 text-blue-600" />
+   400→                  <p className="text-lg font-bold">28.5k</p>
+   401→                  <p className="text-[10px] text-muted-foreground">FCFA</p>
+   402→                </div>
+   403→              </div>
+   404→            </CardContent>
+   405→          </Card>
+   406→        </motion.div>
+   407→
+   408→        {/* Available Orders */}
+   409→        <motion.div
+   410→          initial={{ opacity: 0, y: 10 }}
+   411→          animate={{ opacity: 1, y: 0 }}
+   412→          transition={{ delay: 0.2 }}
+   413→        >
+   414→          <div className="mb-3 flex items-center justify-between px-1">
+   415→            <h2 className="text-base font-bold">Courses disponibles</h2>
+   416→            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+   417→              {MOCK_AVAILABLE_ORDERS.length}
+   418→            </Badge>
+   419→          </div>
+   420→
+   421→          {showOrders ? (
+   422→            <div className="space-y-3">
+   423→              {MOCK_AVAILABLE_ORDERS.map((order, idx) => (
+   424→                <motion.div
+   425→                  key={order.id}
+   426→                  initial={{ opacity: 0, x: -20 }}
+   427→                  animate={{ opacity: 1, x: 0 }}
+   428→                  transition={{ delay: 0.1 * idx }}
+   429→                >
+   430→                  <Card className="border-0 shadow-md overflow-hidden">
+   431→                    <CardContent className="p-4">
+   432→                      <div className="mb-3 flex items-start gap-2">
+   433→                        <div className="flex flex-col items-center gap-0.5 pt-1">
+   434→                          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+   435→                          <div className="h-8 w-0.5 bg-gray-200 dark:bg-gray-700" />
+   436→                          <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+   437→                        </div>
+   438→                        <div className="flex-1 space-y-3">
+   439→                          <div>
+   440→                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+   441→                              Récupérer
+   442→                            </p>
+   443→                            <p className="text-sm font-semibold">{order.pickup}</p>
+   444→                          </div>
+   445→                          <div>
+   446→                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+   447→                              Livrer à
+   448→                            </p>
+   449→                            <p className="text-sm font-semibold">{order.delivery}</p>
+   450→                          </div>
+   451→                        </div>
+   452→                      </div>
+   453→
+   454→                      <div className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-900 p-3 mb-3">
+   455→                        <div className="text-center">
+   456→                          <p className="text-xs text-muted-foreground">Gains</p>
+   457→                          <p className="text-base font-bold text-emerald-600">
+   458→                            {formatPrice(order.earnings)}
+   459→                          </p>
+   460→                        </div>
+   461→                        <Separator orientation="vertical" className="h-8" />
+   462→                        <div className="text-center">
+   463→                          <p className="text-xs text-muted-foreground">Distance</p>
+   464→                          <p className="text-base font-bold">{order.distance}</p>
+   465→                        </div>
+   466→                        <Separator orientation="vertical" className="h-8" />
+   467→                        <div className="text-center">
+   468→                          <p className="text-xs text-muted-foreground">Temps</p>
+   469→                          <p className="text-base font-bold">{order.estimatedTime}</p>
+   470→                        </div>
+   471→                      </div>
+   472→
+   473→                      <Button
+   474→                        className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
+   475→                        onClick={() => handleAcceptOrder(order.id)}
+   476→                      >
+   477→                        Accepter la course
+   478→                      </Button>
+   479→                    </CardContent>
+   480→                  </Card>
+   481→                </motion.div>
+   482→              ))}
+   483→            </div>
+   484→          ) : (
+   485→            <Card className="border-0 shadow-md">
+   486→              <CardContent className="flex flex-col items-center justify-center py-12">
+   487→                <motion.div
+   488→                  animate={{ y: [0, -8, 0] }}
+   489→                  transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+   490→                >
+   491→                  <Package className="h-16 w-16 text-gray-300" />
+   492→                </motion.div>
+   493→                <p className="mt-4 text-lg font-semibold text-gray-400">
+   494→                  Aucune course disponible
+   495→                </p>
+   496→                <p className="mt-1 text-sm text-gray-400">
+   497→                  Recherche en cours...
+   498→                </p>
+   499→                <Skeleton className="mt-4 h-1 w-32 rounded-full" />
+   500→              </CardContent>
+   501→            </Card>
+   502→          )}
+   503→        </motion.div>
+   504→
+   505→        {/* Monthly Stats */}
+   506→        <motion.div
+   507→          initial={{ opacity: 0, y: 10 }}
+   508→          animate={{ opacity: 1, y: 0 }}
+   509→          transition={{ delay: 0.3 }}
+   510→        >
+   511→          <Card className="border-0 shadow-md">
+   512→            <CardHeader className="pb-2">
+   513→              <CardTitle className="text-base">Ce mois</CardTitle>
+   514→            </CardHeader>
+   515→            <CardContent className="p-4 pt-0">
+   516→              <div className="grid grid-cols-3 gap-2">
+   517→                <button
+   518→                  className="rounded-xl border border-transparent p-3 text-center transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+   519→                  onClick={() => navigate('history')}
+   520→                >
+   521→                  <p className="text-xl font-bold">87</p>
+   522→                  <p className="text-[11px] text-muted-foreground">Total courses</p>
+   523→                </button>
+   524→                <button
+   525→                  className="rounded-xl border border-transparent p-3 text-center transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+   526→                  onClick={() => navigate('ratings')}
+   527→                >
+   528→                  <p className="text-xl font-bold flex items-center justify-center gap-1">
+   529→                    4.7 <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+   530→                  </p>
+   531→                  <p className="text-[11px] text-muted-foreground">Note moyenne</p>
+   532→                </button>
+   533→                <button
+   534→                  className="rounded-xl border border-transparent p-3 text-center transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+   535→                  onClick={() => navigate('earnings')}
+   536→                >
+   537→                  <p className="text-xl font-bold text-emerald-600">312k</p>
+   538→                  <p className="text-[11px] text-muted-foreground">Revenus</p>
+   539→                </button>
+   540→              </div>
+   541→            </CardContent>
+   542→          </Card>
+   543→        </motion.div>
+   544→      </div>
+   545→    </ScrollArea>
+   546→  );
+   547→}
+   548→
+   549→// ─── Ride / Navigation View ───────────────────────────────────────────────────
+   550→
+   551→function RideView() {
+   552→  const { navigate } = useDriverNav();
+   553→  const [rideStatus, setRideStatus] = useState<RideStep>(MOCK_ACTIVE_RIDE.status);
+   554→
+   555→  const handleNextStep = () => {
+   556→    const steps: RideStep[] = ['assigned', 'picking_up', 'in_transit', 'delivered'];
+   557→    const currentIndex = steps.indexOf(rideStatus);
+   558→
+   559→    if (currentIndex < steps.length - 1) {
+   560→      const next = steps[currentIndex + 1];
+   561→      setRideStatus(next);
+   562→
+   563→      if (next === 'in_transit') {
+   564→        toast.success('Colis récupéré ! Direction la livraison.');
+   565→        navigate('navigation');
+   566→      } else if (next === 'delivered') {
+   567→        toast.success('Course livrée avec succès ! 🎉');
+   568→        setTimeout(() => navigate('home'), 2000);
+   569→      }
+   570→    }
+   571→  };
+   572→
+   573→  return (
+   574→    <div className="flex h-full flex-col">
+   575→      {/* Map Placeholder */}
+   576→      <div className="relative flex-1 bg-gray-200 dark:bg-gray-800">
+   577→        <div className="absolute inset-0 flex flex-col items-center justify-center rounded-none">
+   578→          <motion.div
+   579→            animate={{ scale: [1, 1.1, 1] }}
+   580→            transition={{ repeat: Infinity, duration: 2 }}
+   581→          >
+   582→            <MapPin className="h-12 w-12 text-emerald-500" />
+   583→          </motion.div>
+   584→          <p className="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+   585→            Carte en cours de chargement...
+   586→          </p>
+   587→        </div>
+   588→
+   589→        {/* Top Bar */}
+   590→        <div className="absolute left-0 right-0 top-0 bg-gradient-to-b from-black/60 to-transparent p-4">
+   591→          <div className="flex items-center gap-3">
+   592→            <Button
+   593→              variant="ghost"
+   594→              size="icon"
+   595→              className="h-11 w-11 text-white hover:bg-white/20"
+   596→              onClick={() => navigate('home')}
+   597→            >
+   598→              <ArrowLeft className="h-5 w-5" />
+   599→            </Button>
+   600→            <div className="text-white">
+   601→              <p className="text-xs opacity-80">Course en cours</p>
+   602→              <p className="font-bold text-sm">{MOCK_ACTIVE_RIDE.orderId}</p>
+   603→            </div>
+   604→          </div>
+   605→        </div>
+   606→
+   607→        {/* Bottom Info Card */}
+   608→        <div className="absolute left-0 right-0 bottom-0 p-4">
+   609→          <motion.div
+   610→            initial={{ y: 100 }}
+   611→            animate={{ y: 0 }}
+   612→            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+   613→          >
+   614→            <Card className="border-0 shadow-xl rounded-2xl overflow-hidden">
+   615→              <CardContent className="p-4">
+   616→                {/* Step Progress */}
+   617→                <div className="mb-4">
+   618→                  <StepProgress current={rideStatus} />
+   619→                </div>
+   620→
+   621→                {/* Customer Info */}
+   622→                <div className="flex items-center gap-3 mb-3">
+   623→                  <Avatar className="h-10 w-10">
+   624→                    <AvatarFallback className="bg-gray-100 text-gray-600 font-semibold text-sm">
+   625→                      AD
+   626→                    </AvatarFallback>
+   627→                  </Avatar>
+   628→                  <div className="flex-1 min-w-0">
+   629→                    <p className="font-semibold text-sm">{MOCK_ACTIVE_RIDE.customer}</p>
+   630→                    <p className="text-xs text-muted-foreground">{MOCK_ACTIVE_RIDE.customerPhone}</p>
+   631→                  </div>
+   632→                  <Button
+   633→                    variant="outline"
+   634→                    size="icon"
+   635→                    className="h-11 w-11 rounded-full text-emerald-600 border-emerald-200"
+   636→                    onClick={() => toast.info('Appel en cours...')}
+   637→                  >
+   638→                    <Phone className="h-5 w-5" />
+   639→                  </Button>
+   640→                </div>
+   641→
+   642→                {/* Addresses */}
+   643→                <div className="flex gap-3 mb-4">
+   644→                  <div className="flex flex-col items-center gap-0.5 pt-1">
+   645→                    <div className={`h-3 w-3 rounded-full ${rideStatus === 'assigned' ? 'bg-emerald-500 ring-4 ring-emerald-100' : 'bg-gray-300'}`} />
+   646→                    <div className="h-10 w-0.5 bg-gray-200 dark:bg-gray-700" />
+   647→                    <div className={`h-3 w-3 rounded-full ${rideStatus === 'in_transit' ? 'bg-red-500 ring-4 ring-red-100' : 'bg-gray-300'}`} />
+   648→                  </div>
+   649→                  <div className="flex-1 space-y-3">
+   650→                    <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-2.5">
+   651→                      <p className="text-[10px] text-muted-foreground uppercase">Récupérer</p>
+   652→                      <p className="text-xs font-semibold">{MOCK_ACTIVE_RIDE.pickup}</p>
+   653→                    </div>
+   654→                    <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-2.5">
+   655→                      <p className="text-[10px] text-muted-foreground uppercase">Livrer</p>
+   656→                      <p className="text-xs font-semibold">{MOCK_ACTIVE_RIDE.delivery}</p>
+   657→                    </div>
+   658→                  </div>
+   659→                </div>
+   660→
+   661→                {/* Stats Row */}
+   662→                <div className="flex items-center justify-between mb-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-3">
+   663→                  <div className="flex items-center gap-1.5">
+   664→                    <Route className="h-4 w-4 text-emerald-600" />
+   665→                    <span className="text-sm font-bold">{MOCK_ACTIVE_RIDE.distance}</span>
+   666→                  </div>
+   667→                  <div className="flex items-center gap-1.5">
+   668→                    <Timer className="h-4 w-4 text-emerald-600" />
+   669→                    <span className="text-sm font-bold">{MOCK_ACTIVE_RIDE.estimatedTime}</span>
+   670→                  </div>
+   671→                  <div className="text-right">
+   672→                    <span className="text-sm font-bold text-emerald-600">
+   673→                      {formatPrice(MOCK_ACTIVE_RIDE.earnings)}
+   674→                    </span>
+   675→                  </div>
+   676→                </div>
+   677→
+   678→                {/* Action Button */}
+   679→                {rideStatus !== 'delivered' && (
+   680→                  <Button
+   681→                    className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
+   682→                    onClick={handleNextStep}
+   683→                  >
+   684→                    {rideStatus === 'assigned' && 'Marquer comme récupérée'}
+   685→                    {rideStatus === 'picking_up' && 'Marquer comme récupérée'}
+   686→                    {rideStatus === 'in_transit' && 'Marquer comme livrée'}
+   687→                  </Button>
+   688→                )}
+   689→                {rideStatus === 'delivered' && (
+   690→                  <div className="flex flex-col items-center py-3">
+   691→                    <motion.div
+   692→                      initial={{ scale: 0 }}
+   693→                      animate={{ scale: 1 }}
+   694→                      transition={{ type: 'spring', stiffness: 200 }}
+   695→                    >
+   696→                      <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+   697→                    </motion.div>
+   698→                    <p className="mt-2 font-bold text-emerald-600">Course terminée !</p>
+   699→                  </div>
+   700→                )}
+   701→              </CardContent>
+   702→            </Card>
+   703→          </motion.div>
+   704→        </div>
+   705→      </div>
+   706→    </div>
+   707→  );
+   708→}
+   709→
+   710→// ─── Navigation View ──────────────────────────────────────────────────────────
+   711→
+   712→function NavigationView() {
+   713→  const { navigate } = useDriverNav();
+   714→
+   715→  return (
+   716→    <div className="flex h-full flex-col">
+   717→      {/* Map Placeholder */}
+   718→      <div className="relative flex-1 bg-gray-200 dark:bg-gray-800">
+   719→        <div className="absolute inset-0 flex flex-col items-center justify-center">
+   720→          <motion.div
+   721→            animate={{ scale: [1, 1.05, 1], rotate: [0, 2, -2, 0] }}
+   722→            transition={{ repeat: Infinity, duration: 3 }}
+   723→          >
+   724→            <Navigation className="h-16 w-16 text-emerald-500" />
+   725→          </motion.div>
+   726→          <p className="mt-3 text-sm font-medium text-gray-500">Navigation en cours</p>
+   727→          <div className="mt-2 flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-md">
+   728→            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+   729→            <span className="text-sm font-bold">{MOCK_ACTIVE_RIDE.estimatedTime}</span>
+   730→            <span className="text-xs text-muted-foreground">restants</span>
+   731→          </div>
+   732→        </div>
+   733→
+   734→        {/* Top Bar */}
+   735→        <div className="absolute left-0 right-0 top-0 bg-gradient-to-b from-black/60 to-transparent p-4">
+   736→          <div className="flex items-center gap-3">
+   737→            <Button
+   738→              variant="ghost"
+   739→              size="icon"
+   740→              className="h-11 w-11 text-white hover:bg-white/20"
+   741→              onClick={() => navigate('ride')}
+   742→            >
+   743→              <ArrowLeft className="h-5 w-5" />
+   744→            </Button>
+   745→            <div className="text-white">
+   746→              <p className="font-bold text-sm">En route vers la livraison</p>
+   747→              <p className="text-xs opacity-80">{MOCK_ACTIVE_RIDE.delivery}</p>
+   748→            </div>
+   749→          </div>
+   750→        </div>
+   751→
+   752→        {/* Bottom Action */}
+   753→        <div className="absolute left-0 right-0 bottom-0 p-4">
+   754→          <Button
+   755→            className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
+   756→            onClick={() => {
+   757→              toast.success('Course livrée avec succès ! 🎉');
+   758→              setTimeout(() => navigate('home'), 1500);
+   759→            }}
+   760→          >
+   761→            <CheckCircle2 className="mr-2 h-5 w-5" />
+   762→            Marquer comme livrée
+   763→          </Button>
+   764→        </div>
+   765→      </div>
+   766→    </div>
+   767→  );
+   768→}
+   769→
+   770→// ─── History View ─────────────────────────────────────────────────────────────
+   771→
+   772→function HistoryView() {
+   773→  const [filter, setFilter] = useState('all');
+   774→
+   775→  const totalEarnings = MOCK_HISTORY
+   776→    .filter((h) => h.status === 'DELIVERED')
+   777→    .reduce((sum, h) => sum + h.amount, 0);
+   778→
+   779→  const deliveredCount = MOCK_HISTORY.filter((h) => h.status === 'DELIVERED').length;
+   780→
+   781→  return (
+   782→    <ScrollArea className="h-full">
+   783→      <div className="space-y-4 pb-4">
+   784→        {/* Header */}
+   785→        <div>
+   786→          <h1 className="text-xl font-bold">Historique des courses</h1>
+   787→          <p className="text-sm text-muted-foreground">Vos dernières livraisons</p>
+   788→        </div>
+   789→
+   790→        {/* Summary */}
+   791→        <Card className="border-0 shadow-md">
+   792→          <CardContent className="p-4">
+   793→            <div className="grid grid-cols-2 gap-4">
+   794→              <div>
+   795→                <p className="text-xs text-muted-foreground">Revenus (période)</p>
+   796→                <p className="text-2xl font-bold text-emerald-600">
+   797→                  {formatPrice(totalEarnings)}
+   798→                </p>
+   799→              </div>
+   800→              <div>
+   801→                <p className="text-xs text-muted-foreground">Courses livrées</p>
+   802→                <p className="text-2xl font-bold">{deliveredCount}</p>
+   803→              </div>
+   804→            </div>
+   805→          </CardContent>
+   806→        </Card>
+   807→
+   808→        {/* Filter Tabs */}
+   809→        <Tabs value={filter} onValueChange={setFilter}>
+   810→          <TabsList className="w-full h-12">
+   811→            <TabsTrigger value="all" className="flex-1 text-sm">Toutes</TabsTrigger>
+   812→            <TabsTrigger value="week" className="flex-1 text-sm">Cette semaine</TabsTrigger>
+   813→            <TabsTrigger value="month" className="flex-1 text-sm">Ce mois</TabsTrigger>
+   814→          </TabsList>
+   815→
+   816→          <TabsContent value={filter} className="mt-3">
+   817→            <div className="space-y-2.5">
+   818→              {MOCK_HISTORY.map((item, idx) => (
+   819→                <motion.div
+   820→                  key={item.id}
+   821→                  initial={{ opacity: 0, y: 10 }}
+   822→                  animate={{ opacity: 1, y: 0 }}
+   823→                  transition={{ delay: idx * 0.05 }}
+   824→                >
+   825→                  <Card className="border-0 shadow-sm">
+   826→                    <CardContent className="p-4">
+   827→                      <div className="flex items-start justify-between mb-2">
+   828→                        <div className="min-w-0 flex-1">
+   829→                          <p className="text-sm font-semibold truncate">{item.merchant}</p>
+   830→                          <p className="text-xs text-muted-foreground">
+   831→                            {item.customer} • {item.distance}
+   832→                          </p>
+   833→                        </div>
+   834→                        <div className="text-right ml-3">
+   835→                          <p className="text-sm font-bold">
+   836→                            {item.status === 'CANCELLED' ? '—' : formatPrice(item.amount)}
+   837→                          </p>
+   838→                          <p className="text-[10px] text-muted-foreground">{item.date}</p>
+   839→                        </div>
+   840→                      </div>
+   841→                      <Badge
+   842→                        variant="secondary"
+   843→                        className={`text-[10px] font-medium ${ORDER_STATUS_COLORS[item.status] || ''}`}
+   844→                      >
+   845→                        {ORDER_STATUS_LABELS[item.status] || item.status}
+   846→                      </Badge>
+   847→                    </CardContent>
+   848→                  </Card>
+   849→                </motion.div>
+   850→              ))}
+   851→            </div>
+   852→          </TabsContent>
+   853→        </Tabs>
+   854→      </div>
+   855→    </ScrollArea>
+   856→  );
+   857→}
+   858→
+   859→// ─── Earnings View ────────────────────────────────────────────────────────────
+   860→
+   861→function EarningsView() {
+   862→  const { navigate } = useDriverNav();
+   863→  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+   864→
+   865→  const weeklyTotal = MOCK_WEEKLY_EARNINGS.reduce((sum, d) => sum + d.amount, 0);
+   866→  const monthlyTotal = 312500;
+   867→  const courseEarnings = 248000;
+   868→  const bonus = 32500;
+   869→  const commission = 32000;
+   870→
+   871→  const chartConfig = {
+   872→    amount: { label: 'Revenus', color: '#10b981' },
+   873→  };
+   874→
+   875→  const dailySummary = [
+   876→    { date: 'Aujourd\'hui', courses: 12, earnings: 28500 },
+   877→    { date: 'Hier', courses: 15, earnings: 32100 },
+   878→    { date: '13 Jan', courses: 11, earnings: 24800 },
+   879→    { date: '12 Jan', courses: 9, earnings: 19400 },
+   880→    { date: '11 Jan', courses: 14, earnings: 30200 },
+   881→  ];
+   882→
+   883→  return (
+   884→    <ScrollArea className="h-full">
+   885→      <div className="space-y-4 pb-4">
+   886→        {/* Header */}
+   887→        <div className="flex items-center gap-3">
+   888→          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => navigate('profile')}>
+   889→            <ArrowLeft className="h-5 w-5" />
+   890→          </Button>
+   891→          <div>
+   892→            <h1 className="text-xl font-bold">Revenus</h1>
+   893→            <p className="text-sm text-muted-foreground">Vos gains et statistiques</p>
+   894→          </div>
+   895→        </div>
+   896→
+   897→        {/* Balance Card */}
+   898→        <motion.div
+   899→          initial={{ opacity: 0, scale: 0.95 }}
+   900→          animate={{ opacity: 1, scale: 1 }}
+   901→        >
+   902→          <Card className="border-0 shadow-lg overflow-hidden">
+   903→            <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 text-white">
+   904→              <p className="text-sm text-emerald-100">Solde ce mois</p>
+   905→              <p className="text-3xl font-bold mt-1">{formatPrice(monthlyTotal)}</p>
+   906→              <p className="text-xs text-emerald-200 mt-2 flex items-center gap-1">
+   907→                <TrendingUp className="h-3.5 w-3.5" />
+   908→                +12% par rapport au mois dernier
+   909→              </p>
+   910→            </div>
+   911→            <CardContent className="p-4">
+   912→              <Button
+   913→                className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-bold text-base active:scale-[0.98] transition-transform"
+   914→                onClick={() => setShowWithdrawDialog(true)}
+   915→              >
+   916→                <Wallet className="mr-2 h-5 w-5" />
+   917→                Retirer les gains
+   918→              </Button>
+   919→            </CardContent>
+   920→          </Card>
+   921→        </motion.div>
+   922→
+   923→        {/* Weekly Chart */}
+   924→        <Card className="border-0 shadow-md">
+   925→          <CardHeader className="pb-2">
+   926→            <CardTitle className="text-sm">Revenus cette semaine</CardTitle>
+   927→            <CardDescription>{formatPrice(weeklyTotal)} au total</CardDescription>
+   928→          </CardHeader>
+   929→          <CardContent className="p-4 pt-0">
+   930→            <ChartContainer config={chartConfig} className="h-48 w-full">
+   931→              <BarChart data={MOCK_WEEKLY_EARNINGS} barSize={28}>
+   932→                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+   933→                <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
+   934→                <YAxis
+   935→                  fontSize={10}
+   936→                  tickLine={false}
+   937→                  axisLine={false}
+   938→                  tickFormatter={(v) => `${v / 1000}k`}
+   939→                />
+   940→                <ChartTooltip content={<ChartTooltipContent />} />
+   941→                <Bar dataKey="amount" fill="#10b981" radius={[6, 6, 0, 0]} />
+   942→              </BarChart>
+   943→            </ChartContainer>
+   944→          </CardContent>
+   945→        </Card>
+   946→
+   947→        {/* Earnings Breakdown */}
+   948→        <Card className="border-0 shadow-md">
+   949→          <CardHeader className="pb-2">
+   950→            <CardTitle className="text-sm">Détail des gains</CardTitle>
+   951→          </CardHeader>
+   952→          <CardContent className="p-4 pt-0 space-y-3">
+   953→            <div className="flex items-center justify-between">
+   954→              <div className="flex items-center gap-2">
+   955→                <div className="h-3 w-3 rounded-full bg-emerald-500" />
+   956→                <span className="text-sm">Gains des courses</span>
+   957→              </div>
+   958→              <span className="text-sm font-bold">{formatPrice(courseEarnings)}</span>
+   959→            </div>
+   960→            <div className="flex items-center justify-between">
+   961→              <div className="flex items-center gap-2">
+   962→                <div className="h-3 w-3 rounded-full bg-amber-500" />
+   963→                <span className="text-sm">Bonus</span>
+   964→              </div>
+   965→              <span className="text-sm font-bold">{formatPrice(bonus)}</span>
+   966→            </div>
+   967→            <div className="flex items-center justify-between">
+   968→              <div className="flex items-center gap-2">
+   969→                <div className="h-3 w-3 rounded-full bg-gray-400" />
+   970→                <span className="text-sm">Commission plateforme</span>
+   971→              </div>
+   972→              <span className="text-sm font-bold text-red-500">-{formatPrice(commission)}</span>
+   973→            </div>
+   974→            <Separator />
+   975→            <div className="flex items-center justify-between font-bold">
+   976→              <span className="text-sm">Total net</span>
+   977→              <span className="text-sm text-emerald-600">{formatPrice(monthlyTotal)}</span>
+   978→            </div>
+   979→          </CardContent>
+   980→        </Card>
+   981→
+   982→        {/* Daily Summary */}
+   983→        <Card className="border-0 shadow-md">
+   984→          <CardHeader className="pb-2">
+   985→            <CardTitle className="text-sm">Résumé quotidien</CardTitle>
+   986→          </CardHeader>
+   987→          <CardContent className="p-4 pt-0">
+   988→            <div className="space-y-3">
+   989→              {dailySummary.map((day) => (
+   990→                <div key={day.date} className="flex items-center justify-between py-1">
+   991→                  <div>
+   992→                    <p className="text-sm font-medium">{day.date}</p>
+   993→                    <p className="text-xs text-muted-foreground">{day.courses} courses</p>
+   994→                  </div>
+   995→                  <p className="text-sm font-bold text-emerald-600">
+   996→                    {formatPrice(day.earnings)}
+   997→                  </p>
+   998→                </div>
+   999→              ))}
+  1000→            </div>
+  1001→          </CardContent>
+  1002→        </Card>
+  1003→      </div>
+  1004→
+  1005→      {/* Withdraw Dialog */}
+  1006→      <Dialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog}>
+  1007→        <DialogContent>
+  1008→          <DialogHeader>
+  1009→            <DialogTitle>Retirer les gains</DialogTitle>
+  1010→            <DialogDescription>
+  1011→              Choisissez votre mode de retrait
+  1012→            </DialogDescription>
+  1013→          </DialogHeader>
+  1014→          <div className="space-y-3 py-2">
+  1015→            <Button
+  1016→              variant="outline"
+  1017→              className="w-full h-14 justify-start text-left"
+  1018→              onClick={() => {
+  1019→                toast.success('Demande de retrait envoyée');
+  1020→                setShowWithdrawDialog(false);
+  1021→              }}
+  1022→            >
+  1023→              <CreditCard className="mr-3 h-5 w-5 text-orange-500" />
+  1024→              <div>
+  1025→                <p className="font-semibold text-sm">Mobile Money</p>
+  1026→                <p className="text-xs text-muted-foreground">Orange Money / MTN MoMo</p>
+  1027→              </div>
+  1028→            </Button>
+  1029→            <Button
+  1030→              variant="outline"
+  1031→              className="w-full h-14 justify-start text-left"
+  1032→              onClick={() => {
+  1033→                toast.success('Demande de retrait envoyée');
+  1034→                setShowWithdrawDialog(false);
+  1035→              }}
+  1036→            >
+  1037→              <CreditCard className="mr-3 h-5 w-5 text-blue-500" />
+  1038→              <div>
+  1039→                <p className="font-semibold text-sm">Virement bancaire</p>
+  1040→                <p className="text-xs text-muted-foreground">BNDA / BIM-SA</p>
+  1041→              </div>
+  1042→            </Button>
+  1043→          </div>
+  1044→          <DialogFooter>
+  1045→            <Button variant="ghost" onClick={() => setShowWithdrawDialog(false)}>
+  1046→              Annuler
+  1047→            </Button>
+  1048→          </DialogFooter>
+  1049→        </DialogContent>
+  1050→      </Dialog>
+  1051→    </ScrollArea>
+  1052→  );
+  1053→}
+  1054→
+  1055→// ─── Ratings View ─────────────────────────────────────────────────────────────
+  1056→
+  1057→function RatingsView() {
+  1058→  const { navigate } = useDriverNav();
+  1059→
+  1060→  return (
+  1061→    <ScrollArea className="h-full">
+  1062→      <div className="space-y-4 pb-4">
+  1063→        {/* Header */}
+  1064→        <div className="flex items-center gap-3">
+  1065→          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => navigate('home')}>
+  1066→            <ArrowLeft className="h-5 w-5" />
+  1067→          </Button>
+  1068→          <div>
+  1069→            <h1 className="text-xl font-bold">Notes et avis</h1>
+  1070→            <p className="text-sm text-muted-foreground">{MOCK_RATINGS.total} évaluations</p>
+  1071→          </div>
+  1072→        </div>
+  1073→
+  1074→        {/* Average Rating */}
+  1075→        <Card className="border-0 shadow-md">
+  1076→          <CardContent className="p-6">
+  1077→            <div className="flex items-center gap-6">
+  1078→              <div className="flex flex-col items-center">
+  1079→                <motion.p
+  1080→                  className="text-5xl font-bold text-emerald-600"
+  1081→                  initial={{ scale: 0.5, opacity: 0 }}
+  1082→                  animate={{ scale: 1, opacity: 1 }}
+  1083→                  transition={{ type: 'spring', stiffness: 200 }}
+  1084→                >
+  1085→                  {MOCK_RATINGS.average}
+  1086→                </motion.p>
+  1087→                <div className="flex gap-0.5 mt-2">
+  1088→                  {[1, 2, 3, 4, 5].map((star) => (
+  1089→                    <Star
+  1090→                      key={star}
+  1091→                      className={`h-5 w-5 ${
+  1092→                        star <= Math.round(MOCK_RATINGS.average)
+  1093→                          ? 'text-amber-500 fill-amber-500'
+  1094→                          : 'text-gray-300'
+  1095→                      }`}
+  1096→                    />
+  1097→                  ))}
+  1098→                </div>
+  1099→              </div>
+  1100→              <div className="flex-1 space-y-2">
+  1101→                {MOCK_RATINGS.distribution.map((d) => (
+  1102→                  <div key={d.stars} className="flex items-center gap-2">
+  1103→                    <span className="text-xs w-3 text-right">{d.stars}</span>
+  1104→                    <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+  1105→                    <div className="flex-1 h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+  1106→                      <motion.div
+  1107→                        className="h-full rounded-full bg-amber-500"
+  1108→                        initial={{ width: 0 }}
+  1109→                        animate={{ width: `${d.percentage}%` }}
+  1110→                        transition={{ duration: 0.8, delay: 0.1 * d.stars }}
+  1111→                      />
+  1112→                    </div>
+  1113→                    <span className="text-[10px] text-muted-foreground w-6 text-right">{d.percentage}%</span>
+  1114→                  </div>
+  1115→                ))}
+  1116→              </div>
+  1117→            </div>
+  1118→          </CardContent>
+  1119→        </Card>
+  1120→
+  1121→        {/* Recent Reviews */}
+  1122→        <div>
+  1123→          <h2 className="text-base font-bold px-1">Avis récents</h2>
+  1124→          <div className="mt-3 space-y-2.5">
+  1125→            {MOCK_RATINGS.reviews.map((review, idx) => (
+  1126→              <motion.div
+  1127→                key={review.id}
+  1128→                initial={{ opacity: 0, x: -10 }}
+  1129→                animate={{ opacity: 1, x: 0 }}
+  1130→                transition={{ delay: idx * 0.1 }}
+  1131→              >
+  1132→                <Card className="border-0 shadow-sm">
+  1133→                  <CardContent className="p-4">
+  1134→                    <div className="flex items-start justify-between mb-2">
+  1135→                      <div className="flex items-center gap-2.5">
+  1136→                        <Avatar className="h-9 w-9">
+  1137→                          <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-bold">
+  1138→                            {review.name.charAt(0)}
+  1139→                          </AvatarFallback>
+  1140→                        </Avatar>
+  1141→                        <div>
+  1142→                          <p className="text-sm font-semibold">{review.name}</p>
+  1143→                          <p className="text-[10px] text-muted-foreground">{review.date}</p>
+  1144→                        </div>
+  1145→                      </div>
+  1146→                      <div className="flex gap-0.5">
+  1147→                        {[1, 2, 3, 4, 5].map((s) => (
+  1148→                          <Star
+  1149→                            key={s}
+  1150→                            className={`h-3.5 w-3.5 ${
+  1151→                              s <= review.rating
+  1152→                                ? 'text-amber-500 fill-amber-500'
+  1153→                                : 'text-gray-300'
+  1154→                            }`}
+  1155→                          />
+  1156→                        ))}
+  1157→                      </div>
+  1158→                    </div>
+  1159→                    <p className="text-sm text-muted-foreground leading-relaxed">{review.comment}</p>
+  1160→                  </CardContent>
+  1161→                </Card>
+  1162→              </motion.div>
+  1163→            ))}
+  1164→          </div>
+  1165→        </div>
+  1166→      </div>
+  1167→    </ScrollArea>
+  1168→  );
+  1169→}
+  1170→
+  1171→// ─── Profile View ─────────────────────────────────────────────────────────────
+  1172→
+  1173→function ProfileView() {
+  1174→  const { navigate } = useDriverNav();
+  1175→  const { logout } = useAuthStore();
+  1176→  const [isOnline, setIsOnline] = useState(false);
+  1177→
+  1178→  const menuItems = [
+  1179→    { icon: FileText, label: 'Documents', view: 'documents' as const, color: 'text-blue-600 bg-blue-50' },
+  1180→    { icon: Wallet, label: 'Portefeuille', view: 'wallet' as const, color: 'text-emerald-600 bg-emerald-50' },
+  1181→    { icon: Bell, label: 'Notifications', view: 'notifications' as const, color: 'text-amber-600 bg-amber-50' },
+  1182→    { icon: Headphones, label: 'Support', view: 'support' as const, color: 'text-purple-600 bg-purple-50' },
+  1183→    { icon: Star, label: 'Notes et avis', view: 'ratings' as const, color: 'text-amber-500 bg-amber-50' },
+  1184→    { icon: MessageCircle, label: 'Messages', view: 'chat' as const, color: 'text-teal-600 bg-teal-50' },
+  1185→  ];
+  1186→
+  1187→  return (
+  1188→    <ScrollArea className="h-full">
+  1189→      <div className="space-y-4 pb-4">
+  1190→        {/* Profile Header */}
+  1191→        <Card className="border-0 shadow-md overflow-hidden">
+  1192→          <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 h-24" />
+  1193→          <CardContent className="p-4 pt-0 -mt-10">
+  1194→            <div className="flex items-end gap-4">
+  1195→              <Avatar className="h-20 w-20 border-4 border-white shadow-lg">
+  1196→                <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xl font-bold">
+  1197→                  MK
+  1198→                </AvatarFallback>
+  1199→              </Avatar>
+  1200→              <div className="flex-1 pb-1">
+  1201→                <h1 className="text-lg font-bold">Mamadou Konaté</h1>
+  1202→                <p className="text-sm text-muted-foreground">+223 76 12 34 56</p>
+  1203→              </div>
+  1204→            </div>
+  1205→
+  1206→            {/* Online Toggle */}
+  1207→            <div className="mt-4 flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-900 p-3">
+  1208→              <div>
+  1209→                <p className="text-sm font-medium">Statut en ligne</p>
+  1210→                <p className="text-xs text-muted-foreground">
+  1211→                  {isOnline ? 'Vous recevez des courses' : 'Vous ne recevez pas de courses'}
+  1212→                </p>
+  1213→              </div>
+  1214→              <Switch
+  1215→                checked={isOnline}
+  1216→                onCheckedChange={(checked) => {
+  1217→                  setIsOnline(checked);
+  1218→                  toast.success(checked ? 'Vous êtes en ligne' : 'Vous êtes hors ligne');
+  1219→                }}
+  1220→              />
+  1221→            </div>
+  1222→          </CardContent>
+  1223→        </Card>
+  1224→
+  1225→        {/* Vehicle Details */}
+  1226→        <Card className="border-0 shadow-md">
+  1227→          <CardHeader className="pb-2">
+  1228→            <CardTitle className="text-sm flex items-center gap-2">
+  1229→              <Car className="h-4 w-4 text-emerald-600" />
+  1230→              Véhicule
+  1231→            </CardTitle>
+  1232→          </CardHeader>
+  1233→          <CardContent className="p-4 pt-0">
+  1234→            <div className="grid grid-cols-2 gap-3">
+  1235→              <div>
+  1236→                <p className="text-xs text-muted-foreground">Type</p>
+  1237→                <p className="text-sm font-semibold">Moto</p>
+  1238→              </div>
+  1239→              <div>
+  1240→                <p className="text-xs text-muted-foreground">Modèle</p>
+  1241→                <p className="text-sm font-semibold">Honda PCX 150</p>
+  1242→              </div>
+  1243→              <div>
+  1244→                <p className="text-xs text-muted-foreground">Immatriculation</p>
+  1245→                <p className="text-sm font-semibold">AK-0452-BM</p>
+  1246→              </div>
+  1247→              <div>
+  1248→                <p className="text-xs text-muted-foreground">Couleur</p>
+  1249→                <p className="text-sm font-semibold">Noire</p>
+  1250→              </div>
+  1251→            </div>
+  1252→          </CardContent>
+  1253→        </Card>
+  1254→
+  1255→        {/* Quick Stats */}
+  1256→        <Card className="border-0 shadow-md">
+  1257→          <CardContent className="p-4">
+  1258→            <div className="grid grid-cols-3 gap-3">
+  1259→              <button
+  1260→                className="text-center"
+  1261→                onClick={() => navigate('history')}
+  1262→              >
+  1263→                <p className="text-xl font-bold">87</p>
+  1264→                <p className="text-[10px] text-muted-foreground">Ce mois</p>
+  1265→              </button>
+  1266→              <button
+  1267→                className="text-center"
+  1268→                onClick={() => navigate('earnings')}
+  1269→              >
+  1270→                <p className="text-xl font-bold text-emerald-600">312k</p>
+  1271→                <p className="text-[10px] text-muted-foreground">FCFA</p>
+  1272→              </button>
+  1273→              <button
+  1274→                className="text-center"
+  1275→                onClick={() => navigate('ratings')}
+  1276→              >
+  1277→                <p className="text-xl font-bold flex items-center justify-center gap-0.5">
+  1278→                  4.7 <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+  1279→                </p>
+  1280→                <p className="text-[10px] text-muted-foreground">Note</p>
+  1281→              </button>
+  1282→            </div>
+  1283→          </CardContent>
+  1284→        </Card>
+  1285→
+  1286→        {/* Menu */}
+  1287→        <Card className="border-0 shadow-md">
+  1288→          <CardContent className="p-2">
+  1289→            {menuItems.map((item) => (
+  1290→              <button
+  1291→                key={item.view}
+  1292→                className="flex w-full items-center gap-3 rounded-xl p-3.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900"
+  1293→                onClick={() => navigate(item.view)}
+  1294→              >
+  1295→                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.color}`}>
+  1296→                  <item.icon className="h-5 w-5" />
+  1297→                </div>
+  1298→                <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
+  1299→                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+  1300→              </button>
+  1301→            ))}
+  1302→
+  1303→            <Separator className="my-2" />
+  1304→
+  1305→            <button
+  1306→              className="flex w-full items-center gap-3 rounded-xl p-3.5 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
+  1307→              onClick={() => {
+  1308→                logout();
+  1309→                toast.success('Déconnexion réussie');
+  1310→              }}
+  1311→            >
+  1312→              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
+  1313→                <LogOut className="h-5 w-5" />
+  1314→              </div>
+  1315→              <span className="flex-1 text-left text-sm font-medium text-red-600">Déconnexion</span>
+  1316→            </button>
+  1317→          </CardContent>
+  1318→        </Card>
+  1319→      </div>
+  1320→    </ScrollArea>
+  1321→  );
+  1322→}
+  1323→
+  1324→// ─── Documents View ───────────────────────────────────────────────────────────
+  1325→
+  1326→function DocumentsView() {
+  1327→  const { navigate } = useDriverNav();
+  1328→
+  1329→  const handleUpload = (docName: string) => {
+  1330→    toast.success(`${docName} - Téléchargement en cours...`);
+  1331→  };
+  1332→
+  1333→  return (
+  1334→    <ScrollArea className="h-full">
+  1335→      <div className="space-y-4 pb-4">
+  1336→        {/* Header */}
+  1337→        <div className="flex items-center gap-3">
+  1338→          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => navigate('profile')}>
+  1339→            <ArrowLeft className="h-5 w-5" />
+  1340→          </Button>
+  1341→          <div>
+  1342→            <h1 className="text-xl font-bold">Documents</h1>
+  1343→            <p className="text-sm text-muted-foreground">Vérification de votre profil</p>
+  1344→          </div>
+  1345→        </div>
+  1346→
+  1347→        {/* Verification Status */}
+  1348→        <Card className="border-0 shadow-md">
+  1349→          <CardContent className="p-4">
+  1350→            <div className="flex items-center gap-3">
+  1351→              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+  1352→                <ShieldCheck className="h-6 w-6 text-amber-600" />
+  1353→              </div>
+  1354→              <div className="flex-1">
+  1355→                <p className="text-sm font-semibold">Vérification en cours</p>
+  1356→                <p className="text-xs text-muted-foreground">
+  1357→                  3/4 documents vérifiés
+  1358→                </p>
+  1359→                <Progress value={75} className="mt-2 h-2" />
+  1360→              </div>
+  1361→            </div>
+  1362→          </CardContent>
+  1363→        </Card>
+  1364→
+  1365→        {/* Document List */}
+  1366→        <div className="space-y-2.5">
+  1367→          {MOCK_DOCUMENTS.map((doc, idx) => (
+  1368→            <motion.div
+  1369→              key={doc.id}
+  1370→              initial={{ opacity: 0, y: 10 }}
+  1371→              animate={{ opacity: 1, y: 0 }}
+  1372→              transition={{ delay: idx * 0.1 }}
+  1373→            >
+  1374→              <Card className="border-0 shadow-sm">
+  1375→                <CardContent className="p-4">
+  1376→                  <div className="flex items-start justify-between">
+  1377→                    <div className="flex items-start gap-3">
+  1378→                      <div
+  1379→                        className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl ${
+  1380→                          doc.status === 'verified'
+  1381→                            ? 'bg-emerald-50 text-emerald-600'
+  1382→                            : 'bg-amber-50 text-amber-600'
+  1383→                        }`}
+  1384→                      >
+  1385→                        {doc.status === 'verified' ? (
+  1386→                          <CheckCircle2 className="h-5 w-5" />
+  1387→                        ) : (
+  1388→                          <AlertCircle className="h-5 w-5" />
+  1389→                        )}
+  1390→                      </div>
+  1391→                      <div>
+  1392→                        <p className="text-sm font-semibold">{doc.name}</p>
+  1393→                        <p className="text-xs text-muted-foreground mt-0.5">
+  1394→                          {doc.description}
+  1395→                        </p>
+  1396→                      </div>
+  1397→                    </div>
+  1398→                    <Badge
+  1399→                      variant="secondary"
+  1400→                      className={
+  1401→                        doc.status === 'verified'
+  1402→                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+  1403→                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+  1404→                      }
+  1405→                    >
+  1406→                      {doc.status === 'verified' ? 'Vérifié' : 'En attente'}
+  1407→                    </Badge>
+  1408→                  </div>
+  1409→
+  1410→                  {doc.status === 'pending' && (
+  1411→                    <Button
+  1412→                      variant="outline"
+  1413→                      className="w-full mt-3 h-11 border-dashed border-2 text-sm font-medium"
+  1414→                      onClick={() => handleUpload(doc.name)}
+  1415→                    >
+  1416→                      <Upload className="mr-2 h-4 w-4" />
+  1417→                      Téléverser le document
+  1418→                    </Button>
+  1419→                  )}
+  1420→                </CardContent>
+  1421→              </Card>
+  1422→            </motion.div>
+  1423→          ))}
+  1424→        </div>
+  1425→      </div>
+  1426→    </ScrollArea>
+  1427→  );
+  1428→}
+  1429→
+  1430→// ─── Wallet View ──────────────────────────────────────────────────────────────
+  1431→
+  1432→function WalletView() {
+  1433→  const { navigate } = useDriverNav();
+  1434→  const [amount, setAmount] = useState('');
+  1435→
+  1436→  return (
+  1437→    <ScrollArea className="h-full">
+  1438→      <div className="space-y-4 pb-4">
+  1439→        {/* Header */}
+  1440→        <div className="flex items-center gap-3">
+  1441→          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => navigate('profile')}>
+  1442→            <ArrowLeft className="h-5 w-5" />
+  1443→          </Button>
+  1444→          <div>
+  1445→            <h1 className="text-xl font-bold">Portefeuille</h1>
+  1446→            <p className="text-sm text-muted-foreground">Gérez vos fonds</p>
+  1447→          </div>
+  1448→        </div>
+  1449→
+  1450→        {/* Balance Card */}
+  1451→        <Card className="border-0 shadow-lg overflow-hidden">
+  1452→          <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 p-6 text-white">
+  1453→            <p className="text-sm text-emerald-200">Solde disponible</p>
+  1454→            <p className="text-4xl font-bold mt-1">{formatPrice(MOCK_WALLET.balance)}</p>
+  1455→          </div>
+  1456→          <CardContent className="p-4 space-y-3">
+  1457→            <div>
+  1458→              <p className="text-xs text-muted-foreground mb-2">Ajouter des fonds</p>
+  1459→              <div className="flex gap-2">
+  1460→                <Input
+  1461→                  placeholder="Montant"
+  1462→                  type="number"
+  1463→                  value={amount}
+  1464→                  onChange={(e) => setAmount(e.target.value)}
+  1465→                  className="h-12"
+  1466→                />
+  1467→                <Button
+  1468→                  className="h-12 px-6 bg-emerald-600 hover:bg-emerald-700 font-semibold"
+  1469→                  onClick={() => {
+  1470→                    if (amount && Number(amount) > 0) {
+  1471→                      toast.success(`Dépôt de ${formatPrice(Number(amount))} effectué`);
+  1472→                      setAmount('');
+  1473→                    }
+  1474→                  }}
+  1475→                >
+  1476→                  <Plus className="h-4 w-4 mr-1" />
+  1477→                  Ajouter
+  1478→                </Button>
+  1479→              </div>
+  1480→            </div>
+  1481→          </CardContent>
+  1482→        </Card>
+  1483→
+  1484→        {/* Quick Actions */}
+  1485→        <div className="grid grid-cols-2 gap-3">
+  1486→          <Button
+  1487→            variant="outline"
+  1488→            className="h-14 justify-start"
+  1489→            onClick={() => toast.info('Retrait en cours de traitement...')}
+  1490→          >
+  1491→            <ArrowUpRight className="mr-2 h-5 w-5 text-red-500" />
+  1492→            <span className="text-sm font-medium">Retirer</span>
+  1493→          </Button>
+  1494→          <Button
+  1495→            variant="outline"
+  1496→            className="h-14 justify-start"
+  1497→            onClick={() => toast.info('Envoi en cours...')}
+  1498→          >
+  1499→            <Send className="mr-2 h-5 w-5 text-blue-500" />
+  1500→            <span className="text-sm font-medium">Envoyer</span>
+  1501→          </Button>
+  1502→        </div>
+  1503→
+  1504→        {/* Transaction History */}
+  1505→        <Card className="border-0 shadow-md">
+  1506→          <CardHeader className="pb-2">
+  1507→            <CardTitle className="text-sm">Historique des transactions</CardTitle>
+  1508→          </CardHeader>
+  1509→          <CardContent className="p-4 pt-0">
+  1510→            <div className="space-y-0">
+  1511→              {MOCK_WALLET.transactions.map((tx, idx) => (
+  1512→                <div
+  1513→                  key={tx.id}
+  1514→                  className={`flex items-center gap-3 py-3 ${
+  1515→                    idx < MOCK_WALLET.transactions.length - 1
+  1516→                      ? 'border-b border-gray-100 dark:border-gray-800'
+  1517→                      : ''
+  1518→                  }`}
+  1519→                >
+  1520→                  <div
+  1521→                    className={`flex h-10 w-10 items-center justify-center rounded-full ${
+  1522→                      tx.type === 'credit'
+  1523→                        ? 'bg-emerald-50 text-emerald-600'
+  1524→                        : 'bg-red-50 text-red-600'
+  1525→                    }`}
+  1526→                  >
+  1527→                    {tx.type === 'credit' ? (
+  1528→                      <ArrowDownLeft className="h-5 w-5" />
+  1529→                    ) : (
+  1530→                      <ArrowUpRight className="h-5 w-5" />
+  1531→                    )}
+  1532→                  </div>
+  1533→                  <div className="flex-1 min-w-0">
+  1534→                    <p className="text-sm font-medium truncate">{tx.description}</p>
+  1535→                    <p className="text-xs text-muted-foreground">{tx.date}</p>
+  1536→                  </div>
+  1537→                  <p
+  1538→                    className={`text-sm font-bold ${
+  1539→                      tx.type === 'credit' ? 'text-emerald-600' : 'text-red-600'
+  1540→                    }`}
+  1541→                  >
+  1542→                    {tx.type === 'credit' ? '+' : ''}{formatPrice(tx.amount)}
+  1543→                  </p>
+  1544→                </div>
+  1545→              ))}
+  1546→            </div>
+  1547→          </CardContent>
+  1548→        </Card>
+  1549→      </div>
+  1550→    </ScrollArea>
+  1551→  );
+  1552→}
+  1553→
+  1554→// ─── Support View ─────────────────────────────────────────────────────────────
+  1555→
+  1556→function SupportView() {
+  1557→  const { navigate } = useDriverNav();
+  1558→
+  1559→  const handleSendMessage = () => {
+  1560→    toast.success('Message envoyé au support');
+  1561→  };
+  1562→
+  1563→  return (
+  1564→    <ScrollArea className="h-full">
+  1565→      <div className="space-y-4 pb-4">
+  1566→        <div className="flex items-center gap-3">
+  1567→          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => navigate('profile')}>
+  1568→            <ArrowLeft className="h-5 w-5" />
+  1569→          </Button>
+  1570→          <div>
+  1571→            <h1 className="text-xl font-bold">Support</h1>
+  1572→            <p className="text-sm text-muted-foreground">Besoin d&apos;aide ?</p>
+  1573→          </div>
+  1574→        </div>
+  1575→
+  1576→        <Card className="border-0 shadow-md">
+  1577→          <CardContent className="p-4 text-center">
+  1578→            <Headphones className="mx-auto h-12 w-12 text-emerald-600 mb-3" />
+  1579→            <h3 className="font-bold">Comment pouvons-nous vous aider ?</h3>
+  1580→            <p className="text-sm text-muted-foreground mt-1">
+  1581→              Notre équipe est disponible 7j/7 de 6h à 22h
+  1582→            </p>
+  1583→          </CardContent>
+  1584→        </Card>
+  1585→
+  1586→        <div className="space-y-2.5">
+  1587→          {[
+  1588→            { title: 'Problème avec une course', desc: 'Retard, annulation, litige' },
+  1589→            { title: 'Problème de paiement', desc: 'Retard de paiement, montant incorrect' },
+  1590→            { title: 'Problème technique', desc: 'Bug, erreur, application' },
+  1591→            { title: 'Autre demande', desc: 'Question générale, suggestion' },
+  1592→          ].map((item) => (
+  1593→            <Card key={item.title} className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow">
+  1594→              <CardContent className="p-4" onClick={handleSendMessage}>
+  1595→                <p className="text-sm font-semibold">{item.title}</p>
+  1596→                <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+  1597→              </CardContent>
+  1598→            </Card>
+  1599→          ))}
+  1600→        </div>
+  1601→
+  1602→        <Card className="border-0 shadow-md">
+  1603→          <CardContent className="p-4 space-y-3">
+  1604→            <p className="text-sm font-semibold">Contact direct</p>
+  1605→            <Button
+  1606→              className="w-full h-12 bg-emerald-600 hover:bg-emerald-700"
+  1607→              onClick={() => toast.info('Appel en cours...')}
+  1608→            >
+  1609→              <Phone className="mr-2 h-5 w-5" />
+  1610→              Appeler le support
+  1611→            </Button>
+  1612→            <Button
+  1613→              variant="outline"
+  1614→              className="w-full h-12"
+  1615→              onClick={() => navigate('chat')}
+  1616→            >
+  1617→              <MessageCircle className="mr-2 h-5 w-5" />
+  1618→              Envoyer un message
+  1619→            </Button>
+  1620→          </CardContent>
+  1621→        </Card>
+  1622→      </div>
+  1623→    </ScrollArea>
+  1624→  );
+  1625→}
+  1626→
+  1627→// ─── Notifications View ───────────────────────────────────────────────────────
+  1628→
+  1629→function NotificationsView() {
+  1630→  const { navigate } = useDriverNav();
+  1631→
+  1632→  return (
+  1633→    <ScrollArea className="h-full">
+  1634→      <div className="space-y-4 pb-4">
+  1635→        <div className="flex items-center gap-3">
+  1636→          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => navigate('profile')}>
+  1637→            <ArrowLeft className="h-5 w-5" />
+  1638→          </Button>
+  1639→          <div>
+  1640→            <h1 className="text-xl font-bold">Notifications</h1>
+  1641→            <p className="text-sm text-muted-foreground">
+  1642→              {MOCK_NOTIFICATIONS.filter((n) => !n.read).length} non lues
+  1643→            </p>
+  1644→          </div>
+  1645→        </div>
+  1646→
+  1647→        <div className="space-y-2.5">
+  1648→          {MOCK_NOTIFICATIONS.map((notif, idx) => (
+  1649→            <motion.div
+  1650→              key={notif.id}
+  1651→              initial={{ opacity: 0, x: -10 }}
+  1652→              animate={{ opacity: 1, x: 0 }}
+  1653→              transition={{ delay: idx * 0.05 }}
+  1654→            >
+  1655→              <Card
+  1656→                className={`border-0 shadow-sm ${
+  1657→                  !notif.read ? 'border-l-4 border-l-emerald-500' : ''
+  1658→                }`}
+  1659→              >
+  1660→                <CardContent className="p-4">
+  1661→                  <div className="flex items-start gap-3">
+  1662→                    {!notif.read && (
+  1663→                      <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" />
+  1664→                    )}
+  1665→                    <div className="flex-1">
+  1666→                      <p className={`text-sm ${!notif.read ? 'font-bold' : 'font-medium'}`}>
+  1667→                        {notif.title}
+  1668→                      </p>
+  1669→                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+  1670→                        {notif.message}
+  1671→                      </p>
+  1672→                      <p className="text-[10px] text-muted-foreground mt-2">{notif.time}</p>
+  1673→                    </div>
+  1674→                  </div>
+  1675→                </CardContent>
+  1676→              </Card>
+  1677→            </motion.div>
+  1678→          ))}
+  1679→        </div>
+  1680→      </div>
+  1681→    </ScrollArea>
+  1682→  );
+  1683→}
+  1684→
+  1685→// ─── Chat View ────────────────────────────────────────────────────────────────
+  1686→
+  1687→function ChatView() {
+  1688→  const { navigate } = useDriverNav();
+  1689→  const [message, setMessage] = useState('');
+  1690→
+  1691→  return (
+  1692→    <div className="flex h-full flex-col">
+  1693→      {/* Header */}
+  1694→      <div className="flex items-center gap-3 border-b px-4 py-3">
+  1695→        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => navigate('profile')}>
+  1696→          <ArrowLeft className="h-5 w-5" />
+  1697→        </Button>
+  1698→        <Avatar className="h-9 w-9">
+  1699→          <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-bold">
+  1700→            SR
+  1701→          </AvatarFallback>
+  1702→        </Avatar>
+  1703→        <div className="flex-1 min-w-0">
+  1704→          <p className="text-sm font-semibold">Support Rapigo</p>
+  1705→          <p className="text-[10px] text-emerald-600">En ligne</p>
+  1706→        </div>
+  1707→      </div>
+  1708→
+  1709→      {/* Messages */}
+  1710→      <ScrollArea className="flex-1 p-4">
+  1711→        <div className="space-y-3 max-w-lg mx-auto">
+  1712→          {CHAT_MESSAGES.map((msg) => (
+  1713→            <motion.div
+  1714→              key={msg.id}
+  1715→              initial={{ opacity: 0, y: 10 }}
+  1716→              animate={{ opacity: 1, y: 0 }}
+  1717→              className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}
+  1718→            >
+  1719→              <div
+  1720→                className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+  1721→                  msg.sender === 'me'
+  1722→                    ? 'bg-emerald-600 text-white rounded-br-md'
+  1723→                    : 'bg-gray-100 dark:bg-gray-800 text-foreground rounded-bl-md'
+  1724→                }`}
+  1725→              >
+  1726→                <p className="text-sm leading-relaxed">{msg.text}</p>
+  1727→                <p
+  1728→                  className={`text-[10px] mt-1 ${
+  1729→                    msg.sender === 'me' ? 'text-emerald-200' : 'text-muted-foreground'
+  1730→                  }`}
+  1731→                >
+  1732→                  {msg.time}
+  1733→                </p>
+  1734→              </div>
+  1735→            </motion.div>
+  1736→          ))}
+  1737→        </div>
+  1738→      </ScrollArea>
+  1739→
+  1740→      {/* Input */}
+  1741→      <div className="border-t p-3">
+  1742→        <div className="flex gap-2 max-w-lg mx-auto">
+  1743→          <Input
+  1744→            placeholder="Écrire un message..."
+  1745→            value={message}
+  1746→            onChange={(e) => setMessage(e.target.value)}
+  1747→            className="h-12 rounded-full"
+  1748→            onKeyDown={(e) => {
+  1749→              if (e.key === 'Enter' && message.trim()) {
+  1750→                toast.success('Message envoyé');
+  1751→                setMessage('');
+  1752→              }
+  1753→            }}
+  1754→          />
+  1755→          <Button
+  1756→            size="icon"
+  1757→            className="h-12 w-12 rounded-full bg-emerald-600 hover:bg-emerald-700 shrink-0"
+  1758→            onClick={() => {
+  1759→              if (message.trim()) {
+  1760→                toast.success('Message envoyé');
+  1761→                setMessage('');
+  1762→              }
+  1763→            }}
+  1764→          >
+  1765→            <Send className="h-5 w-5" />
+  1766→          </Button>
+  1767→        </div>
+  1768→      </div>
+  1769→    </div>
+  1770→  );
+  1771→}
+  1772→
+  1773→// ─── Bottom Tab Bar ───────────────────────────────────────────────────────────
+  1774→
+  1775→type TabKey = 'home' | 'ride' | 'history' | 'profile';
+  1776→
+  1777→function BottomTabBar({ activeTab, onTabChange }: { activeTab: TabKey; onTabChange: (tab: TabKey) => void }) {
+  1778→  const tabs: { key: TabKey; label: string; icon: typeof Home }[] = [
+  1779→    { key: 'home', label: 'Accueil', icon: Home },
+  1780→    { key: 'ride', label: 'Courses', icon: Package },
+  1781→    { key: 'history', label: 'Historique', icon: Clock },
+  1782→    { key: 'profile', label: 'Profil', icon: User },
+  1783→  ];
+  1784→
+  1785→  return (
+  1786→    <div className="flex items-center justify-around border-t bg-white dark:bg-gray-950 px-2 pb-[env(safe-area-inset-bottom)]">
+  1787→      {tabs.map((tab) => {
+  1788→        const isActive = activeTab === tab.key;
+  1789→        const Icon = tab.icon;
+  1790→
+  1791→        return (
+  1792→          <button
+  1793→            key={tab.key}
+  1794→            className="flex flex-col items-center gap-0.5 py-2.5 px-4 min-w-[64px] transition-colors"
+  1795→            onClick={() => onTabChange(tab.key)}
+  1796→            aria-label={tab.label}
+  1797→          >
+  1798→            <div className="relative">
+  1799→              <Icon
+  1800→                className={`h-6 w-6 transition-colors ${
+  1801→                  isActive ? 'text-emerald-600' : 'text-gray-400'
+  1802→                }`}
+  1803→              />
+  1804→              {isActive && (
+  1805→                <motion.div
+  1806→                  layoutId="tab-indicator"
+  1807→                  className="absolute -bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-emerald-600"
+  1808→                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+  1809→                />
+  1810→              )}
+  1811→            </div>
+  1812→            <span
+  1813→              className={`text-[10px] font-medium transition-colors ${
+  1814→                isActive ? 'text-emerald-600' : 'text-gray-400'
+  1815→              }`}
+  1816→            >
+  1817→              {tab.label}
+  1818→            </span>
+  1819→          </button>
+  1820→        );
+  1821→      })}
+  1822→    </div>
+  1823→  );
+  1824→}
+  1825→
+  1826→// ─── Main DriverApp Component ─────────────────────────────────────────────────
+  1827→
+  1828→const TAB_VIEWS: Record<TabKey, string> = {
+  1829→  home: 'home',
+  1830→  ride: 'ride',
+  1831→  history: 'history',
+  1832→  profile: 'profile',
+  1833→};
+  1834→
+  1835→export default function DriverApp() {
+  1836→  const { view, navigate } = useDriverNav();
+  1837→
+  1838→  const activeTab: TabKey = (() => {
+  1839→    if (view === 'home' || view === 'navigation') return 'home';
+  1840→    if (view === 'ride') return 'ride';
+  1841→    if (view === 'history' || view === 'earnings' || view === 'ratings') return 'history';
+  1842→    return 'profile';
+  1843→  })();
+  1844→
+  1845→  const handleTabChange = useCallback(
+  1846→    (tab: TabKey) => {
+  1847→      navigate(TAB_VIEWS[tab] as Parameters<typeof navigate>[0]);
+  1848→    },
+  1849→    [navigate]
+  1850→  );
+  1851→
+  1852→  const renderView = () => {
+  1853→    switch (view) {
+  1854→      case 'home':
+  1855→        return <HomeView />;
+  1856→      case 'ride':
+  1857→        return <RideView />;
+  1858→      case 'navigation':
+  1859→        return <NavigationView />;
+  1860→      case 'history':
+  1861→        return <HistoryView />;
+  1862→      case 'earnings':
+  1863→        return <EarningsView />;
+  1864→      case 'ratings':
+  1865→        return <RatingsView />;
+  1866→      case 'profile':
+  1867→        return <ProfileView />;
+  1868→      case 'documents':
+  1869→        return <DocumentsView />;
+  1870→      case 'wallet':
+  1871→        return <WalletView />;
+  1872→      case 'support':
+  1873→        return <SupportView />;
+  1874→      case 'notifications':
+  1875→        return <NotificationsView />;
+  1876→      case 'chat':
+  1877→        return <ChatView />;
+  1878→      default:
+  1879→        return <HomeView />;
+  1880→    }
+  1881→  };
+  1882→
+  1883→  const showBottomBar = !['ride', 'navigation', 'chat'].includes(view);
+  1884→
+  1885→  return (
+  1886→    <div className="flex h-full max-w-md mx-auto flex-col bg-white dark:bg-gray-950">
+  1887→      <div className="flex-1 overflow-hidden">
+  1888→        <AnimatePresence mode="wait">
+  1889→          <motion.div
+  1890→            key={view}
+  1891→            initial={{ opacity: 0, x: 20 }}
+  1892→            animate={{ opacity: 1, x: 0 }}
+  1893→            exit={{ opacity: 0, x: -20 }}
+  1894→            transition={{ duration: 0.2 }}
+  1895→            className="h-full"
+  1896→          >
+  1897→            {renderView()}
+  1898→          </motion.div>
+  1899→        </AnimatePresence>
+  1900→      </div>
+  1901→
+  1902→      {showBottomBar && <BottomTabBar activeTab={activeTab} onTabChange={handleTabChange} />}
+  1903→    </div>
+  1904→  );
+  1905→}

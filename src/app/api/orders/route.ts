@@ -6,9 +6,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const status = searchParams.get('status');
+    const merchantId = searchParams.get('merchantId');
 
     const where: Record<string, unknown> = {};
     if (userId) where.clientId = userId;
+    if (merchantId) where.merchantId = merchantId;
     if (status) where.status = status;
 
     const orders = await db.order.findMany({
@@ -33,16 +35,12 @@ export async function POST(request: NextRequest) {
     const { items: orderItems, ...orderData } = data;
     const orderNumber = `ORD-${String(Date.now()).slice(-6)}`;
 
-    // Validate required fields
-    // Resolve clientId from userId if needed
     let clientId = orderData.clientId;
     if (clientId) {
-      // Check if it's a User ID by trying to find a Client with this userId
       let client = await db.client.findUnique({ where: { userId: clientId } });
       if (client) {
         clientId = client.id;
       } else {
-        // It might already be a Client ID
         client = await db.client.findUnique({ where: { id: clientId } });
         if (!client) {
           return NextResponse.json({ error: 'Client non trouvé' }, { status: 404 });
@@ -54,7 +52,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ClientId et MerchantId requis' }, { status: 400 });
     }
 
-    // Create order with items in a transaction-like approach
     const order = await db.order.create({
       data: {
         orderNumber,
@@ -90,7 +87,6 @@ export async function POST(request: NextRequest) {
       include: { items: true },
     });
 
-    // Create notification for merchant
     if (order.merchantId) {
       const merchant = await db.merchant.findUnique({ where: { id: order.merchantId }, select: { userId: true, businessName: true } });
       if (merchant) {

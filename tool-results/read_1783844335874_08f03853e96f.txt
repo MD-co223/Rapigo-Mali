@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useEffect, useCallback, useRef } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import { toast } from 'sonner';
+     6→import {
+     7→  BarChart,
+     8→  Bar,
+     9→  XAxis,
+    10→  YAxis,
+    11→  CartesianGrid,
+    12→  Tooltip,
+    13→  ResponsiveContainer,
+    14→  PieChart,
+    15→  Pie,
+    16→  Cell,
+    17→  LineChart,
+    18→  Line,
+    19→} from 'recharts';
+    20→import {
+    21→  LayoutDashboard,
+    22→  Users,
+    23→  Store,
+    24→  Truck,
+    25→  ShoppingCart,
+    26→  CreditCard,
+    27→  Crown,
+    28→  Megaphone,
+    29→  Grid3X3,
+    30→  Package,
+    31→  Headphones,
+    32→  BarChart3,
+    33→  FileText,
+    34→  Settings,
+    35→  Bell,
+    36→  MapPin,
+    37→  Menu,
+    38→  Search,
+    39→  TrendingUp,
+    40→  TrendingDown,
+    41→  ChevronLeft,
+    42→  Star,
+    43→  Eye,
+    44→  CheckCircle,
+    45→  XCircle,
+    46→  UserPlus,
+    47→  Filter,
+    48→  Download,
+    49→  RefreshCw,
+    50→  Activity,
+    51→  DollarSign,
+    52→  Clock,
+    53→  ArrowUpRight,
+    54→  ShieldCheck,
+    55→  Plus,
+    56→  Pencil,
+    57→  Trash2,
+    58→  Ban,
+    59→  Tag,
+    60→} from 'lucide-react';
+    61→
+    62→import { useAuthStore, useAdminNav, formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/lib/store';
+    63→import type { AdminView } from '@/lib/store';
+    64→
+    65→import { Button } from '@/components/ui/button';
+    66→import { Input } from '@/components/ui/input';
+    67→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+    68→import { Badge } from '@/components/ui/badge';
+    69→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    70→import {
+    71→  Dialog,
+    72→  DialogContent,
+    73→  DialogHeader,
+    74→  DialogTitle,
+    75→  DialogDescription,
+    76→} from '@/components/ui/dialog';
+    77→import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+    78→import { Separator } from '@/components/ui/separator';
+    79→import { Skeleton } from '@/components/ui/skeleton';
+    80→import { ScrollArea } from '@/components/ui/scroll-area';
+    81→import {
+    82→  Table,
+    83→  TableHeader,
+    84→  TableBody,
+    85→  TableRow,
+    86→  TableHead,
+    87→  TableCell,
+    88→} from '@/components/ui/table';
+    89→import {
+    90→  Select,
+    91→  SelectTrigger,
+    92→  SelectContent,
+    93→  SelectItem,
+    94→  SelectValue,
+    95→} from '@/components/ui/select';
+    96→import { Switch } from '@/components/ui/switch';
+    97→import { Textarea } from '@/components/ui/textarea';
+    98→import { Progress } from '@/components/ui/progress';
+    99→import {
+   100→  Sheet,
+   101→  SheetTrigger,
+   102→  SheetContent,
+   103→  SheetHeader,
+   104→  SheetTitle,
+   105→  SheetDescription,
+   106→} from '@/components/ui/sheet';
+   107→
+   108→// ─── Constants ────────────────────────────────────────────────────────────────
+   109→
+   110→const CHART_COLORS = ['#059669', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4'];
+   111→
+   112→interface MenuItem {
+   113→  id: AdminView;
+   114→  label: string;
+   115→  icon: React.ElementType;
+   116→}
+   117→
+   118→const MENU_ITEMS: MenuItem[] = [
+   119→  { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+   120→  { id: 'users', label: 'Utilisateurs', icon: Users },
+   121→  { id: 'merchants', label: 'Commerçants', icon: Store },
+   122→  { id: 'drivers', label: 'Livreurs', icon: Truck },
+   123→  { id: 'orders', label: 'Commandes', icon: ShoppingCart },
+   124→  { id: 'payments', label: 'Paiements', icon: CreditCard },
+   125→  { id: 'subscriptions', label: 'Abonnements', icon: Crown },
+   126→  { id: 'advertisements', label: 'Publicités', icon: Megaphone },
+   127→  { id: 'categories', label: 'Catégories', icon: Grid3X3 },
+   128→  { id: 'products', label: 'Produits', icon: Package },
+   129→  { id: 'support', label: 'Support', icon: Headphones },
+   130→  { id: 'reports', label: 'Rapports', icon: BarChart3 },
+   131→  { id: 'audit-logs', label: "Logs d'audit", icon: FileText },
+   132→  { id: 'settings', label: 'Paramètres', icon: Settings },
+   133→];
+   134→
+   135→// ─── Types ────────────────────────────────────────────────────────────────────
+   136→
+   137→interface DashboardStats {
+   138→  totalUsers: number;
+   139→  totalMerchants: number;
+   140→  totalDrivers: number;
+   141→  totalOrders: number;
+   142→  totalRevenue: number;
+   143→  activeOrders: number;
+   144→  pendingMerchants: number;
+   145→  totalProducts: number;
+   146→  totalDeliveriesToday: number;
+   147→  avgRating: number;
+   148→  ordersByStatus: { name: string; value: number }[];
+   149→  recentOrders: any[];
+   150→  topMerchants: any[];
+   151→  revenueChart?: { month: string; revenue: number; orders: number }[];
+   152→}
+   153→
+   154→// ─── Reusable hooks ────────────────────────────────────────────────────────────
+   155→
+   156→function useFetch<T>(url: string, fallback: T): { data: T; loading: boolean; refetch: () => void } {
+   157→  const [data, setData] = useState<T>(fallback);
+   158→  const [loading, setLoading] = useState(true);
+   159→
+   160→  useEffect(() => {
+   161→    let cancelled = false;
+   162→    fetch(url)
+   163→      .then((r) => r.json())
+   164→      .then((d) => {
+   165→        if (!cancelled) {
+   166→          setData(d);
+   167→          setLoading(false);
+   168→        }
+   169→      })
+   170→      .catch(() => {
+   171→        if (!cancelled) setLoading(false);
+   172→      });
+   173→    return () => { cancelled = true; };
+   174→  }, [url]);
+   175→
+   176→  const refetch = useCallback(() => {
+   177→    fetch(url)
+   178→      .then((r) => r.json())
+   179→      .then((d) => {
+   180→        setData(d);
+   181→        setLoading(false);
+   182→      })
+   183→      .catch(() => {
+   184→        setLoading(false);
+   185→      });
+   186→  }, [url]);
+   187→
+   188→  return { data, loading, refetch };
+   189→}
+   190→
+   191→// ─── Reusable components ──────────────────────────────────────────────────────
+   192→
+   193→function PageShell({ title, description, children, actions }: { title: string; description?: string; children: React.ReactNode; actions?: React.ReactNode }) {
+   194→  return (
+   195→    <motion.div
+   196→      initial={{ opacity: 0, y: 12 }}
+   197→      animate={{ opacity: 1, y: 0 }}
+   198→      exit={{ opacity: 0, y: -12 }}
+   199→      transition={{ duration: 0.2 }}
+   200→      className="space-y-6"
+   201→    >
+   202→      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+   203→        <div>
+   204→          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+   205→          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+   206→        </div>
+   207→        {actions && <div className="flex items-center gap-2">{actions}</div>}
+   208→      </div>
+   209→      {children}
+   210→    </motion.div>
+   211→  );
+   212→}
+   213→
+   214→function EmptyState({ message, icon: Icon }: { message: string; icon?: React.ElementType }) {
+   215→  const Ic = Icon || Package;
+   216→  return (
+   217→    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+   218→      <Ic className="mb-4 h-12 w-12 opacity-30" />
+   219→      <p>{message}</p>
+   220→    </div>
+   221→  );
+   222→}
+   223→
+   224→function DataTableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
+   225→  return (
+   226→    <div className="space-y-3">
+   227→      {Array.from({ length: rows }).map((_, i) => (
+   228→        <div key={i} className="flex items-center gap-4">
+   229→          {Array.from({ length: cols }).map((_, j) => (
+   230→            <Skeleton key={j} className="h-8 flex-1" />
+   231→          ))}
+   232→        </div>
+   233→      ))}
+   234→    </div>
+   235→  );
+   236→}
+   237→
+   238→function StatCard({ title, value, icon: Icon, trend, trendValue, color, bg }: {
+   239→  title: string;
+   240→  value: string;
+   241→  icon: React.ElementType;
+   242→  trend?: 'up' | 'down';
+   243→  trendValue?: string;
+   244→  color: string;
+   245→  bg: string;
+   246→}) {
+   247→  return (
+   248→    <Card className="relative overflow-hidden">
+   249→      <CardContent className="p-6">
+   250→        <div className="flex items-start justify-between">
+   251→          <div className="space-y-1">
+   252→            <p className="text-sm text-muted-foreground">{title}</p>
+   253→            <p className="text-2xl font-bold tracking-tight">{value}</p>
+   254→          </div>
+   255→          <div className={`rounded-xl p-2.5 ${bg}`}>
+   256→            <Icon className={`h-5 w-5 ${color}`} />
+   257→          </div>
+   258→        </div>
+   259→        {trend && trendValue && (
+   260→          <div className="mt-3 flex items-center gap-1.5">
+   261→            {trend === 'up' ? (
+   262→              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+   263→            ) : (
+   264→              <TrendingDown className="h-3.5 w-3.5 text-red-500" />
+   265→            )}
+   266→            <span className={`text-xs font-medium ${trend === 'up' ? 'text-emerald-600' : 'text-red-600'}`}>
+   267→              {trendValue}
+   268→            </span>
+   269→            <span className="text-xs text-muted-foreground">vs semaine dernière</span>
+   270→          </div>
+   271→        )}
+   272→      </CardContent>
+   273→    </Card>
+   274→  );
+   275→}
+   276→
+   277→const tooltipStyle = {
+   278→  borderRadius: '8px',
+   279→  border: '1px solid hsl(var(--border))',
+   280→  backgroundColor: 'hsl(var(--card))',
+   281→  color: 'hsl(var(--card-foreground))',
+   282→  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+   283→};
+   284→
+   285→// ─── Sidebar ──────────────────────────────────────────────────────────────────
+   286→
+   287→function SidebarContent({
+   288→  collapsed,
+   289→  onNavigate,
+   290→  currentView,
+   291→}: {
+   292→  collapsed: boolean;
+   293→  onNavigate: (view: AdminView) => void;
+   294→  currentView: AdminView;
+   295→}) {
+   296→  return (
+   297→    <div className="flex h-full flex-col">
+   298→      {/* Logo */}
+   299→      <div className="flex h-16 items-center gap-3 border-b px-4">
+   300→        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+   301→          <ShieldCheck className="h-5 w-5" />
+   302→        </div>
+   303→        {!collapsed && (
+   304→          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+   305→            <h2 className="font-bold text-lg tracking-tight">Rapigo Admin</h2>
+   306→            <p className="text-[11px] text-muted-foreground -mt-1">Panneau de gestion</p>
+   307→          </motion.div>
+   308→        )}
+   309→      </div>
+   310→
+   311→      {/* Nav */}
+   312→      <ScrollArea className="flex-1 px-3 py-4">
+   313→        <nav className="space-y-1">
+   314→          {MENU_ITEMS.map((item) => {
+   315→            const Icon = item.icon;
+   316→            const isActive = currentView === item.id;
+   317→            return (
+   318→              <button
+   319→                key={item.id}
+   320→                onClick={() => onNavigate(item.id)}
+   321→                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150
+   322→                  ${isActive
+   323→                    ? 'bg-primary/10 text-primary shadow-sm'
+   324→                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+   325→                  }
+   326→                  ${collapsed ? 'justify-center' : ''}
+   327→                `}
+   328→                title={collapsed ? item.label : undefined}
+   329→              >
+   330→                <Icon className={`h-4.5 w-4.5 shrink-0 ${isActive ? 'text-primary' : ''}`} />
+   331→                {!collapsed && <span>{item.label}</span>}
+   332→                {isActive && !collapsed && (
+   333→                  <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
+   334→                )}
+   335→              </button>
+   336→            );
+   337→          })}
+   338→        </nav>
+   339→      </ScrollArea>
+   340→
+   341→      {/* User section at bottom */}
+   342→      <div className="border-t p-3">
+   343→        <button
+   344→          onClick={() => onNavigate('profile')}
+   345→          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted ${collapsed ? 'justify-center' : ''}`}
+   346→        >
+   347→          <Avatar className="h-8 w-8">
+   348→            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">AD</AvatarFallback>
+   349→          </Avatar>
+   350→          {!collapsed && (
+   351→            <div className="min-w-0 flex-1 text-left">
+   352→              <p className="truncate text-sm font-medium">Admin</p>
+   353→              <p className="truncate text-xs text-muted-foreground">admin@rapigo.ml</p>
+   354→            </div>
+   355→          )}
+   356→        </button>
+   357→      </div>
+   358→    </div>
+   359→  );
+   360→}
+   361→
+   362→// ─── Dashboard View ───────────────────────────────────────────────────────────
+   363→
+   364→function DashboardView() {
+   365→  const { data: stats, loading, refetch } = useFetch<DashboardStats>('/api/stats', {
+   366→    totalUsers: 0,
+   367→    totalMerchants: 0,
+   368→    totalDrivers: 0,
+   369→    totalOrders: 0,
+   370→    totalRevenue: 0,
+   371→    activeOrders: 0,
+   372→    pendingMerchants: 0,
+   373→    totalProducts: 0,
+   374→    totalDeliveriesToday: 0,
+   375→    avgRating: 0,
+   376→    ordersByStatus: [],
+   377→    recentOrders: [],
+   378→    topMerchants: [],
+   379→  });
+   380→
+   381→  const revenueChart = stats.revenueChart?.length
+   382→    ? stats.revenueChart
+   383→    : [
+   384→        { month: 'Lun', revenue: 1850000, orders: 245 },
+   385→        { month: 'Mar', revenue: 2100000, orders: 278 },
+   386→        { month: 'Mer', revenue: 1930000, orders: 256 },
+   387→        { month: 'Jeu', revenue: 2350000, orders: 312 },
+   388→        { month: 'Ven', revenue: 2780000, orders: 367 },
+   389→        { month: 'Sam', revenue: 3100000, orders: 410 },
+   390→        { month: 'Dim', revenue: 2450000, orders: 325 },
+   391→      ];
+   392→
+   393→  const pieData = stats.ordersByStatus?.length
+   394→    ? stats.ordersByStatus
+   395→    : [
+   396→        { name: 'Livrées', value: 1245 },
+   397→        { name: 'En cours', value: 89 },
+   398→        { name: 'En attente', value: 45 },
+   399→        { name: 'Annulées', value: 32 },
+   400→        { name: 'En préparation', value: 67 },
+   401→      ];
+   402→
+   403→  if (loading) {
+   404→    return (
+   405→      <PageShell title="Tableau de bord" description="Vue d'ensemble de la plateforme">
+   406→        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+   407→          {Array.from({ length: 4 }).map((_, i) => (
+   408→            <Skeleton key={i} className="h-36 rounded-xl" />
+   409→          ))}
+   410→        </div>
+   411→        <Skeleton className="h-80 rounded-xl" />
+   412→        <div className="grid gap-4 lg:grid-cols-2">
+   413→          <Skeleton className="h-80 rounded-xl" />
+   414→          <Skeleton className="h-80 rounded-xl" />
+   415→        </div>
+   416→      </PageShell>
+   417→    );
+   418→  }
+   419→
+   420→  return (
+   421→    <PageShell
+   422→      title="Tableau de bord"
+   423→      description="Vue d'ensemble de la plateforme"
+   424→      actions={
+   425→        <Button variant="outline" size="sm" onClick={refetch}>
+   426→          <RefreshCw className="mr-2 h-4 w-4" />
+   427→          Actualiser
+   428→        </Button>
+   429→      }
+   430→    >
+   431→      {/* Stat Cards */}
+   432→      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+   433→        <StatCard
+   434→          title="Utilisateurs"
+   435→          value={stats.totalUsers > 1000 ? `${(stats.totalUsers / 1000).toFixed(1)}K+` : stats.totalUsers.toLocaleString('fr-FR')}
+   436→          icon={Users}
+   437→          trend="up"
+   438→          trendValue="+12.5%"
+   439→          color="text-emerald-600"
+   440→          bg="bg-emerald-50 dark:bg-emerald-950/40"
+   441→        />
+   442→        <StatCard
+   443→          title="Revenus"
+   444→          value={formatPrice(stats.totalRevenue || 15000000)}
+   445→          icon={DollarSign}
+   446→          trend="up"
+   447→          trendValue="+8.2%"
+   448→          color="text-amber-600"
+   449→          bg="bg-amber-50 dark:bg-amber-950/40"
+   450→        />
+   451→        <StatCard
+   452→          title="Commandes"
+   453→          value={stats.totalOrders > 1000 ? `${(stats.totalOrders / 1000).toFixed(1)}K+` : stats.totalOrders.toLocaleString('fr-FR')}
+   454→          icon={ShoppingCart}
+   455→          trend="up"
+   456→          trendValue="+15.3%"
+   457→          color="text-violet-600"
+   458→          bg="bg-violet-50 dark:bg-violet-950/40"
+   459→        />
+   460→        <StatCard
+   461→          title="Livreurs actifs"
+   462→          value={stats.totalDrivers > 0 ? stats.totalDrivers.toLocaleString('fr-FR') : '200+'}
+   463→          icon={Truck}
+   464→          trend="up"
+   465→          trendValue="+5.1%"
+   466→          color="text-cyan-600"
+   467→          bg="bg-cyan-50 dark:bg-cyan-950/40"
+   468→        />
+   469→      </div>
+   470→
+   471→      {/* Revenue Chart */}
+   472→      <Card>
+   473→        <CardHeader className="pb-2">
+   474→          <div className="flex items-center justify-between">
+   475→            <div>
+   476→              <CardTitle className="text-base">Revenus sur 7 jours</CardTitle>
+   477→              <CardDescription>Évolution des revenus et commandes</CardDescription>
+   478→            </div>
+   479→            <Badge variant="secondary" className="font-normal">
+   480→              7 derniers jours
+   481→            </Badge>
+   482→          </div>
+   483→        </CardHeader>
+   484→        <CardContent>
+   485→          <div className="h-72">
+   486→            <ResponsiveContainer width="100%" height="100%">
+   487→              <BarChart data={revenueChart} barGap={8}>
+   488→                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+   489→                <XAxis dataKey="month" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+   490→                <YAxis
+   491→                  tick={{ fontSize: 12 }}
+   492→                  tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`}
+   493→                  className="text-muted-foreground"
+   494→                />
+   495→                <Tooltip
+   496→                  formatter={(value: number) => [formatPrice(value), 'Revenus']}
+   497→                  contentStyle={tooltipStyle}
+   498→                />
+   499→                <Bar dataKey="revenue" fill="#059669" radius={[6, 6, 0, 0]} />
+   500→              </BarChart>
+   501→            </ResponsiveContainer>
+   502→          </div>
+   503→        </CardContent>
+   504→      </Card>
+   505→
+   506→      <div className="grid gap-4 lg:grid-cols-2">
+   507→        {/* Orders by Status Pie Chart */}
+   508→        <Card>
+   509→          <CardHeader className="pb-2">
+   510→            <CardTitle className="text-base">Commandes par statut</CardTitle>
+   511→            <CardDescription>Répartition des commandes</CardDescription>
+   512→          </CardHeader>
+   513→          <CardContent>
+   514→            <div className="h-64">
+   515→              <ResponsiveContainer width="100%" height="100%">
+   516→                <PieChart>
+   517→                  <Pie
+   518→                    data={pieData}
+   519→                    cx="50%"
+   520→                    cy="50%"
+   521→                    innerRadius={55}
+   522→                    outerRadius={85}
+   523→                    paddingAngle={4}
+   524→                    dataKey="value"
+   525→                  >
+   526→                    {pieData.map((_, index) => (
+   527→                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+   528→                    ))}
+   529→                  </Pie>
+   530→                  <Tooltip
+   531→                    formatter={(value: number) => [value, 'Commandes']}
+   532→                    contentStyle={tooltipStyle}
+   533→                  />
+   534→                </PieChart>
+   535→              </ResponsiveContainer>
+   536→              <div className="mt-2 flex flex-wrap justify-center gap-3">
+   537→                {pieData.map((entry, index) => (
+   538→                  <div key={`pie-${index}-${entry.name}`} className="flex items-center gap-1.5">
+   539→                    <div
+   540→                      className="h-2.5 w-2.5 rounded-full"
+   541→                      style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+   542→                    />
+   543→                    <span className="text-xs text-muted-foreground">{entry.name} ({entry.value})</span>
+   544→                  </div>
+   545→                ))}
+   546→              </div>
+   547→            </div>
+   548→          </CardContent>
+   549→        </Card>
+   550→
+   551→        {/* Top Merchants */}
+   552→        <Card>
+   553→          <CardHeader className="pb-2">
+   554→            <CardTitle className="text-base">Meilleurs commerçants</CardTitle>
+   555→            <CardDescription>Classés par note et chiffre d'affaires</CardDescription>
+   556→          </CardHeader>
+   557→          <CardContent>
+   558→            {stats.topMerchants.length > 0 ? (
+   559→              <ScrollArea className="h-64">
+   560→                <div className="space-y-3">
+   561→                  {stats.topMerchants.map((merchant: any, i: number) => (
+   562→                    <div key={merchant.id || i} className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50">
+   563→                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-bold">
+   564→                        {i + 1}
+   565→                      </span>
+   566→                      <div className="min-w-0 flex-1">
+   567→                        <p className="truncate text-sm font-medium">{merchant.businessName || merchant.name}</p>
+   568→                        <p className="text-xs text-muted-foreground">
+   569→                          {merchant.orders || 0} commandes · {formatPrice(merchant.revenue || 0)}
+   570→                        </p>
+   571→                      </div>
+   572→                      <div className="flex items-center gap-1 text-amber-500">
+   573→                        <Star className="h-3.5 w-3.5 fill-current" />
+   574→                        <span className="text-xs font-medium">{(merchant.rating || 0).toFixed(1)}</span>
+   575→                      </div>
+   576→                    </div>
+   577→                  ))}
+   578→                </div>
+   579→              </ScrollArea>
+   580→            ) : (
+   581→              <div className="space-y-3">
+   582→                {[
+   583→                  { name: 'Le Relais Bamako', orders: 342, revenue: 4250000, rating: 4.8 },
+   584→                  { name: 'Supermarché Azalaï', orders: 289, revenue: 3680000, rating: 4.7 },
+   585→                  { name: 'Pharmacie du Fleuve', orders: 215, revenue: 2100000, rating: 4.6 },
+   586→                  { name: 'Boutique Sahel Mode', orders: 178, revenue: 1920000, rating: 4.5 },
+   587→                  { name: 'Restaurant Djenné', orders: 156, revenue: 1750000, rating: 4.4 },
+   588→                ].map((m, i) => (
+   589→                  <div key={i} className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50">
+   590→                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-bold">
+   591→                      {i + 1}
+   592→                    </span>
+   593→                    <div className="min-w-0 flex-1">
+   594→                      <p className="truncate text-sm font-medium">{m.name}</p>
+   595→                      <p className="text-xs text-muted-foreground">
+   596→                        {m.orders} commandes · {formatPrice(m.revenue)}
+   597→                      </p>
+   598→                    </div>
+   599→                    <div className="flex items-center gap-1 text-amber-500">
+   600→                      <Star className="h-3.5 w-3.5 fill-current" />
+   601→                      <span className="text-xs font-medium">{m.rating}</span>
+   602→                    </div>
+   603→                  </div>
+   604→                ))}
+   605→              </div>
+   606→            )}
+   607→          </CardContent>
+   608→        </Card>
+   609→      </div>
+   610→
+   611→      {/* Recent Orders Table */}
+   612→      <Card>
+   613→        <CardHeader className="pb-2">
+   614→          <div className="flex items-center justify-between">
+   615→            <div>
+   616→              <CardTitle className="text-base">Commandes récentes</CardTitle>
+   617→              <CardDescription>Dernières commandes passées sur la plateforme</CardDescription>
+   618→            </div>
+   619→            <Button variant="ghost" size="sm" onClick={() => {}}>
+   620→              Voir tout <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+   621→            </Button>
+   622→          </div>
+   623→        </CardHeader>
+   624→        <CardContent>
+   625→          {stats.recentOrders.length > 0 ? (
+   626→            <div className="overflow-x-auto -mx-6 px-6">
+   627→              <Table>
+   628→                <TableHeader>
+   629→                  <TableRow>
+   630→                    <TableHead>N°</TableHead>
+   631→                    <TableHead>Client</TableHead>
+   632→                    <TableHead className="hidden md:table-cell">Commerçant</TableHead>
+   633→                    <TableHead>Total</TableHead>
+   634→                    <TableHead>Statut</TableHead>
+   635→                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+   636→                  </TableRow>
+   637→                </TableHeader>
+   638→                <TableBody>
+   639→                  {stats.recentOrders.slice(0, 8).map((order: any, i: number) => (
+   640→                    <TableRow key={order.id || i} className="cursor-pointer hover:bg-muted/50">
+   641→                      <TableCell className="font-mono text-xs">#{(order.id || order.orderNumber || '').slice(-6).toUpperCase()}</TableCell>
+   642→                      <TableCell className="text-sm">{order.customerName || order.userName || '—'}</TableCell>
+   643→                      <TableCell className="hidden text-sm md:table-cell">{order.merchant?.businessName || order.merchantName || '—'}</TableCell>
+   644→                      <TableCell className="text-sm font-medium">{formatPrice(order.total || order.amount || 0)}</TableCell>
+   645→                      <TableCell>
+   646→                        <Badge variant="secondary" className={ORDER_STATUS_COLORS[order.status] || 'bg-muted'}>
+   647→                          {ORDER_STATUS_LABELS[order.status] || order.status}
+   648→                        </Badge>
+   649→                      </TableCell>
+   650→                      <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">
+   651→                        {order.createdAt
+   652→                          ? new Date(order.createdAt).toLocaleDateString('fr-FR')
+   653→                          : '—'}
+   654→                      </TableCell>
+   655→                    </TableRow>
+   656→                  ))}
+   657→                </TableBody>
+   658→              </Table>
+   659→            </div>
+   660→          ) : (
+   661→            <EmptyState message="Aucune commande récente" />
+   662→          )}
+   663→        </CardContent>
+   664→      </Card>
+   665→    </PageShell>
+   666→  );
+   667→}
+   668→
+   669→// ─── Users View ───────────────────────────────────────────────────────────────
+   670→
+   671→function UsersView() {
+   672→  const [search, setSearch] = useState('');
+   673→  const [roleFilter, setRoleFilter] = useState('all');
+   674→  const [dialogOpen, setDialogOpen] = useState(false);
+   675→  const { data: users, loading, refetch } = useFetch<any[]>(
+   676→    roleFilter !== 'all' ? `/api/users?role=${roleFilter}` : '/api/users',
+   677→    []
+   678→  );
+   679→
+   680→  const filteredUsers = (users || []).filter(
+   681→    (u: any) =>
+   682→      !search ||
+   683→      u.firstName?.toLowerCase().includes(search.toLowerCase()) ||
+   684→      u.lastName?.toLowerCase().includes(search.toLowerCase()) ||
+   685→      u.email?.toLowerCase().includes(search.toLowerCase()) ||
+   686→      u.phone?.toLowerCase().includes(search.toLowerCase())
+   687→  );
+   688→
+   689→  const roleLabel = (role: string) => {
+   690→    switch (role) {
+   691→      case 'CLIENT': return 'Client';
+   692→      case 'MERCHANT': return 'Commerçant';
+   693→      case 'DRIVER': return 'Livreur';
+   694→      case 'ADMIN': return 'Admin';
+   695→      default: return role || '—';
+   696→    }
+   697→  };
+   698→
+   699→  return (
+   700→    <PageShell
+   701→      title="Utilisateurs"
+   702→      description={`${(users || []).length} utilisateurs inscrits`}
+   703→      actions={
+   704→        <>
+   705→          <Button variant="outline" size="sm" onClick={refetch}>
+   706→            <RefreshCw className="mr-2 h-4 w-4" />
+   707→            Actualiser
+   708→          </Button>
+   709→          <Button size="sm" onClick={() => setDialogOpen(true)}>
+   710→            <UserPlus className="mr-2 h-4 w-4" />
+   711→            Ajouter
+   712→          </Button>
+   713→        </>
+   714→      }
+   715→    >
+   716→      <Card>
+   717→        <CardContent className="p-4">
+   718→          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+   719→            <div className="relative flex-1">
+   720→              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   721→              <Input
+   722→                placeholder="Rechercher par nom, email, téléphone..."
+   723→                className="pl-9"
+   724→                value={search}
+   725→                onChange={(e) => setSearch(e.target.value)}
+   726→              />
+   727→            </div>
+   728→            <Select value={roleFilter} onValueChange={setRoleFilter}>
+   729→              <SelectTrigger className="w-full sm:w-44">
+   730→                <SelectValue placeholder="Filtrer par rôle" />
+   731→              </SelectTrigger>
+   732→              <SelectContent>
+   733→                <SelectItem value="all">Tous les rôles</SelectItem>
+   734→                <SelectItem value="CLIENT">Clients</SelectItem>
+   735→                <SelectItem value="MERCHANT">Commerçants</SelectItem>
+   736→                <SelectItem value="DRIVER">Livreurs</SelectItem>
+   737→                <SelectItem value="ADMIN">Admins</SelectItem>
+   738→              </SelectContent>
+   739→            </Select>
+   740→          </div>
+   741→        </CardContent>
+   742→      </Card>
+   743→
+   744→      <Card>
+   745→        <CardContent className="p-0">
+   746→          {loading ? (
+   747→            <div className="p-6"><DataTableSkeleton rows={6} cols={6} /></div>
+   748→          ) : filteredUsers.length > 0 ? (
+   749→            <div className="max-h-[520px] overflow-auto">
+   750→              <div className="min-w-[640px]">
+   751→                <Table>
+   752→                  <TableHeader>
+   753→                    <TableRow>
+   754→                      <TableHead>Nom</TableHead>
+   755→                      <TableHead>Email</TableHead>
+   756→                      <TableHead>Téléphone</TableHead>
+   757→                      <TableHead>Rôle</TableHead>
+   758→                      <TableHead>Statut</TableHead>
+   759→                      <TableHead>Créé le</TableHead>
+   760→                      <TableHead>Actions</TableHead>
+   761→                    </TableRow>
+   762→                  </TableHeader>
+   763→                  <TableBody>
+   764→                    {filteredUsers.map((user: any, i: number) => (
+   765→                      <TableRow key={user.id || i} className="hover:bg-muted/50">
+   766→                        <TableCell>
+   767→                          <div className="flex items-center gap-3">
+   768→                            <Avatar className="h-8 w-8">
+   769→                              <AvatarImage src={user.avatar} />
+   770→                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+   771→                                {((user.firstName?.[0] || '') + (user.lastName?.[0] || '')).toUpperCase() || 'U'}
+   772→                              </AvatarFallback>
+   773→                            </Avatar>
+   774→                            <span className="text-sm font-medium">
+   775→                              {user.firstName} {user.lastName}
+   776→                            </span>
+   777→                          </div>
+   778→                        </TableCell>
+   779→                        <TableCell className="text-sm text-muted-foreground">{user.email || '—'}</TableCell>
+   780→                        <TableCell className="text-sm">{user.phone || '—'}</TableCell>
+   781→                        <TableCell>
+   782→                          <Badge variant="outline" className="capitalize">
+   783→                            {roleLabel(user.role)}
+   784→                          </Badge>
+   785→                        </TableCell>
+   786→                        <TableCell>
+   787→                          {!user.isActive ? (
+   788→                            <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+   789→                              Bloqué
+   790→                            </Badge>
+   791→                          ) : user.isVerified ? (
+   792→                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+   793→                              Vérifié
+   794→                            </Badge>
+   795→                          ) : (
+   796→                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+   797→                              Non vérifié
+   798→                            </Badge>
+   799→                          )}
+   800→                        </TableCell>
+   801→                        <TableCell className="text-sm text-muted-foreground">
+   802→                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString('fr-FR') : '—'}
+   803→                        </TableCell>
+   804→                        <TableCell>
+   805→                          <Button
+   806→                            variant="ghost"
+   807→                            size="sm"
+   808→                            className={user.isActive ? 'text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'}
+   809→                            onClick={async () => {
+   810→                              try {
+   811→                                const res = await fetch('/api/users/block', {
+   812→                                  method: 'POST',
+   813→                                  headers: { 'Content-Type': 'application/json' },
+   814→                                  body: JSON.stringify({ userId: user.id, block: user.isActive }),
+   815→                                });
+   816→                                if (res.ok) {
+   817→                                  refetch();
+   818→                                  toast.success(user.isActive ? 'Utilisateur bloqué' : 'Utilisateur débloqué');
+   819→                                } else {
+   820→                                  toast.error('Erreur');
+   821→                                }
+   822→                              } catch {
+   823→                                toast.error('Erreur');
+   824→                              }
+   825→                            }}
+   826→                          >
+   827→                            {user.isActive ? (
+   828→                              <><Ban className="mr-1.5 h-4 w-4" />Bloquer</>
+   829→                            ) : (
+   830→                              <><CheckCircle className="mr-1.5 h-4 w-4" />Débloquer</>
+   831→                            )}
+   832→                          </Button>
+   833→                        </TableCell>
+   834→                      </TableRow>
+   835→                    ))}
+   836→                  </TableBody>
+   837→                </Table>
+   838→              </div>
+   839→            </div>
+   840→          ) : (
+   841→            <EmptyState message="Aucun utilisateur trouvé" />
+   842→          )}
+   843→        </CardContent>
+   844→      </Card>
+   845→
+   846→      {/* Add User Dialog */}
+   847→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   848→        <DialogContent>
+   849→          <DialogHeader>
+   850→            <DialogTitle>Ajouter un utilisateur</DialogTitle>
+   851→            <DialogDescription>Créer un nouveau compte administrateur</DialogDescription>
+   852→          </DialogHeader>
+   853→          <div className="space-y-4 pt-2">
+   854→            <div className="grid gap-4 sm:grid-cols-2">
+   855→              <div className="space-y-2">
+   856→                <label className="text-sm font-medium">Prénom</label>
+   857→                <Input placeholder="Prénom" />
+   858→              </div>
+   859→              <div className="space-y-2">
+   860→                <label className="text-sm font-medium">Nom</label>
+   861→                <Input placeholder="Nom" />
+   862→              </div>
+   863→            </div>
+   864→            <div className="space-y-2">
+   865→              <label className="text-sm font-medium">Email</label>
+   866→              <Input type="email" placeholder="email@rapigo.ml" />
+   867→            </div>
+   868→            <div className="space-y-2">
+   869→              <label className="text-sm font-medium">Rôle</label>
+   870→              <Select defaultValue="CLIENT">
+   871→                <SelectTrigger><SelectValue /></SelectTrigger>
+   872→                <SelectContent>
+   873→                  <SelectItem value="CLIENT">Client</SelectItem>
+   874→                  <SelectItem value="ADMIN">Admin</SelectItem>
+   875→                </SelectContent>
+   876→              </Select>
+   877→            </div>
+   878→            <Button className="w-full" onClick={() => { setDialogOpen(false); toast.success('Utilisateur ajouté avec succès'); }}>
+   879→              Créer l&apos;utilisateur
+   880→            </Button>
+   881→          </div>
+   882→        </DialogContent>
+   883→      </Dialog>
+   884→    </PageShell>
+   885→  );
+   886→}
+   887→
+   888→// ─── Merchants View ───────────────────────────────────────────────────────────
+   889→
+   890→function MerchantsView() {
+   891→  const [search, setSearch] = useState('');
+   892→  const { data: merchants, loading, refetch } = useFetch<any[]>('/api/merchants?all=true', []);
+   893→
+   894→  const filtered = (merchants || []).filter(
+   895→    (m: any) =>
+   896→      !search ||
+   897→      m.businessName?.toLowerCase().includes(search.toLowerCase()) ||
+   898→      m.user?.firstName?.toLowerCase().includes(search.toLowerCase()) ||
+   899→      m.user?.lastName?.toLowerCase().includes(search.toLowerCase())
+   900→  );
+   901→
+   902→  const handleApprove = async (merchant: any) => {
+   903→    try {
+   904→      const res = await fetch('/api/merchants/approve', {
+   905→        method: 'POST',
+   906→        headers: { 'Content-Type': 'application/json' },
+   907→        body: JSON.stringify({ merchantId: merchant.id, approve: true }),
+   908→      });
+   909→      if (res.ok) {
+   910→        refetch();
+   911→        toast.success('Commerçant approuvé');
+   912→      } else {
+   913→        toast.error('Erreur');
+   914→      }
+   915→    } catch {
+   916→      toast.error('Erreur');
+   917→    }
+   918→  };
+   919→
+   920→  const handleReject = async (merchant: any) => {
+   921→    try {
+   922→      const res = await fetch('/api/merchants/approve', {
+   923→        method: 'POST',
+   924→        headers: { 'Content-Type': 'application/json' },
+   925→        body: JSON.stringify({ merchantId: merchant.id, approve: false }),
+   926→      });
+   927→      if (res.ok) {
+   928→        refetch();
+   929→        toast.success('Commerçant rejeté');
+   930→      } else {
+   931→        toast.error('Erreur');
+   932→      }
+   933→    } catch {
+   934→      toast.error('Erreur');
+   935→    }
+   936→  };
+   937→
+   938→  return (
+   939→    <PageShell
+   940→      title="Commerçants"
+   941→      description={`${(merchants || []).length} commerçants enregistrés`}
+   942→      actions={
+   943→        <Button variant="outline" size="sm" onClick={refetch}>
+   944→          <RefreshCw className="mr-2 h-4 w-4" />
+   945→          Actualiser
+   946→        </Button>
+   947→      }
+   948→    >
+   949→      <Card>
+   950→        <CardContent className="p-4">
+   951→          <div className="relative">
+   952→            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   953→            <Input
+   954→              placeholder="Rechercher un commerçant..."
+   955→              className="pl-9"
+   956→              value={search}
+   957→              onChange={(e) => setSearch(e.target.value)}
+   958→            />
+   959→          </div>
+   960→        </CardContent>
+   961→      </Card>
+   962→
+   963→      <Card>
+   964→        <CardContent className="p-0">
+   965→          {loading ? (
+   966→            <div className="p-6"><DataTableSkeleton rows={5} cols={7} /></div>
+   967→          ) : filtered.length > 0 ? (
+   968→            <div className="max-h-[520px] overflow-auto">
+   969→              <div className="min-w-[800px]">
+   970→                <Table>
+   971→                  <TableHeader>
+   972→                    <TableRow>
+   973→                      <TableHead>Entreprise</TableHead>
+   974→                      <TableHead>Type</TableHead>
+   975→                      <TableHead>Note</TableHead>
+   976→                      <TableHead>Statut</TableHead>
+   977→                      <TableHead>Produits</TableHead>
+   978→                      <TableHead>Revenus</TableHead>
+   979→                      <TableHead>Actions</TableHead>
+   980→                    </TableRow>
+   981→                  </TableHeader>
+   982→                  <TableBody>
+   983→                    {filtered.map((m: any, i: number) => {
+   984→                      const isApproved = m.status === 'APPROVED' || m.isApproved;
+   985→                      const isPending = !isApproved;
+   986→                      return (
+   987→                        <TableRow key={m.id || i} className={`hover:bg-muted/50 ${isPending ? 'border-l-4 border-l-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10' : ''}`}>
+   988→                          <TableCell>
+   989→                            <div className="flex items-center gap-3">
+   990→                              <Avatar className="h-8 w-8">
+   991→                                <AvatarImage src={m.user?.avatar} />
+   992→                                <AvatarFallback className="bg-amber-100 text-amber-700 text-xs">
+   993→                                  {(m.businessName || 'C')[0].toUpperCase()}
+   994→                                </AvatarFallback>
+   995→                              </Avatar>
+   996→                              <div>
+   997→                                <p className="text-sm font-medium">{m.businessName || `${m.user?.firstName || ''} ${m.user?.lastName || ''}`}</p>
+   998→                                <p className="text-xs text-muted-foreground">{m.user?.email || '—'}</p>
+   999→                              </div>
+  1000→                            </div>
+  1001→                          </TableCell>
+  1002→                          <TableCell className="text-sm">{m.businessType || m.type || 'Restaurant'}</TableCell>
+  1003→                          <TableCell>
+  1004→                            <div className="flex items-center gap-1">
+  1005→                              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+  1006→                              <span className="text-sm font-medium">{(m.rating || 0).toFixed(1)}</span>
+  1007→                            </div>
+  1008→                          </TableCell>
+  1009→                          <TableCell>
+  1010→                            {isPending ? (
+  1011→                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+  1012→                                En attente
+  1013→                              </Badge>
+  1014→                            ) : (
+  1015→                              <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+  1016→                                Approuvé
+  1017→                              </Badge>
+  1018→                            )}
+  1019→                          </TableCell>
+  1020→                          <TableCell className="text-sm">{m.products?.length || m.productCount || 0}</TableCell>
+  1021→                          <TableCell className="text-sm font-medium">{formatPrice(m.revenue || m.totalRevenue || 0)}</TableCell>
+  1022→                          <TableCell>
+  1023→                            <div className="flex items-center gap-1">
+  1024→                              {isPending ? (
+  1025→                                <>
+  1026→                                  <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleApprove(m)}>
+  1027→                                    <CheckCircle className="mr-1.5 h-4 w-4" />Approuver
+  1028→                                  </Button>
+  1029→                                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => handleReject(m)}>
+  1030→                                    <XCircle className="mr-1.5 h-4 w-4" />Rejeter
+  1031→                                  </Button>
+  1032→                                </>
+  1033→                              ) : (
+  1034→                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+  1035→                                  <CheckCircle className="mr-1 h-3 w-3" />Approuvé
+  1036→                                </Badge>
+  1037→                              )}
+  1038→                              <Button variant="ghost" size="icon" className="h-8 w-8" title="Voir">
+  1039→                                <Eye className="h-4 w-4" />
+  1040→                              </Button>
+  1041→                            </div>
+  1042→                          </TableCell>
+  1043→                        </TableRow>
+  1044→                      );
+  1045→                    })}
+  1046→                  </TableBody>
+  1047→                </Table>
+  1048→              </div>
+  1049→            </div>
+  1050→          ) : (
+  1051→            <EmptyState message="Aucun commerçant trouvé" />
+  1052→          )}
+  1053→        </CardContent>
+  1054→      </Card>
+  1055→    </PageShell>
+  1056→  );
+  1057→}
+  1058→
+  1059→// ─── Drivers View ─────────────────────────────────────────────────────────────
+  1060→
+  1061→function DriversView() {
+  1062→  const [search, setSearch] = useState('');
+  1063→  const { data: drivers, loading, refetch } = useFetch<any[]>('/api/drivers', []);
+  1064→
+  1065→  const filtered = (drivers || []).filter(
+  1066→    (d: any) =>
+  1067→      !search ||
+  1068→      d.user?.firstName?.toLowerCase().includes(search.toLowerCase()) ||
+  1069→      d.user?.lastName?.toLowerCase().includes(search.toLowerCase()) ||
+  1070→      d.vehicleType?.toLowerCase().includes(search.toLowerCase())
+  1071→  );
+  1072→
+  1073→  const handleVerify = async (driver: any) => {
+  1074→    try {
+  1075→      const res = await fetch('/api/drivers/approve', {
+  1076→        method: 'POST',
+  1077→        headers: { 'Content-Type': 'application/json' },
+  1078→        body: JSON.stringify({ driverId: driver.id, approve: true }),
+  1079→      });
+  1080→      if (res.ok) {
+  1081→        refetch();
+  1082→        toast.success('Livreur vérifié avec succès');
+  1083→      } else {
+  1084→        toast.error('Erreur');
+  1085→      }
+  1086→    } catch {
+  1087→      toast.error('Erreur');
+  1088→    }
+  1089→  };
+  1090→
+  1091→  const handleRejectDriver = async (driver: any) => {
+  1092→    try {
+  1093→      const res = await fetch('/api/drivers/approve', {
+  1094→        method: 'POST',
+  1095→        headers: { 'Content-Type': 'application/json' },
+  1096→        body: JSON.stringify({ driverId: driver.id, approve: false }),
+  1097→      });
+  1098→      if (res.ok) {
+  1099→        refetch();
+  1100→        toast.success('Livreur rejeté');
+  1101→      } else {
+  1102→        toast.error('Erreur');
+  1103→      }
+  1104→    } catch {
+  1105→      toast.error('Erreur');
+  1106→    }
+  1107→  };
+  1108→
+  1109→  return (
+  1110→    <PageShell
+  1111→      title="Livreurs"
+  1112→      description={`${(drivers || []).length} livreurs inscrits`}
+  1113→      actions={
+  1114→        <Button variant="outline" size="sm" onClick={refetch}>
+  1115→          <RefreshCw className="mr-2 h-4 w-4" />
+  1116→          Actualiser
+  1117→        </Button>
+  1118→      }
+  1119→    >
+  1120→      <Card>
+  1121→        <CardContent className="p-4">
+  1122→          <div className="relative">
+  1123→            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  1124→            <Input
+  1125→              placeholder="Rechercher un livreur..."
+  1126→              className="pl-9"
+  1127→              value={search}
+  1128→              onChange={(e) => setSearch(e.target.value)}
+  1129→            />
+  1130→          </div>
+  1131→        </CardContent>
+  1132→      </Card>
+  1133→
+  1134→      <Card>
+  1135→        <CardContent className="p-0">
+  1136→          {loading ? (
+  1137→            <div className="p-6"><DataTableSkeleton rows={5} cols={7} /></div>
+  1138→          ) : filtered.length > 0 ? (
+  1139→            <div className="max-h-[520px] overflow-auto">
+  1140→              <div className="min-w-[820px]">
+  1141→                <Table>
+  1142→                  <TableHeader>
+  1143→                    <TableRow>
+  1144→                      <TableHead>Nom</TableHead>
+  1145→                      <TableHead>Véhicule</TableHead>
+  1146→                      <TableHead>Note</TableHead>
+  1147→                      <TableHead>Statut</TableHead>
+  1148→                      <TableHead>Courses</TableHead>
+  1149→                      <TableHead>Revenus</TableHead>
+  1150→                      <TableHead>Actions</TableHead>
+  1151→                    </TableRow>
+  1152→                  </TableHeader>
+  1153→                  <TableBody>
+  1154→                    {filtered.map((d: any, i: number) => {
+  1155→                      const isVerified = d.isVerified;
+  1156→                      const firstName = d.user?.firstName || d.firstName || '';
+  1157→                      const lastName = d.user?.lastName || d.lastName || '';
+  1158→                      return (
+  1159→                        <TableRow key={d.id || i} className={`hover:bg-muted/50 ${!isVerified ? 'border-l-4 border-l-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10' : ''}`}>
+  1160→                          <TableCell>
+  1161→                            <div className="flex items-center gap-3">
+  1162→                              <Avatar className="h-8 w-8">
+  1163→                                <AvatarImage src={d.user?.avatar} />
+  1164→                                <AvatarFallback className="bg-cyan-50 text-cyan-700 text-xs">
+  1165→                                  {(firstName[0] || '') + (lastName[0] || '')}
+  1166→                                </AvatarFallback>
+  1167→                              </Avatar>
+  1168→                              <div>
+  1169→                                <p className="text-sm font-medium">{firstName} {lastName}</p>
+  1170→                                <p className="text-xs text-muted-foreground">{d.user?.phone || d.phone || '—'}</p>
+  1171→                              </div>
+  1172→                            </div>
+  1173→                          </TableCell>
+  1174→                          <TableCell className="text-sm">
+  1175→                            <div className="flex items-center gap-2">
+  1176→                              <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+  1177→                              {d.vehicleType || d.vehicle || 'Moto'}
+  1178→                            </div>
+  1179→                          </TableCell>
+  1180→                          <TableCell>
+  1181→                            <div className="flex items-center gap-1">
+  1182→                              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+  1183→                              <span className="text-sm font-medium">{(d.rating || 0).toFixed(1)}</span>
+  1184→                            </div>
+  1185→                          </TableCell>
+  1186→                          <TableCell>
+  1187→                            {isVerified ? (
+  1188→                              <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+  1189→                                Vérifié
+  1190→                              </Badge>
+  1191→                            ) : (
+  1192→                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+  1193→                                Non vérifié
+  1194→                              </Badge>
+  1195→                            )}
+  1196→                          </TableCell>
+  1197→                          <TableCell className="text-sm">{d.totalDeliveries || d.deliveries || 0}</TableCell>
+  1198→                          <TableCell className="text-sm font-medium">{formatPrice(d.earnings || d.totalEarnings || 0)}</TableCell>
+  1199→                          <TableCell>
+  1200→                            <div className="flex items-center gap-1">
+  1201→                              {isVerified ? (
+  1202→                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+  1203→                                  <CheckCircle className="mr-1 h-3 w-3" />Vérifié
+  1204→                                </Badge>
+  1205→                              ) : (
+  1206→                                <>
+  1207→                                  <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleVerify(d)}>
+  1208→                                    <CheckCircle className="mr-1.5 h-4 w-4" />Vérifier
+  1209→                                  </Button>
+  1210→                                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => handleRejectDriver(d)}>
+  1211→                                    <XCircle className="mr-1.5 h-4 w-4" />Rejeter
+  1212→                                  </Button>
+  1213→                                </>
+  1214→                              )}
+  1215→                            </div>
+  1216→                          </TableCell>
+  1217→                        </TableRow>
+  1218→                      );
+  1219→                    })}
+  1220→                  </TableBody>
+  1221→                </Table>
+  1222→              </div>
+  1223→            </div>
+  1224→          ) : (
+  1225→            <EmptyState message="Aucun livreur trouvé" icon={Truck} />
+  1226→          )}
+  1227→        </CardContent>
+  1228→      </Card>
+  1229→    </PageShell>
+  1230→  );
+  1231→}
+  1232→
+  1233→// ─── Orders View ──────────────────────────────────────────────────────────────
+  1234→
+  1235→const ORDER_TABS = [
+  1236→  { value: 'all', label: 'Toutes' },
+  1237→  { value: 'PENDING', label: 'En attente' },
+  1238→  { value: 'CONFIRMED', label: 'Confirmées' },
+  1239→  { value: 'PREPARING', label: 'En préparation' },
+  1240→  { value: 'IN_TRANSIT', label: 'En livraison' },
+  1241→  { value: 'DELIVERED', label: 'Livrées' },
+  1242→  { value: 'CANCELLED', label: 'Annulées' },
+  1243→];
+  1244→
+  1245→function OrdersView() {
+  1246→  const [search, setSearch] = useState('');
+  1247→  const [statusTab, setStatusTab] = useState('all');
+  1248→  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  1249→  const { data: orders, loading, refetch } = useFetch<any[]>('/api/orders', []);
+  1250→
+  1251→  const filtered = (orders || []).filter((o: any) => {
+  1252→    const matchSearch = !search ||
+  1253→      o.id?.toLowerCase().includes(search.toLowerCase()) ||
+  1254→      o.orderNumber?.toLowerCase().includes(search.toLowerCase());
+  1255→    const matchStatus = statusTab === 'all' || o.status === statusTab;
+  1256→    return matchSearch && matchStatus;
+  1257→  });
+  1258→
+  1259→  return (
+  1260→    <PageShell
+  1261→      title="Commandes"
+  1262→      description={`${(orders || []).length} commandes au total`}
+  1263→      actions={
+  1264→        <Button variant="outline" size="sm" onClick={refetch}>
+  1265→          <RefreshCw className="mr-2 h-4 w-4" />
+  1266→          Actualiser
+  1267→        </Button>
+  1268→      }
+  1269→    >
+  1270→      {/* Search */}
+  1271→      <Card>
+  1272→        <CardContent className="p-4">
+  1273→          <div className="relative">
+  1274→            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  1275→            <Input
+  1276→              placeholder="Rechercher par N°, client, commerçant..."
+  1277→              className="pl-9"
+  1278→              value={search}
+  1279→              onChange={(e) => setSearch(e.target.value)}
+  1280→            />
+  1281→          </div>
+  1282→        </CardContent>
+  1283→      </Card>
+  1284→
+  1285→      {/* Status Tabs */}
+  1286→      <Tabs value={statusTab} onValueChange={setStatusTab}>
+  1287→        <div className="overflow-x-auto -mx-6 px-6">
+  1288→          <TabsList className="w-full justify-start">
+  1289→            {ORDER_TABS.map((tab) => (
+  1290→              <TabsTrigger key={tab.value} value={tab.value} className="text-sm">
+  1291→                {tab.label}
+  1292→              </TabsTrigger>
+  1293→            ))}
+  1294→          </TabsList>
+  1295→        </div>
+  1296→
+  1297→        <TabsContent value={statusTab} className="mt-4">
+  1298→          <Card>
+  1299→            <CardContent className="p-0">
+  1300→              {loading ? (
+  1301→                <div className="p-6"><DataTableSkeleton rows={6} cols={6} /></div>
+  1302→              ) : filtered.length > 0 ? (
+  1303→                <div className="max-h-[520px] overflow-auto">
+  1304→                  <div className="min-w-[700px]">
+  1305→                    <Table>
+  1306→                      <TableHeader>
+  1307→                        <TableRow>
+  1308→                          <TableHead>N°</TableHead>
+  1309→                          <TableHead>Client</TableHead>
+  1310→                          <TableHead>Commerçant</TableHead>
+  1311→                          <TableHead>Total</TableHead>
+  1312→                          <TableHead>Statut</TableHead>
+  1313→                          <TableHead>Date</TableHead>
+  1314→                          <TableHead></TableHead>
+  1315→                        </TableRow>
+  1316→                      </TableHeader>
+  1317→                      <TableBody>
+  1318→                        {filtered.map((order: any, i: number) => {
+  1319→                          const orderId = order.id || order.orderNumber || String(i);
+  1320→                          const isExpanded = expandedOrder === orderId;
+  1321→                          return (
+  1322→                            <React.Fragment key={orderId}>
+  1323→                              <TableRow
+  1324→                                className="cursor-pointer hover:bg-muted/50"
+  1325→                                onClick={() => setExpandedOrder(isExpanded ? null : orderId)}
+  1326→                              >
+  1327→                                <TableCell className="font-mono text-xs">#{String(orderId).slice(-6).toUpperCase()}</TableCell>
+  1328→                                <TableCell className="text-sm">{order.customerName || '—'}</TableCell>
+  1329→                                <TableCell className="text-sm">{order.merchant?.businessName || order.merchantName || '—'}</TableCell>
+  1330→                                <TableCell className="text-sm font-medium">{formatPrice(order.total || order.amount || 0)}</TableCell>
+  1331→                                <TableCell>
+  1332→                                  <Badge variant="secondary" className={ORDER_STATUS_COLORS[order.status] || 'bg-muted'}>
+  1333→                                    {ORDER_STATUS_LABELS[order.status] || order.status}
+  1334→                                  </Badge>
+  1335→                                </TableCell>
+  1336→                                <TableCell className="text-sm text-muted-foreground">
+  1337→                                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString('fr-FR') : '—'}
+  1338→                                </TableCell>
+  1339→                                <TableCell>
+  1340→                                  <ChevronLeft className={`h-4 w-4 transition-transform text-muted-foreground ${isExpanded ? 'rotate-90' : '-rotate-90'}`} />
+  1341→                                </TableCell>
+  1342→                              </TableRow>
+  1343→                              {isExpanded && (
+  1344→                                <TableRow>
+  1345→                                  <TableCell colSpan={7} className="bg-muted/30 px-8 py-4">
+  1346→                                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  1347→                                      <div>
+  1348→                                        <p className="text-xs font-medium text-muted-foreground">Adresse de livraison</p>
+  1349→                                        <p className="text-sm mt-0.5">{order.deliveryAddress || '—'}</p>
+  1350→                                      </div>
+  1351→                                      <div>
+  1352→                                        <p className="text-xs font-medium text-muted-foreground">Livreur</p>
+  1353→                                        <p className="text-sm mt-0.5">{order.driver?.user ? `${order.driver.user.firstName} ${order.driver.user.lastName}` : order.driverName || 'Non assigné'}</p>
+  1354→                                      </div>
+  1355→                                      <div>
+  1356→                                        <p className="text-xs font-medium text-muted-foreground">Frais de livraison</p>
+  1357→                                        <p className="text-sm mt-0.5">{formatPrice(order.deliveryFee || 0)}</p>
+  1358→                                      </div>
+  1359→                                      <div>
+  1360→                                        <p className="text-xs font-medium text-muted-foreground">Notes</p>
+  1361→                                        <p className="text-sm mt-0.5">{order.notes || '—'}</p>
+  1362→                                      </div>
+  1363→                                    </div>
+  1364→                                    {order.items && order.items.length > 0 && (
+  1365→                                      <div className="mt-4">
+  1366→                                        <p className="mb-2 text-xs font-medium text-muted-foreground">Articles</p>
+  1367→                                        <div className="space-y-1">
+  1368→                                          {order.items.map((item: any, j: number) => (
+  1369→                                            <div key={j} className="flex justify-between text-sm">
+  1370→                                              <span>{item.name} ×{item.quantity}</span>
+  1371→                                              <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
+  1372→                                            </div>
+  1373→                                          ))}
+  1374→                                        </div>
+  1375→                                      </div>
+  1376→                                    )}
+  1377→                                  </TableCell>
+  1378→                                </TableRow>
+  1379→                              )}
+  1380→                            </React.Fragment>
+  1381→                          );
+  1382→                        })}
+  1383→                      </TableBody>
+  1384→                    </Table>
+  1385→                  </div>
+  1386→                </div>
+  1387→              ) : (
+  1388→                <EmptyState message="Aucune commande trouvée" icon={ShoppingCart} />
+  1389→              )}
+  1390→            </CardContent>
+  1391→          </Card>
+  1392→        </TabsContent>
+  1393→      </Tabs>
+  1394→    </PageShell>
+  1395→  );
+  1396→}
+  1397→
+  1398→// ─── Payments View ────────────────────────────────────────────────────────────
+  1399→
+  1400→const MOCK_PAYMENTS = [
+  1401→  { id: 'pay-001', orderId: 'ord-823451', userName: 'Amadou Diallo', amount: 12500, method: 'Orange Money', status: 'SUCCESS', createdAt: '2025-01-15T10:30:00' },
+  1402→  { id: 'pay-002', orderId: 'ord-823452', userName: 'Fatoumata Traoré', amount: 8750, method: 'Moov Money', status: 'SUCCESS', createdAt: '2025-01-15T11:15:00' },
+  1403→  { id: 'pay-003', orderId: 'ord-823453', userName: 'Ibrahim Keita', amount: 23000, method: 'Espèces', status: 'PENDING', createdAt: '2025-01-15T12:00:00' },
+  1404→  { id: 'pay-004', orderId: 'ord-823454', userName: 'Mariam Coulibaly', amount: 5600, method: 'Orange Money', status: 'SUCCESS', createdAt: '2025-01-15T13:20:00' },
+  1405→  { id: 'pay-005', orderId: 'ord-823455', userName: 'Oumar Sidibé', amount: 15800, method: 'Wallet', status: 'FAILED', createdAt: '2025-01-15T14:45:00' },
+  1406→  { id: 'pay-006', orderId: 'ord-823456', userName: 'Awa Sangaré', amount: 9200, method: 'Moov Money', status: 'SUCCESS', createdAt: '2025-01-15T15:30:00' },
+  1407→  { id: 'pay-007', orderId: 'ord-823457', userName: 'Moussa Dembélé', amount: 31200, method: 'Orange Money', status: 'SUCCESS', createdAt: '2025-01-15T16:10:00' },
+  1408→  { id: 'pay-008', orderId: 'ord-823458', userName: 'Kadiatou Ba', amount: 7400, method: 'Espèces', status: 'PENDING', createdAt: '2025-01-15T17:00:00' },
+  1409→];
+  1410→
+  1411→function PaymentsView() {
+  1412→  const [search, setSearch] = useState('');
+  1413→  const { data: payments, loading } = useFetch<any[]>('/api/payments', MOCK_PAYMENTS);
+  1414→
+  1415→  const filtered = (payments || []).filter(
+  1416→    (p: any) =>
+  1417→      !search ||
+  1418→      p.id?.toLowerCase().includes(search.toLowerCase()) ||
+  1419→      p.orderId?.toLowerCase().includes(search.toLowerCase()) ||
+  1420→      p.userName?.toLowerCase().includes(search.toLowerCase())
+  1421→  );
+  1422→
+  1423→  const totalAmount = (payments || []).reduce((s: number, p: any) => s + (p.amount || 0), 0);
+  1424→
+  1425→  return (
+  1426→    <PageShell
+  1427→      title="Paiements"
+  1428→      description={`Total : ${formatPrice(totalAmount)}`}
+  1429→      actions={
+  1430→        <Button variant="outline" size="sm">
+  1431→          <Download className="mr-2 h-4 w-4" />
+  1432→          Exporter
+  1433→        </Button>
+  1434→      }
+  1435→    >
+  1436→      <Card>
+  1437→        <CardContent className="p-4">
+  1438→          <div className="relative">
+  1439→            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  1440→            <Input
+  1441→              placeholder="Rechercher un paiement..."
+  1442→              className="pl-9"
+  1443→              value={search}
+  1444→              onChange={(e) => setSearch(e.target.value)}
+  1445→            />
+  1446→          </div>
+  1447→        </CardContent>
+  1448→      </Card>
+  1449→
+  1450→      <Card>
+  1451→        <CardContent className="p-0">
+  1452→          {loading ? (
+  1453→            <div className="p-6"><DataTableSkeleton rows={5} cols={6} /></div>
+  1454→          ) : filtered.length > 0 ? (
+  1455→            <div className="max-h-[520px] overflow-auto">
+  1456→              <div className="min-w-[780px]">
+  1457→                <Table>
+  1458→                  <TableHeader>
+  1459→                    <TableRow>
+  1460→                      <TableHead>ID</TableHead>
+  1461→                      <TableHead>Commande</TableHead>
+  1462→                      <TableHead>Utilisateur</TableHead>
+  1463→                      <TableHead>Montant</TableHead>
+  1464→                      <TableHead>Méthode</TableHead>
+  1465→                      <TableHead>Statut</TableHead>
+  1466→                      <TableHead>Date</TableHead>
+  1467→                    </TableRow>
+  1468→                  </TableHeader>
+  1469→                  <TableBody>
+  1470→                    {filtered.map((p: any, i: number) => (
+  1471→                      <TableRow key={p.id || i} className="hover:bg-muted/50">
+  1472→                        <TableCell className="font-mono text-xs">#{(p.id || '').slice(-6).toUpperCase()}</TableCell>
+  1473→                        <TableCell className="font-mono text-xs">#{(p.orderId || '').slice(-6).toUpperCase()}</TableCell>
+  1474→                        <TableCell className="text-sm">{p.userName || '—'}</TableCell>
+  1475→                        <TableCell className="text-sm font-medium">{formatPrice(p.amount || 0)}</TableCell>
+  1476→                        <TableCell className="text-sm">{p.method || 'Mobile Money'}</TableCell>
+  1477→                        <TableCell>
+  1478→                          <Badge variant="secondary" className={
+  1479→                            p.status === 'COMPLETED' || p.status === 'SUCCESS'
+  1480→                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+  1481→                              : p.status === 'PENDING'
+  1482→                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+  1483→                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+  1484→                          }>
+  1485→                            {p.status === 'COMPLETED' || p.status === 'SUCCESS' ? 'Complété' : p.status === 'PENDING' ? 'En attente' : 'Échoué'}
+  1486→                          </Badge>
+  1487→                        </TableCell>
+  1488→                        <TableCell className="text-sm text-muted-foreground">
+  1489→                          {p.createdAt ? new Date(p.createdAt).toLocaleDateString('fr-FR') : '—'}
+  1490→                        </TableCell>
+  1491→                      </TableRow>
+  1492→                    ))}
+  1493→                  </TableBody>
+  1494→                </Table>
+  1495→              </div>
+  1496→            </div>
+  1497→          ) : (
+  1498→            <EmptyState message="Aucun paiement trouvé" icon={CreditCard} />
+  1499→          )}
+  1500→        </CardContent>
+  1501→      </Card>
+  1502→    </PageShell>
+  1503→  );
+  1504→}
+  1505→
+  1506→// ─── Subscriptions View ───────────────────────────────────────────────────────
+  1507→
+  1508→const MOCK_SUBSCRIPTIONS = [
+  1509→  { id: '1', planName: 'Starter', price: 0, activeCount: 45, description: 'Gratuit, commission 15%' },
+  1510→  { id: '2', planName: 'Pro', price: 15000, activeCount: 28, description: 'Commission 10%, visibilité boostée' },
+  1511→  { id: '3', planName: 'Premium', price: 35000, activeCount: 12, description: 'Commission 5%, publicités incluses' },
+  1512→];
+  1513→
+  1514→function SubscriptionsView() {
+  1515→  const { data: subs } = useFetch<any[]>('/api/subscriptions', MOCK_SUBSCRIPTIONS);
+  1516→
+  1517→  return (
+  1518→    <PageShell
+  1519→      title="Abonnements"
+  1520→      description="Plans et abonnements marchands"
+  1521→      actions={
+  1522→        <Button size="sm">
+  1523→          <Plus className="mr-2 h-4 w-4" />
+  1524→          Nouveau plan
+  1525→        </Button>
+  1526→      }
+  1527→    >
+  1528→      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1529→        {(subs || MOCK_SUBSCRIPTIONS).map((sub: any, i: number) => (
+  1530→          <Card key={sub.id || i} className="relative overflow-hidden">
+  1531→            {sub.price === 0 && (
+  1532→              <div className="absolute right-3 top-3">
+  1533→                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">Populaire</Badge>
+  1534→              </div>
+  1535→            )}
+  1536→            <CardContent className="p-6">
+  1537→              <div className="flex items-start justify-between">
+  1538→                <div>
+  1539→                  <p className="font-semibold">{sub.planName || sub.name || 'Plan'}</p>
+  1540→                  <p className="text-2xl font-bold text-primary mt-1">
+  1541→                    {sub.price > 0 ? formatPrice(sub.price) : 'Gratuit'}
+  1542→                    {sub.price > 0 && <span className="text-sm font-normal text-muted-foreground">/mois</span>}
+  1543→                  </p>
+  1544→                </div>
+  1545→                <Crown className="h-6 w-6 text-amber-500" />
+  1546→              </div>
+  1547→              <p className="mt-2 text-sm text-muted-foreground">{sub.description || ''}</p>
+  1548→              <Separator className="my-4" />
+  1549→              <div className="space-y-2 text-sm">
+  1550→                <div className="flex justify-between">
+  1551→                  <span className="text-muted-foreground">Abonnés actifs</span>
+  1552→                  <span className="font-medium">{sub.activeCount || 0}</span>
+  1553→                </div>
+  1554→                <div className="flex justify-between">
+  1555→                  <span className="text-muted-foreground">Revenus mensuels</span>
+  1556→                  <span className="font-medium">{formatPrice((sub.activeCount || 0) * (sub.price || 0))}</span>
+  1557→                </div>
+  1558→                <Progress value={(sub.activeCount || 0) * 2} className="h-1.5 mt-2" />
+  1559→              </div>
+  1560→            </CardContent>
+  1561→          </Card>
+  1562→        ))}
+  1563→      </div>
+  1564→    </PageShell>
+  1565→  );
+  1566→}
+  1567→
+  1568→// ─── Advertisements View ─────────────────────────────────────────────────────
+  1569→
+  1570→const MOCK_ADS = [
+  1571→  { id: '1', title: 'Promo Ramadan 2025', type: 'Bannière', status: 'ACTIVE', impressions: 45200, clicks: 3200, endDate: '2025-03-30' },
+  1572→  { id: '2', title: 'Livraison gratuite weekend', type: 'Pop-up', status: 'ACTIVE', impressions: 28900, clicks: 1800, endDate: '2025-02-28' },
+  1573→  { id: '3', title: 'Nouveaux restaurants', type: 'Carrousel', status: 'INACTIVE', impressions: 15600, clicks: 920, endDate: '2025-01-31' },
+  1574→  { id: '4', title: 'Parrainage - Gagnez 2000 FCFA', type: 'Bannière', status: 'ACTIVE', impressions: 52100, clicks: 4100, endDate: '2025-04-15' },
+  1575→];
+  1576→
+  1577→function AdvertisementsView() {
+  1578→  const [search, setSearch] = useState('');
+  1579→  const [couponDialogOpen, setCouponDialogOpen] = useState(false);
+  1580→  const [couponForm, setCouponForm] = useState({
+  1581→    code: '',
+  1582→    type: 'POURCENTAGE',
+  1583→    value: '',
+  1584→    minOrderAmount: '',
+  1585→    maxUsages: '',
+  1586→    endDate: '',
+  1587→  });
+  1588→  const { data: ads, loading } = useFetch<any[]>('/api/advertisements', MOCK_ADS);
+  1589→  const { data: coupons, loading: couponsLoading, refetch: refetchCoupons } = useFetch<any[]>('/api/coupons', []);
+  1590→
+  1591→  const filtered = (ads || MOCK_ADS).filter(
+  1592→    (ad: any) =>
+  1593→      !search ||
+  1594→      ad.title?.toLowerCase().includes(search.toLowerCase())
+  1595→  );
+  1596→
+  1597→  const handleCreateCoupon = async () => {
+  1598→    try {
+  1599→      const res = await fetch('/api/coupons', {
+  1600→        method: 'POST',
+  1601→        headers: { 'Content-Type': 'application/json' },
+  1602→        body: JSON.stringify({
+  1603→          code: couponForm.code.toUpperCase(),
+  1604→          type: couponForm.type,
+  1605→          value: Number(couponForm.value),
+  1606→          minOrderAmount: Number(couponForm.minOrderAmount) || 0,
+  1607→          maxUsages: Number(couponForm.maxUsages) || null,
+  1608→          endDate: couponForm.endDate || null,
+  1609→        }),
+  1610→      });
+  1611→      if (res.ok) {
+  1612→        toast.success('Coupon créé avec succès');
+  1613→        setCouponDialogOpen(false);
+  1614→        setCouponForm({ code: '', type: 'POURCENTAGE', value: '', minOrderAmount: '', maxUsages: '', endDate: '' });
+  1615→        refetchCoupons();
+  1616→      } else {
+  1617→        toast.error('Erreur');
+  1618→      }
+  1619→    } catch {
+  1620→      toast.error('Erreur');
+  1621→    }
+  1622→  };
+  1623→
+  1624→  const couponTypeLabel = (type: string) => {
+  1625→    switch (type) {
+  1626→      case 'POURCENTAGE': return 'Pourcentage';
+  1627→      case 'FIXED': return 'Montant fixe';
+  1628→      case 'FREE_DELIVERY': return 'Livraison gratuite';
+  1629→      default: return type;
+  1630→    }
+  1631→  };
+  1632→
+  1633→  return (
+  1634→    <PageShell
+  1635→      title="Marketing"
+  1636→      description="Gérer les publicités et les coupons promotionnels"
+  1637→      actions={
+  1638→        <Button size="sm" onClick={() => setCouponDialogOpen(true)}>
+  1639→          <Tag className="mr-2 h-4 w-4" />
+  1640→          Créer un coupon
+  1641→        </Button>
+  1642→      }
+  1643→    >
+  1644→      <Tabs defaultValue="advertisements">
+  1645→        <TabsList>
+  1646→          <TabsTrigger value="advertisements">Publicités</TabsTrigger>
+  1647→          <TabsTrigger value="coupons">Coupons</TabsTrigger>
+  1648→        </TabsList>
+  1649→
+  1650→        <TabsContent value="advertisements" className="mt-4">
+  1651→          <Card>
+  1652→            <CardContent className="p-4">
+  1653→              <div className="relative">
+  1654→                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  1655→                <Input
+  1656→                  placeholder="Rechercher une publicité..."
+  1657→                  className="pl-9"
+  1658→                  value={search}
+  1659→                  onChange={(e) => setSearch(e.target.value)}
+  1660→                />
+  1661→              </div>
+  1662→            </CardContent>
+  1663→          </Card>
+  1664→
+  1665→          <Card>
+  1666→            <CardContent className="p-0">
+  1667→              {loading ? (
+  1668→                <div className="p-6"><DataTableSkeleton rows={4} cols={6} /></div>
+  1669→              ) : filtered.length > 0 ? (
+  1670→                <div className="max-h-[520px] overflow-auto">
+  1671→                  <div className="min-w-[780px]">
+  1672→                    <Table>
+  1673→                      <TableHeader>
+  1674→                        <TableRow>
+  1675→                          <TableHead>Titre</TableHead>
+  1676→                          <TableHead>Type</TableHead>
+  1677→                          <TableHead>Statut</TableHead>
+  1678→                          <TableHead>Impressions</TableHead>
+  1679→                          <TableHead>Clics</TableHead>
+  1680→                          <TableHead>CTR</TableHead>
+  1681→                          <TableHead>Date de fin</TableHead>
+  1682→                        </TableRow>
+  1683→                      </TableHeader>
+  1684→                      <TableBody>
+  1685→                        {filtered.map((ad: any, i: number) => (
+  1686→                          <TableRow key={ad.id || i} className="hover:bg-muted/50">
+  1687→                            <TableCell className="text-sm font-medium">{ad.title || '—'}</TableCell>
+  1688→                            <TableCell className="text-sm">{ad.type || 'Bannière'}</TableCell>
+  1689→                            <TableCell>
+  1690→                              <Badge variant="secondary" className={
+  1691→                                ad.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
+  1692→                              }>
+  1693→                                {ad.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+  1694→                              </Badge>
+  1695→                            </TableCell>
+  1696→                            <TableCell className="text-sm">{(ad.impressions || 0).toLocaleString('fr-FR')}</TableCell>
+  1697→                            <TableCell className="text-sm">{(ad.clicks || 0).toLocaleString('fr-FR')}</TableCell>
+  1698→                            <TableCell className="text-sm font-medium">
+  1699→                              {ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : 0}%
+  1700→                            </TableCell>
+  1701→                            <TableCell className="text-sm text-muted-foreground">
+  1702→                              {ad.endDate ? new Date(ad.endDate).toLocaleDateString('fr-FR') : '—'}
+  1703→                            </TableCell>
+  1704→                          </TableRow>
+  1705→                        ))}
+  1706→                      </TableBody>
+  1707→                    </Table>
+  1708→                  </div>
+  1709→                </div>
+  1710→              ) : (
+  1711→                <EmptyState message="Aucune publicité" icon={Megaphone} />
+  1712→              )}
+  1713→            </CardContent>
+  1714→          </Card>
+  1715→        </TabsContent>
+  1716→
+  1717→        <TabsContent value="coupons" className="mt-4">
+  1718→          <Card>
+  1719→            <CardHeader className="pb-3">
+  1720→              <CardTitle className="text-base">Codes promotionnels</CardTitle>
+  1721→              <CardDescription>{(coupons || []).length} coupons au total</CardDescription>
+  1722→            </CardHeader>
+  1723→            <CardContent className="p-0">
+  1724→              {couponsLoading ? (
+  1725→                <div className="p-6"><DataTableSkeleton rows={4} cols={6} /></div>
+  1726→              ) : (coupons || []).length > 0 ? (
+  1727→                <div className="max-h-[520px] overflow-auto">
+  1728→                  <div className="min-w-[700px]">
+  1729→                    <Table>
+  1730→                      <TableHeader>
+  1731→                        <TableRow>
+  1732→                          <TableHead>Code</TableHead>
+  1733→                          <TableHead>Type</TableHead>
+  1734→                          <TableHead>Valeur</TableHead>
+  1735→                          <TableHead>Commande min.</TableHead>
+  1736→                          <TableHead>Utilisations max</TableHead>
+  1737→                          <TableHead>Date de fin</TableHead>
+  1738→                          <TableHead>Statut</TableHead>
+  1739→                        </TableRow>
+  1740→                      </TableHeader>
+  1741→                      <TableBody>
+  1742→                        {(coupons || []).map((coupon: any, i: number) => {
+  1743→                          const isActive = !coupon.endDate || new Date(coupon.endDate) >= new Date();
+  1744→                          return (
+  1745→                            <TableRow key={coupon.id || i} className="hover:bg-muted/50">
+  1746→                              <TableCell className="font-mono text-sm font-semibold">{coupon.code || '—'}</TableCell>
+  1747→                              <TableCell className="text-sm">{couponTypeLabel(coupon.type)}</TableCell>
+  1748→                              <TableCell className="text-sm font-medium">
+  1749→                                {coupon.type === 'FREE_DELIVERY' ? 'Gratuite' : coupon.type === 'POURCENTAGE' ? `${coupon.value}%` : formatPrice(coupon.value || 0)}
+  1750→                              </TableCell>
+  1751→                              <TableCell className="text-sm">{formatPrice(coupon.minOrderAmount || 0)}</TableCell>
+  1752→                              <TableCell className="text-sm">{coupon.maxUsages || '∞'}</TableCell>
+  1753→                              <TableCell className="text-sm text-muted-foreground">
+  1754→                                {coupon.endDate ? new Date(coupon.endDate).toLocaleDateString('fr-FR') : '—'}
+  1755→                              </TableCell>
+  1756→                              <TableCell>
+  1757→                                <Badge variant="secondary" className={isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'}>
+  1758→                                  {isActive ? 'Actif' : 'Expiré'}
+  1759→                                </Badge>
+  1760→                              </TableCell>
+  1761→                            </TableRow>
+  1762→                          );
+  1763→                        })}
+  1764→                      </TableBody>
+  1765→                    </Table>
+  1766→                  </div>
+  1767→                </div>
+  1768→              ) : (
+  1769→                <EmptyState message="Aucun coupon" icon={Tag} />
+  1770→              )}
+  1771→            </CardContent>
+  1772→          </Card>
+  1773→        </TabsContent>
+  1774→      </Tabs>
+  1775→
+  1776→      {/* Create Coupon Dialog */}
+  1777→      <Dialog open={couponDialogOpen} onOpenChange={setCouponDialogOpen}>
+  1778→        <DialogContent>
+  1779→          <DialogHeader>
+  1780→            <DialogTitle>Créer un coupon</DialogTitle>
+  1781→            <DialogDescription>Ajouter un nouveau code promotionnel</DialogDescription>
+  1782→          </DialogHeader>
+  1783→          <div className="space-y-4 pt-2">
+  1784→            <div className="space-y-2">
+  1785→              <label className="text-sm font-medium">Code</label>
+  1786→              <Input
+  1787→                placeholder="PROMO2025"
+  1788→                className="uppercase"
+  1789→                value={couponForm.code}
+  1790→                onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+  1791→              />
+  1792→            </div>
+  1793→            <div className="space-y-2">
+  1794→              <label className="text-sm font-medium">Type</label>
+  1795→              <Select value={couponForm.type} onValueChange={(v) => setCouponForm({ ...couponForm, type: v })}>
+  1796→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1797→                <SelectContent>
+  1798→                  <SelectItem value="POURCENTAGE">Pourcentage</SelectItem>
+  1799→                  <SelectItem value="FIXED">Montant fixe</SelectItem>
+  1800→                  <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
+  1801→                </SelectContent>
+  1802→              </Select>
+  1803→            </div>
+  1804→            {couponForm.type !== 'FREE_DELIVERY' && (
+  1805→              <div className="space-y-2">
+  1806→                <label className="text-sm font-medium">Valeur</label>
+  1807→                <Input
+  1808→                  type="number"
+  1809→                  placeholder={couponForm.type === 'POURCENTAGE' ? '10' : '5000'}
+  1810→                  value={couponForm.value}
+  1811→                  onChange={(e) => setCouponForm({ ...couponForm, value: e.target.value })}
+  1812→                />
+  1813→              </div>
+  1814→            )}
+  1815→            <div className="space-y-2">
+  1816→              <label className="text-sm font-medium">Commande minimum (FCFA)</label>
+  1817→              <Input
+  1818→                type="number"
+  1819→                placeholder="0"
+  1820→                value={couponForm.minOrderAmount}
+  1821→                onChange={(e) => setCouponForm({ ...couponForm, minOrderAmount: e.target.value })}
+  1822→              />
+  1823→            </div>
+  1824→            <div className="space-y-2">
+  1825→              <label className="text-sm font-medium">Utilisations max</label>
+  1826→              <Input
+  1827→                type="number"
+  1828→                placeholder="Illimité"
+  1829→                value={couponForm.maxUsages}
+  1830→                onChange={(e) => setCouponForm({ ...couponForm, maxUsages: e.target.value })}
+  1831→              />
+  1832→            </div>
+  1833→            <div className="space-y-2">
+  1834→              <label className="text-sm font-medium">Date de fin</label>
+  1835→              <Input
+  1836→                type="date"
+  1837→                value={couponForm.endDate}
+  1838→                onChange={(e) => setCouponForm({ ...couponForm, endDate: e.target.value })}
+  1839→              />
+  1840→            </div>
+  1841→            <Button className="w-full" onClick={handleCreateCoupon} disabled={!couponForm.code}>
+  1842→              Créer le coupon
+  1843→            </Button>
+  1844→          </div>
+  1845→        </DialogContent>
+  1846→      </Dialog>
+  1847→    </PageShell>
+  1848→  );
+  1849→}
+  1850→
+  1851→// ─── Categories View ──────────────────────────────────────────────────────────
+  1852→
+  1853→function CategoriesView() {
+  1854→  const { data: categories, loading, refetch } = useFetch<any[]>('/api/categories', []);
+  1855→
+  1856→  return (
+  1857→    <PageShell
+  1858→      title="Catégories"
+  1859→      description={`${(categories || []).length} catégories`}
+  1860→      actions={
+  1861→        <Button size="sm">
+  1862→          <Plus className="mr-2 h-4 w-4" />
+  1863→          Ajouter
+  1864→        </Button>
+  1865→      }
+  1866→    >
+  1867→      <Card>
+  1868→        <CardContent className="p-0">
+  1869→          {loading ? (
+  1870→            <div className="p-6"><DataTableSkeleton rows={5} cols={4} /></div>
+  1871→          ) : (categories || []).length > 0 ? (
+  1872→            <div className="max-h-[520px] overflow-auto">
+  1873→              <div className="min-w-[600px]">
+  1874→                <Table>
+  1875→                  <TableHeader>
+  1876→                    <TableRow>
+  1877→                      <TableHead>Catégorie</TableHead>
+  1878→                      <TableHead>Description</TableHead>
+  1879→                      <TableHead>Produits</TableHead>
+  1880→                      <TableHead>Statut</TableHead>
+  1881→                      <TableHead>Actions</TableHead>
+  1882→                    </TableRow>
+  1883→                  </TableHeader>
+  1884→                  <TableBody>
+  1885→                    {(categories || []).map((cat: any, i: number) => (
+  1886→                      <TableRow key={cat.id || i} className="hover:bg-muted/50">
+  1887→                        <TableCell>
+  1888→                          <div className="flex items-center gap-3">
+  1889→                            {cat.image ? (
+  1890→                              <div className="h-8 w-8 rounded-lg bg-muted shrink-0" style={{ backgroundImage: `url(${cat.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+  1891→                            ) : (
+  1892→                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+  1893→                                <Grid3X3 className="h-4 w-4 text-primary" />
+  1894→                              </div>
+  1895→                            )}
+  1896→                            <span className="text-sm font-medium">{cat.name || '—'}</span>
+  1897→                          </div>
+  1898→                        </TableCell>
+  1899→                        <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
+  1900→                          {cat.description || '—'}
+  1901→                        </TableCell>
+  1902→                        <TableCell className="text-sm">{cat.productCount || 0}</TableCell>
+  1903→                        <TableCell>
+  1904→                          <Badge variant="secondary" className={cat.isActive !== false ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'}>
+  1905→                            {cat.isActive !== false ? 'Active' : 'Inactive'}
+  1906→                          </Badge>
+  1907→                        </TableCell>
+  1908→                        <TableCell>
+  1909→                          <div className="flex items-center gap-1">
+  1910→                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Modifier" onClick={() => toast.info('Modification de la catégorie')}>
+  1911→                              <Pencil className="h-4 w-4" />
+  1912→                            </Button>
+  1913→                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Supprimer" onClick={() => toast.error('Catégorie supprimée')}>
+  1914→                              <Trash2 className="h-4 w-4 text-red-500" />
+  1915→                            </Button>
+  1916→                          </div>
+  1917→                        </TableCell>
+  1918→                      </TableRow>
+  1919→                    ))}
+  1920→                  </TableBody>
+  1921→                </Table>
+  1922→              </div>
+  1923→            </div>
+  1924→          ) : (
+  1925→            <EmptyState message="Aucune catégorie" icon={Grid3X3} />
+  1926→          )}
+  1927→        </CardContent>
+  1928→      </Card>
+  1929→    </PageShell>
+  1930→  );
+  1931→}
+  1932→
+  1933→// ─── Products View ────────────────────────────────────────────────────────────
+  1934→
+  1935→function ProductsView() {
+  1936→  const [search, setSearch] = useState('');
+  1937→  const { data: products, loading, refetch } = useFetch<any[]>('/api/products', []);
+  1938→
+  1939→  const filtered = (products || []).filter(
+  1940→    (p: any) =>
+  1941→      !search ||
+  1942→      p.name?.toLowerCase().includes(search.toLowerCase()) ||
+  1943→      p.merchantName?.toLowerCase().includes(search.toLowerCase())
+  1944→  );
+  1945→
+  1946→  return (
+  1947→    <PageShell
+  1948→      title="Produits"
+  1949→      description={`${(products || []).length} produits au total`}
+  1950→      actions={
+  1951→        <>
+  1952→          <Button variant="outline" size="sm" onClick={refetch}>
+  1953→            <RefreshCw className="mr-2 h-4 w-4" />
+  1954→            Actualiser
+  1955→          </Button>
+  1956→          <Button size="sm">
+  1957→            <Plus className="mr-2 h-4 w-4" />
+  1958→            Ajouter
+  1959→          </Button>
+  1960→        </>
+  1961→      }
+  1962→    >
+  1963→      <Card>
+  1964→        <CardContent className="p-4">
+  1965→          <div className="relative">
+  1966→            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  1967→            <Input
+  1968→              placeholder="Rechercher un produit..."
+  1969→              className="pl-9"
+  1970→              value={search}
+  1971→              onChange={(e) => setSearch(e.target.value)}
+  1972→            />
+  1973→          </div>
+  1974→        </CardContent>
+  1975→      </Card>
+  1976→
+  1977→      <Card>
+  1978→        <CardContent className="p-0">
+  1979→          {loading ? (
+  1980→            <div className="p-6"><DataTableSkeleton rows={6} cols={5} /></div>
+  1981→          ) : filtered.length > 0 ? (
+  1982→            <div className="max-h-[520px] overflow-auto">
+  1983→              <div className="min-w-[700px]">
+  1984→                <Table>
+  1985→                  <TableHeader>
+  1986→                    <TableRow>
+  1987→                      <TableHead>Produit</TableHead>
+  1988→                      <TableHead>Commerçant</TableHead>
+  1989→                      <TableHead>Prix</TableHead>
+  1990→                      <TableHead>Catégorie</TableHead>
+  1991→                      <TableHead>Statut</TableHead>
+  1992→                    </TableRow>
+  1993→                  </TableHeader>
+  1994→                  <TableBody>
+  1995→                    {filtered.map((p: any, i: number) => (
+  1996→                      <TableRow key={p.id || i} className="hover:bg-muted/50">
+  1997→                        <TableCell>
+  1998→                          <div className="flex items-center gap-3">
+  1999→                            {p.image ? (
+  2000→                              <div className="h-9 w-9 rounded-lg bg-muted shrink-0" style={{ backgroundImage: `url(${p.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+
+[showing lines 1-2000 of 2885; use offset=2001 with limit to continue reading]
