@@ -31,11 +31,26 @@ export async function POST(request: NextRequest) {
       await db.wallet.create({ data: { userId: user.id } });
     } else if (role === 'MERCHANT') {
       await db.merchant.create({
-        data: { userId: user.id, businessName: `${firstName} ${lastName}`, phone, address: 'Bamako', city: 'Bamako' },
+        data: { userId: user.id, businessName: `${firstName} ${lastName}`, phone, address: 'Bamako', city: 'Bamako', isApproved: false },
       });
     } else if (role === 'DRIVER') {
-      await db.driver.create({ data: { userId: user.id, vehicleType: 'MOTO' } });
+      await db.driver.create({ data: { userId: user.id, vehicleType: 'MOTO', isVerified: false } });
       await db.wallet.create({ data: { userId: user.id } });
+    }
+
+    // Notify admins about new merchant/driver registration
+    if (role === 'MERCHANT' || role === 'DRIVER') {
+      const admins = await db.user.findMany({ where: { role: 'ADMIN', isActive: true } });
+      for (const admin of admins) {
+        await db.notification.create({
+          data: {
+            userId: admin.id,
+            title: `Nouveau ${role === 'MERCHANT' ? 'commerçant' : 'livreur'}`,
+            message: `${firstName} ${lastName} s'est inscrit et attend validation.`,
+            type: 'SYSTEM',
+          },
+        });
+      }
     }
 
     const token = signToken({ userId: user.id, email: user.email, role: user.role });

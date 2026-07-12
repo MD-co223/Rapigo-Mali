@@ -55,6 +55,8 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Ban,
+  Tag,
 } from 'lucide-react';
 
 import { useAuthStore, useAdminNav, formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/lib/store';
@@ -533,7 +535,7 @@ function DashboardView() {
               </ResponsiveContainer>
               <div className="mt-2 flex flex-wrap justify-center gap-3">
                 {pieData.map((entry, index) => (
-                  <div key={entry.name} className="flex items-center gap-1.5">
+                  <div key={`pie-${index}-${entry.name}`} className="flex items-center gap-1.5">
                     <div
                       className="h-2.5 w-2.5 rounded-full"
                       style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
@@ -755,6 +757,7 @@ function UsersView() {
                       <TableHead>Rôle</TableHead>
                       <TableHead>Statut</TableHead>
                       <TableHead>Créé le</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -781,12 +784,52 @@ function UsersView() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className={user.isVerified ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'}>
-                            {user.isVerified ? 'Vérifié' : 'Non vérifié'}
-                          </Badge>
+                          {!user.isActive ? (
+                            <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                              Bloqué
+                            </Badge>
+                          ) : user.isVerified ? (
+                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                              Vérifié
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                              Non vérifié
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {user.createdAt ? new Date(user.createdAt).toLocaleDateString('fr-FR') : '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={user.isActive ? 'text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'}
+                            onClick={async () => {
+                              try {
+                                const res = await fetch('/api/users/block', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ userId: user.id, block: user.isActive }),
+                                });
+                                if (res.ok) {
+                                  refetch();
+                                  toast.success(user.isActive ? 'Utilisateur bloqué' : 'Utilisateur débloqué');
+                                } else {
+                                  toast.error('Erreur');
+                                }
+                              } catch {
+                                toast.error('Erreur');
+                              }
+                            }}
+                          >
+                            {user.isActive ? (
+                              <><Ban className="mr-1.5 h-4 w-4" />Bloquer</>
+                            ) : (
+                              <><CheckCircle className="mr-1.5 h-4 w-4" />Débloquer</>
+                            )}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -846,7 +889,7 @@ function UsersView() {
 
 function MerchantsView() {
   const [search, setSearch] = useState('');
-  const { data: merchants, loading, refetch } = useFetch<any[]>('/api/merchants', []);
+  const { data: merchants, loading, refetch } = useFetch<any[]>('/api/merchants?all=true', []);
 
   const filtered = (merchants || []).filter(
     (m: any) =>
@@ -856,12 +899,40 @@ function MerchantsView() {
       m.user?.lastName?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleApprove = (merchant: any) => {
-    toast.success(`Commerçant "${merchant.businessName || merchant.name}" approuvé avec succès`);
+  const handleApprove = async (merchant: any) => {
+    try {
+      const res = await fetch('/api/merchants/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchantId: merchant.id, approve: true }),
+      });
+      if (res.ok) {
+        refetch();
+        toast.success('Commerçant approuvé');
+      } else {
+        toast.error('Erreur');
+      }
+    } catch {
+      toast.error('Erreur');
+    }
   };
 
-  const handleReject = (merchant: any) => {
-    toast.error(`Commerçant "${merchant.businessName || merchant.name}" rejeté`);
+  const handleReject = async (merchant: any) => {
+    try {
+      const res = await fetch('/api/merchants/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchantId: merchant.id, approve: false }),
+      });
+      if (res.ok) {
+        refetch();
+        toast.success('Commerçant rejeté');
+      } else {
+        toast.error('Erreur');
+      }
+    } catch {
+      toast.error('Erreur');
+    }
   };
 
   return (
@@ -913,7 +984,7 @@ function MerchantsView() {
                       const isApproved = m.status === 'APPROVED' || m.isApproved;
                       const isPending = !isApproved;
                       return (
-                        <TableRow key={m.id || i} className="hover:bg-muted/50">
+                        <TableRow key={m.id || i} className={`hover:bg-muted/50 ${isPending ? 'border-l-4 border-l-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10' : ''}`}>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
@@ -950,15 +1021,19 @@ function MerchantsView() {
                           <TableCell className="text-sm font-medium">{formatPrice(m.revenue || m.totalRevenue || 0)}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
-                              {isPending && (
+                              {isPending ? (
                                 <>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleApprove(m)} title="Approuver">
-                                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                                  <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleApprove(m)}>
+                                    <CheckCircle className="mr-1.5 h-4 w-4" />Approuver
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleReject(m)} title="Rejeter">
-                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => handleReject(m)}>
+                                    <XCircle className="mr-1.5 h-4 w-4" />Rejeter
                                   </Button>
                                 </>
+                              ) : (
+                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                  <CheckCircle className="mr-1 h-3 w-3" />Approuvé
+                                </Badge>
                               )}
                               <Button variant="ghost" size="icon" className="h-8 w-8" title="Voir">
                                 <Eye className="h-4 w-4" />
@@ -995,6 +1070,42 @@ function DriversView() {
       d.vehicleType?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleVerify = async (driver: any) => {
+    try {
+      const res = await fetch('/api/drivers/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverId: driver.id, approve: true }),
+      });
+      if (res.ok) {
+        refetch();
+        toast.success('Livreur vérifié avec succès');
+      } else {
+        toast.error('Erreur');
+      }
+    } catch {
+      toast.error('Erreur');
+    }
+  };
+
+  const handleRejectDriver = async (driver: any) => {
+    try {
+      const res = await fetch('/api/drivers/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverId: driver.id, approve: false }),
+      });
+      if (res.ok) {
+        refetch();
+        toast.success('Livreur rejeté');
+      } else {
+        toast.error('Erreur');
+      }
+    } catch {
+      toast.error('Erreur');
+    }
+  };
+
   return (
     <PageShell
       title="Livreurs"
@@ -1023,10 +1134,10 @@ function DriversView() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={5} cols={6} /></div>
+            <div className="p-6"><DataTableSkeleton rows={5} cols={7} /></div>
           ) : filtered.length > 0 ? (
             <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[720px]">
+              <div className="min-w-[820px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1036,15 +1147,16 @@ function DriversView() {
                       <TableHead>Statut</TableHead>
                       <TableHead>Courses</TableHead>
                       <TableHead>Revenus</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filtered.map((d: any, i: number) => {
-                      const isOnline = d.status === 'ONLINE' || d.isOnline;
+                      const isVerified = d.isVerified;
                       const firstName = d.user?.firstName || d.firstName || '';
                       const lastName = d.user?.lastName || d.lastName || '';
                       return (
-                        <TableRow key={d.id || i} className="hover:bg-muted/50">
+                        <TableRow key={d.id || i} className={`hover:bg-muted/50 ${!isVerified ? 'border-l-4 border-l-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10' : ''}`}>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
@@ -1072,12 +1184,36 @@ function DriversView() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className={isOnline ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'}>
-                              {isOnline ? 'En ligne' : 'Hors ligne'}
-                            </Badge>
+                            {isVerified ? (
+                              <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                Vérifié
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                Non vérifié
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell className="text-sm">{d.totalDeliveries || d.deliveries || 0}</TableCell>
                           <TableCell className="text-sm font-medium">{formatPrice(d.earnings || d.totalEarnings || 0)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              {isVerified ? (
+                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                  <CheckCircle className="mr-1 h-3 w-3" />Vérifié
+                                </Badge>
+                              ) : (
+                                <>
+                                  <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleVerify(d)}>
+                                    <CheckCircle className="mr-1.5 h-4 w-4" />Vérifier
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => handleRejectDriver(d)}>
+                                    <XCircle className="mr-1.5 h-4 w-4" />Rejeter
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -1440,7 +1576,17 @@ const MOCK_ADS = [
 
 function AdvertisementsView() {
   const [search, setSearch] = useState('');
+  const [couponDialogOpen, setCouponDialogOpen] = useState(false);
+  const [couponForm, setCouponForm] = useState({
+    code: '',
+    type: 'POURCENTAGE',
+    value: '',
+    minOrderAmount: '',
+    maxUsages: '',
+    endDate: '',
+  });
   const { data: ads, loading } = useFetch<any[]>('/api/advertisements', MOCK_ADS);
+  const { data: coupons, loading: couponsLoading, refetch: refetchCoupons } = useFetch<any[]>('/api/coupons', []);
 
   const filtered = (ads || MOCK_ADS).filter(
     (ad: any) =>
@@ -1448,81 +1594,256 @@ function AdvertisementsView() {
       ad.title?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleCreateCoupon = async () => {
+    try {
+      const res = await fetch('/api/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: couponForm.code.toUpperCase(),
+          type: couponForm.type,
+          value: Number(couponForm.value),
+          minOrderAmount: Number(couponForm.minOrderAmount) || 0,
+          maxUsages: Number(couponForm.maxUsages) || null,
+          endDate: couponForm.endDate || null,
+        }),
+      });
+      if (res.ok) {
+        toast.success('Coupon créé avec succès');
+        setCouponDialogOpen(false);
+        setCouponForm({ code: '', type: 'POURCENTAGE', value: '', minOrderAmount: '', maxUsages: '', endDate: '' });
+        refetchCoupons();
+      } else {
+        toast.error('Erreur');
+      }
+    } catch {
+      toast.error('Erreur');
+    }
+  };
+
+  const couponTypeLabel = (type: string) => {
+    switch (type) {
+      case 'POURCENTAGE': return 'Pourcentage';
+      case 'FIXED': return 'Montant fixe';
+      case 'FREE_DELIVERY': return 'Livraison gratuite';
+      default: return type;
+    }
+  };
+
   return (
     <PageShell
-      title="Publicités"
-      description={`${(ads || MOCK_ADS).filter((a: any) => a.status === 'ACTIVE').length} campagnes actives`}
+      title="Marketing"
+      description="Gérer les publicités et les coupons promotionnels"
       actions={
-        <Button size="sm">
-          <Megaphone className="mr-2 h-4 w-4" />
-          Créer une pub
+        <Button size="sm" onClick={() => setCouponDialogOpen(true)}>
+          <Tag className="mr-2 h-4 w-4" />
+          Créer un coupon
         </Button>
       }
     >
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher une publicité..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="advertisements">
+        <TabsList>
+          <TabsTrigger value="advertisements">Publicités</TabsTrigger>
+          <TabsTrigger value="coupons">Coupons</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={4} cols={6} /></div>
-          ) : filtered.length > 0 ? (
-            <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[780px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Titre</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Impressions</TableHead>
-                      <TableHead>Clics</TableHead>
-                      <TableHead>CTR</TableHead>
-                      <TableHead>Date de fin</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((ad: any, i: number) => (
-                      <TableRow key={ad.id || i} className="hover:bg-muted/50">
-                        <TableCell className="text-sm font-medium">{ad.title || '—'}</TableCell>
-                        <TableCell className="text-sm">{ad.type || 'Bannière'}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className={
-                            ad.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
-                          }>
-                            {ad.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">{(ad.impressions || 0).toLocaleString('fr-FR')}</TableCell>
-                        <TableCell className="text-sm">{(ad.clicks || 0).toLocaleString('fr-FR')}</TableCell>
-                        <TableCell className="text-sm font-medium">
-                          {ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : 0}%
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {ad.endDate ? new Date(ad.endDate).toLocaleDateString('fr-FR') : '—'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+        <TabsContent value="advertisements" className="mt-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher une publicité..."
+                  className="pl-9"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-0">
+              {loading ? (
+                <div className="p-6"><DataTableSkeleton rows={4} cols={6} /></div>
+              ) : filtered.length > 0 ? (
+                <div className="max-h-[520px] overflow-auto">
+                  <div className="min-w-[780px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Titre</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Statut</TableHead>
+                          <TableHead>Impressions</TableHead>
+                          <TableHead>Clics</TableHead>
+                          <TableHead>CTR</TableHead>
+                          <TableHead>Date de fin</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filtered.map((ad: any, i: number) => (
+                          <TableRow key={ad.id || i} className="hover:bg-muted/50">
+                            <TableCell className="text-sm font-medium">{ad.title || '—'}</TableCell>
+                            <TableCell className="text-sm">{ad.type || 'Bannière'}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className={
+                                ad.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
+                              }>
+                                {ad.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">{(ad.impressions || 0).toLocaleString('fr-FR')}</TableCell>
+                            <TableCell className="text-sm">{(ad.clicks || 0).toLocaleString('fr-FR')}</TableCell>
+                            <TableCell className="text-sm font-medium">
+                              {ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : 0}%
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {ad.endDate ? new Date(ad.endDate).toLocaleDateString('fr-FR') : '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState message="Aucune publicité" icon={Megaphone} />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="coupons" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Codes promotionnels</CardTitle>
+              <CardDescription>{(coupons || []).length} coupons au total</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {couponsLoading ? (
+                <div className="p-6"><DataTableSkeleton rows={4} cols={6} /></div>
+              ) : (coupons || []).length > 0 ? (
+                <div className="max-h-[520px] overflow-auto">
+                  <div className="min-w-[700px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Code</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Valeur</TableHead>
+                          <TableHead>Commande min.</TableHead>
+                          <TableHead>Utilisations max</TableHead>
+                          <TableHead>Date de fin</TableHead>
+                          <TableHead>Statut</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(coupons || []).map((coupon: any, i: number) => {
+                          const isActive = !coupon.endDate || new Date(coupon.endDate) >= new Date();
+                          return (
+                            <TableRow key={coupon.id || i} className="hover:bg-muted/50">
+                              <TableCell className="font-mono text-sm font-semibold">{coupon.code || '—'}</TableCell>
+                              <TableCell className="text-sm">{couponTypeLabel(coupon.type)}</TableCell>
+                              <TableCell className="text-sm font-medium">
+                                {coupon.type === 'FREE_DELIVERY' ? 'Gratuite' : coupon.type === 'POURCENTAGE' ? `${coupon.value}%` : formatPrice(coupon.value || 0)}
+                              </TableCell>
+                              <TableCell className="text-sm">{formatPrice(coupon.minOrderAmount || 0)}</TableCell>
+                              <TableCell className="text-sm">{coupon.maxUsages || '∞'}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {coupon.endDate ? new Date(coupon.endDate).toLocaleDateString('fr-FR') : '—'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className={isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'}>
+                                  {isActive ? 'Actif' : 'Expiré'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState message="Aucun coupon" icon={Tag} />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Create Coupon Dialog */}
+      <Dialog open={couponDialogOpen} onOpenChange={setCouponDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Créer un coupon</DialogTitle>
+            <DialogDescription>Ajouter un nouveau code promotionnel</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Code</label>
+              <Input
+                placeholder="PROMO2025"
+                className="uppercase"
+                value={couponForm.code}
+                onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+              />
             </div>
-          ) : (
-            <EmptyState message="Aucune publicité" icon={Megaphone} />
-          )}
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Type</label>
+              <Select value={couponForm.type} onValueChange={(v) => setCouponForm({ ...couponForm, type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="POURCENTAGE">Pourcentage</SelectItem>
+                  <SelectItem value="FIXED">Montant fixe</SelectItem>
+                  <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {couponForm.type !== 'FREE_DELIVERY' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Valeur</label>
+                <Input
+                  type="number"
+                  placeholder={couponForm.type === 'POURCENTAGE' ? '10' : '5000'}
+                  value={couponForm.value}
+                  onChange={(e) => setCouponForm({ ...couponForm, value: e.target.value })}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Commande minimum (FCFA)</label>
+              <Input
+                type="number"
+                placeholder="0"
+                value={couponForm.minOrderAmount}
+                onChange={(e) => setCouponForm({ ...couponForm, minOrderAmount: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Utilisations max</label>
+              <Input
+                type="number"
+                placeholder="Illimité"
+                value={couponForm.maxUsages}
+                onChange={(e) => setCouponForm({ ...couponForm, maxUsages: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Date de fin</label>
+              <Input
+                type="date"
+                value={couponForm.endDate}
+                onChange={(e) => setCouponForm({ ...couponForm, endDate: e.target.value })}
+              />
+            </div>
+            <Button className="w-full" onClick={handleCreateCoupon} disabled={!couponForm.code}>
+              Créer le coupon
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
@@ -1687,7 +2008,7 @@ function ProductsView() {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{p.merchantName || '—'}</TableCell>
                         <TableCell className="text-sm font-medium">{formatPrice(p.price || 0)}</TableCell>
-                        <TableCell className="text-sm">{p.categoryName || p.category || '—'}</TableCell>
+                        <TableCell className="text-sm">{p.categoryName || (typeof p.category === 'object' && p.category?.name) || (typeof p.category === 'string' ? p.category : '—')}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className={p.isAvailable !== false ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'}>
                             {p.isAvailable !== false ? 'Disponible' : 'Indisponible'}

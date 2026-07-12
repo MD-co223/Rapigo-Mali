@@ -703,6 +703,9 @@ function AddProductView() {
   const isEditing = !!data?.productId;
   const existingProduct = isEditing ? MOCK_PRODUCTS.find((p) => p.id === data.productId) : null;
 
+  const [categories, setCategories] = useState(CATEGORIES);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+
   const [form, setForm] = useState({
     name: existingProduct?.name || '',
     description: existingProduct?.description || '',
@@ -711,10 +714,26 @@ function AddProductView() {
     category: existingProduct?.category || '',
     stock: existingProduct?.stock?.toString() || '',
     image: existingProduct?.image || '',
+    imageUrl2: '',
+    imageUrl3: '',
+    variants: '',
   });
   const [saving, setSaving] = useState(false);
 
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  // Fetch categories from API on first render if not yet loaded
+  if (!categoriesLoaded) {
+    setCategoriesLoaded(true);
+    fetch('/api/categories')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setCategories(data.map((c: { name: string; children?: { name: string }[] }) => c.name).flat());
+        }
+      })
+      .catch(() => {});
+  }
 
   const handleSave = async () => {
     if (!form.name || !form.price || !form.category) {
@@ -723,22 +742,56 @@ function AddProductView() {
     }
     setSaving(true);
     try {
+      const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const additionalImages = [form.imageUrl2, form.imageUrl3].filter(Boolean);
+      const body = {
+        merchantId: 'm1',
+        name: form.name,
+        description: form.description || null,
+        price: Number(form.price),
+        comparePrice: form.comparePrice ? Number(form.comparePrice) : null,
+        categoryId: form.category,
+        stock: Number(form.stock) || 0,
+        image: form.image || null,
+        images: additionalImages.length > 0 ? JSON.stringify(additionalImages) : null,
+        variants: form.variants.trim() ? JSON.stringify(form.variants.trim()) : null,
+        isAvailable: true,
+        slug,
+      };
       const res = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          price: Number(form.price),
-          comparePrice: form.comparePrice ? Number(form.comparePrice) : null,
-          stock: Number(form.stock) || 0,
-          merchantId: 'm1',
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('Erreur serveur');
-      toast.success(isEditing ? 'Produit mis à jour avec succès' : 'Produit ajouté avec succès');
+      toast.success(isEditing ? 'Produit mis à jour avec succès' : 'Produit créé avec succès');
+      setForm({
+        name: '',
+        description: '',
+        price: '',
+        comparePrice: '',
+        category: '',
+        stock: '',
+        image: '',
+        imageUrl2: '',
+        imageUrl3: '',
+        variants: '',
+      });
       navigate('products');
     } catch {
-      toast.success(isEditing ? 'Produit mis à jour avec succès' : 'Produit ajouté avec succès');
+      toast.success(isEditing ? 'Produit mis à jour avec succès' : 'Produit créé avec succès');
+      setForm({
+        name: '',
+        description: '',
+        price: '',
+        comparePrice: '',
+        category: '',
+        stock: '',
+        image: '',
+        imageUrl2: '',
+        imageUrl3: '',
+        variants: '',
+      });
       navigate('products');
     } finally {
       setSaving(false);
@@ -759,8 +812,12 @@ function AddProductView() {
         </div>
       </div>
 
+      {/* Informations de base */}
       <Card>
-        <CardContent className="p-6 space-y-5">
+        <CardHeader>
+          <CardTitle className="text-base">Informations de base</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
           {/* Name */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Nom du produit <span className="text-red-500">*</span></label>
@@ -773,6 +830,21 @@ function AddProductView() {
             <Textarea placeholder="Décrivez votre produit..." value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} />
           </div>
 
+          {/* Category */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Catégorie <span className="text-red-500">*</span></label>
+            <Select value={form.category} onValueChange={(v) => update('category', v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Choisir une catégorie" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Price Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -781,64 +853,109 @@ function AddProductView() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Prix barré (FCFA)</label>
-              <Input type="number" placeholder="Optionnel" value={form.comparePrice} onChange={(e) => update('comparePrice', e.target.value)} />
+              <Input type="number" placeholder="Optionnel, pour afficher une réduction" value={form.comparePrice} onChange={(e) => update('comparePrice', e.target.value)} />
             </div>
-          </div>
-
-          {/* Category + Stock */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Catégorie <span className="text-red-500">*</span></label>
-              <Select value={form.category} onValueChange={(v) => update('category', v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choisir une catégorie" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Stock</label>
-              <Input type="number" placeholder="0" value={form.stock} onChange={(e) => update('stock', e.target.value)} />
-            </div>
-          </div>
-
-          {/* Image URL */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">URL de l'image</label>
-            <div className="relative">
-              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="https://example.com/image.jpg" value={form.image} onChange={(e) => update('image', e.target.value)} className="pl-9" />
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[140px]"
-            >
-              {saving ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Enregistrement...
-                </>
-              ) : isEditing ? (
-                'Enregistrer les modifications'
-              ) : (
-                'Ajouter le produit'
-              )}
-            </Button>
-            <Button variant="outline" onClick={() => navigate('products')}>
-              Annuler
-            </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Stock & Variants */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Stock &amp; Variantes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Stock disponible</label>
+            <Input type="number" placeholder="0" value={form.stock} onChange={(e) => update('stock', e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Variantes</label>
+            <Textarea placeholder="Ex: Petit, Moyen, Grand (une par ligne ou description libre)" value={form.variants} onChange={(e) => update('variants', e.target.value)} rows={3} />
+            <p className="text-xs text-muted-foreground">Décrivez les variantes disponibles (taille, goût, etc.)</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Images */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ImageIcon className="w-4 h-4 text-emerald-600" />
+            Images
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Primary image */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Image URL principale</label>
+            <div className="relative">
+              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input type="url" placeholder="https://example.com/image.jpg" value={form.image} onChange={(e) => update('image', e.target.value)} className="pl-9" />
+            </div>
+            {form.image && (
+              <div className="mt-2 rounded-lg border overflow-hidden bg-muted/30">
+                <img src={form.image} alt="Aperçu" className="w-full h-48 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              </div>
+            )}
+          </div>
+
+          {/* Image 2 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">URL image 2 <span className="text-muted-foreground font-normal">(optionnel)</span></label>
+            <div className="relative">
+              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input type="url" placeholder="https://example.com/image2.jpg" value={form.imageUrl2} onChange={(e) => update('imageUrl2', e.target.value)} className="pl-9" />
+            </div>
+            {form.imageUrl2 && (
+              <div className="mt-2 rounded-lg border overflow-hidden bg-muted/30">
+                <img src={form.imageUrl2} alt="Aperçu 2" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              </div>
+            )}
+          </div>
+
+          {/* Image 3 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">URL image 3 <span className="text-muted-foreground font-normal">(optionnel)</span></label>
+            <div className="relative">
+              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input type="url" placeholder="https://example.com/image3.jpg" value={form.imageUrl3} onChange={(e) => update('imageUrl3', e.target.value)} className="pl-9" />
+            </div>
+            {form.imageUrl3 && (
+              <div className="mt-2 rounded-lg border overflow-hidden bg-muted/30">
+                <img src={form.imageUrl3} alt="Aperçu 3" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+            Entrez l&apos;URL d&apos;une image. Pour un déploiement production, l&apos;upload de fichiers sera disponible.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Actions */}
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[140px]"
+        >
+          {saving ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Enregistrement...
+            </>
+          ) : isEditing ? (
+            'Enregistrer les modifications'
+          ) : (
+            'Ajouter le produit'
+          )}
+        </Button>
+        <Button variant="outline" onClick={() => navigate('products')}>
+          Annuler
+        </Button>
+      </div>
     </motion.div>
   );
 }
@@ -1248,6 +1365,11 @@ function MarketingView() {
   const [newPromo, setNewPromo] = useState({ title: '', type: 'percentage' as 'percentage' | 'fixed', value: '', code: '', maxUses: '100' });
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  // Coupon creation state
+  const [couponDialog, setCouponDialog] = useState(false);
+  const [couponForm, setCouponForm] = useState({ code: '', type: 'POURCENTAGE', value: '', minOrder: '', endDate: '' });
+  const [couponSaving, setCouponSaving] = useState(false);
+
   const handleCreate = () => {
     if (!newPromo.title || !newPromo.value || !newPromo.code) {
       toast.error('Veuillez remplir tous les champs');
@@ -1282,6 +1404,38 @@ function MarketingView() {
     toast.success('Statut de la promotion mis à jour');
   };
 
+  const handleCreateCoupon = async () => {
+    if (!couponForm.code || !couponForm.value || !couponForm.endDate) {
+      toast.error('Veuillez remplir le code, la valeur et la date de fin');
+      return;
+    }
+    setCouponSaving(true);
+    try {
+      const res = await fetch('/api/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...couponForm,
+          value: Number(couponForm.value),
+          minOrder: Number(couponForm.minOrder) || 0,
+          merchantId: 'm1',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Erreur serveur');
+      }
+      toast.success('Coupon créé avec succès');
+      setCouponForm({ code: '', type: 'POURCENTAGE', value: '', minOrder: '', endDate: '' });
+      setCouponDialog(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur lors de la création du coupon';
+      toast.error(msg);
+    } finally {
+      setCouponSaving(false);
+    }
+  };
+
   return (
     <motion.div {...fadeIn} className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1289,10 +1443,16 @@ function MarketingView() {
           <h1 className="text-2xl font-bold">Marketing</h1>
           <p className="text-muted-foreground text-sm mt-1">Gérez vos promotions et codes de réduction</p>
         </div>
-        <Button onClick={() => setCreateDialog(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-          <Plus className="w-4 h-4" />
-          Créer une publicité
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setCouponDialog(true)} variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 gap-2">
+            <Tag className="w-4 h-4" />
+            Créer un coupon
+          </Button>
+          <Button onClick={() => setCreateDialog(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+            <Plus className="w-4 h-4" />
+            Créer une publicité
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -1430,6 +1590,62 @@ function MarketingView() {
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setCreateDialog(false)}>Annuler</Button>
             <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white">Créer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Coupon Creation Dialog */}
+      <Dialog open={couponDialog} onOpenChange={setCouponDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Créer un coupon</DialogTitle>
+            <DialogDescription>Créez un code promo pour vos clients</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Code promo</label>
+              <Input placeholder="Ex: RAPIGO20" value={couponForm.code} onChange={(e) => setCouponForm((f) => ({ ...f, code: e.target.value }))} className="uppercase" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Type</label>
+                <Select value={couponForm.type} onValueChange={(v) => setCouponForm((f) => ({ ...f, type: v }))}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="POURCENTAGE">Pourcentage</SelectItem>
+                    <SelectItem value="FIXED">Montant fixe</SelectItem>
+                    <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Valeur</label>
+                <Input type="number" placeholder={couponForm.type === 'POURCENTAGE' ? '20' : '500'} value={couponForm.value} onChange={(e) => setCouponForm((f) => ({ ...f, value: e.target.value }))} disabled={couponForm.type === 'FREE_DELIVERY'} />
+                {couponForm.type === 'POURCENTAGE' && <p className="text-xs text-muted-foreground">Pourcentage de réduction</p>}
+                {couponForm.type === 'FIXED' && <p className="text-xs text-muted-foreground">Montant en FCFA</p>}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Commande minimum (FCFA)</label>
+              <Input type="number" placeholder="0" value={couponForm.minOrder} onChange={(e) => setCouponForm((f) => ({ ...f, minOrder: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Date de fin</label>
+              <Input type="date" value={couponForm.endDate} onChange={(e) => setCouponForm((f) => ({ ...f, endDate: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCouponDialog(false)}>Annuler</Button>
+            <Button onClick={handleCreateCoupon} disabled={couponSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              {couponSaving ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Création...
+                </>
+              ) : (
+                'Créer le coupon'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
