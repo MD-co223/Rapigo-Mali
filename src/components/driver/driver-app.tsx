@@ -1290,7 +1290,7 @@ export default function DriverApp() {
   return (
     <div className="flex h-full">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-60 flex-col border-r bg-card sticky top-0 h-screen">
+      <aside className="hidden md:flex w-60 flex-col border-r bg-card shrink-0">
         <div className="p-4">
           <h1 className="text-xl font-bold gradient-text">Rapigo Driver</h1>
         </div>

@@ -633,13 +633,13 @@ function MerchantDetailView() {
   const handleAddToCart = (product: Product) => {
     addItem({
       productId: product.id,
-      merchantId: merchantId,
+      merchantId: product.merchantId,
       name: product.name,
       price: product.price,
       quantity: 1,
       image: product.image,
     });
-    toast.success(`${product.name} ajouté au panier`);
+    toast.success('Ajouté au panier');
   };
 
   return (
@@ -831,7 +831,7 @@ function CartView() {
         size="lg"
         onClick={() => navigate('checkout')}
       >
-        Passer la commande <ArrowRight className="w-5 h-5 ml-2" />
+        Passer à la caisse <ArrowRight className="w-5 h-5 ml-2" />
       </Button>
     </div>
   );
@@ -845,6 +845,7 @@ function CheckoutView() {
   const { user } = useAuthStore();
   const { items, clearCart, total } = useCartStore();
   const [address, setAddress] = useState('');
+  const [city, setCity] = useState('Bamako');
   const [quartier, setQuartier] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [notes, setNotes] = useState('');
@@ -852,7 +853,8 @@ function CheckoutView() {
 
   const subtotal = total();
   const deliveryFee = 500;
-  const grandTotal = subtotal + deliveryFee;
+  const serviceFee = Math.round(subtotal * 0.05);
+  const grandTotal = subtotal + deliveryFee + serviceFee;
 
   if (items.length === 0) {
     return (
@@ -881,32 +883,34 @@ function CheckoutView() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user?.id,
+          clientId: user?.id,
           merchantId: items[0].merchantId,
           items: items.map((item) => ({
             productId: item.productId,
             productName: item.name,
+            productImage: item.image || null,
             quantity: item.quantity,
             unitPrice: item.price,
             totalPrice: item.price * item.quantity,
-            productImage: item.image,
           })),
           subtotal,
           deliveryFee,
-          serviceFee: 0,
+          serviceFee,
           discount: 0,
           total: grandTotal,
           paymentMethod,
+          paymentStatus: 'PENDING',
           deliveryAddress: address,
+          deliveryCity: city,
           deliveryQuartier: quartier,
           notes: notes || undefined,
+          estimatedTime: 30,
         }),
       });
       if (res.ok) {
-        const order = await res.json();
         clearCart();
         toast.success('Commande passée avec succès !');
-        navigate('order-detail', { id: order.id || order.order?.id || '' });
+        navigate('orders');
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error || 'Erreur lors de la commande');
@@ -934,6 +938,10 @@ function CheckoutView() {
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Adresse complète *</label>
             <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Ex: Rue 23, Bamako" className="rounded-xl" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Ville *</label>
+            <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bamako" className="rounded-xl" />
           </div>
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Quartier</label>
@@ -987,6 +995,10 @@ function CheckoutView() {
             <span className="text-muted-foreground">Livraison</span>
             <span>{formatPrice(deliveryFee)}</span>
           </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Frais de service (5%)</span>
+            <span>{formatPrice(serviceFee)}</span>
+          </div>
           <Separator />
           <div className="flex justify-between font-bold text-lg">
             <span>Total</span>
@@ -1002,7 +1014,7 @@ function CheckoutView() {
         disabled={submitting || !address.trim()}
       >
         {submitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-        Confirmer la commande
+        Passer la commande
       </Button>
     </div>
   );
@@ -2070,9 +2082,9 @@ export default function ClientApp() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-3.5rem)]">
+    <div className="flex h-full">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-60 border-r bg-card/50 p-3 gap-1 sticky top-14 h-[calc(100vh-3.5rem)] shrink-0">
+      <aside className="hidden lg:flex flex-col w-60 border-r bg-card/50 p-3 gap-1 shrink-0 overflow-y-auto">
         {/* User Info */}
         <div className="flex items-center gap-3 p-3 mb-2">
           <Avatar className="h-9 w-9">
@@ -2123,7 +2135,7 @@ export default function ClientApp() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={view}
@@ -2132,7 +2144,7 @@ export default function ClientApp() {
             animate="animate"
             exit="exit"
             transition={{ duration: 0.2 }}
-            className="min-h-[calc(100vh-3.5rem)] pb-20 lg:pb-6"
+            className="flex-1 overflow-y-auto pb-20 lg:pb-6"
           >
             {renderView()}
           </motion.div>

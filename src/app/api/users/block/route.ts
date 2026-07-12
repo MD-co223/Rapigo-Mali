@@ -9,6 +9,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'userId requis' }, { status: 400 });
     }
 
+    // Protect admin accounts from being blocked
+    const target = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (target?.role === 'ADMIN') {
+      return NextResponse.json({ error: 'Impossible de bloquer un administrateur' }, { status: 403 });
+    }
+
     const user = await db.user.update({
       where: { id: userId },
       data: { isActive: !block },

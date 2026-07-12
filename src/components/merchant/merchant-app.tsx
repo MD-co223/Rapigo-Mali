@@ -105,7 +105,7 @@ export default function MerchantApp() {
   const merchantId = merchant?.id;
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-full bg-background">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-60 border-r bg-card/50 backdrop-blur-sm shrink-0">
         <div className="p-4 border-b">

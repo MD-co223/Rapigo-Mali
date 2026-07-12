@@ -802,34 +802,40 @@ function UsersView() {
                           {user.createdAt ? new Date(user.createdAt).toLocaleDateString('fr-FR') : '—'}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={user.isActive ? 'text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'}
-                            onClick={async () => {
-                              try {
-                                const res = await fetch('/api/users/block', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ userId: user.id, block: user.isActive }),
-                                });
-                                if (res.ok) {
-                                  refetch();
-                                  toast.success(user.isActive ? 'Utilisateur bloqué' : 'Utilisateur débloqué');
-                                } else {
+                          {user.role === 'ADMIN' ? (
+                            <Badge variant="secondary" className="bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400">
+                              <ShieldCheck className="mr-1 h-3 w-3" />Protégé
+                            </Badge>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={user.isActive ? 'text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'}
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch('/api/users/block', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ userId: user.id, block: user.isActive }),
+                                  });
+                                  if (res.ok) {
+                                    refetch();
+                                    toast.success(user.isActive ? 'Utilisateur bloqué' : 'Utilisateur débloqué');
+                                  } else {
+                                    toast.error('Erreur');
+                                  }
+                                } catch {
                                   toast.error('Erreur');
                                 }
-                              } catch {
-                                toast.error('Erreur');
-                              }
-                            }}
-                          >
-                            {user.isActive ? (
-                              <><Ban className="mr-1.5 h-4 w-4" />Bloquer</>
-                            ) : (
-                              <><CheckCircle className="mr-1.5 h-4 w-4" />Débloquer</>
-                            )}
-                          </Button>
+                              }}
+                            >
+                              {user.isActive ? (
+                                <><Ban className="mr-1.5 h-4 w-4" />Bloquer</>
+                              ) : (
+                                <><CheckCircle className="mr-1.5 h-4 w-4" />Débloquer</>
+                              )}
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -935,6 +941,24 @@ function MerchantsView() {
     }
   };
 
+  const handleSuspend = async (merchant: any) => {
+    try {
+      const res = await fetch('/api/merchants/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchantId: merchant.id, approve: false }),
+      });
+      if (res.ok) {
+        refetch();
+        toast.success('Commerçant suspendu');
+      } else {
+        toast.error('Erreur');
+      }
+    } catch {
+      toast.error('Erreur');
+    }
+  };
+
   return (
     <PageShell
       title="Commerçants"
@@ -1013,7 +1037,7 @@ function MerchantsView() {
                               </Badge>
                             ) : (
                               <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                Approuvé
+                                Actif
                               </Badge>
                             )}
                           </TableCell>
@@ -1031,13 +1055,15 @@ function MerchantsView() {
                                   </Button>
                                 </>
                               ) : (
-                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                  <CheckCircle className="mr-1 h-3 w-3" />Approuvé
-                                </Badge>
+                                <>
+                                  <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20" onClick={() => handleSuspend(m)}>
+                                    <Ban className="mr-1.5 h-4 w-4" />Suspendre
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Voir">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </>
                               )}
-                              <Button variant="ghost" size="icon" className="h-8 w-8" title="Voir">
-                                <Eye className="h-4 w-4" />
-                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1098,6 +1124,24 @@ function DriversView() {
       if (res.ok) {
         refetch();
         toast.success('Livreur rejeté');
+      } else {
+        toast.error('Erreur');
+      }
+    } catch {
+      toast.error('Erreur');
+    }
+  };
+
+  const handleSuspendDriver = async (driver: any) => {
+    try {
+      const res = await fetch('/api/drivers/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverId: driver.id, approve: false }),
+      });
+      if (res.ok) {
+        refetch();
+        toast.success('Livreur suspendu');
       } else {
         toast.error('Erreur');
       }
@@ -1199,9 +1243,9 @@ function DriversView() {
                           <TableCell>
                             <div className="flex items-center gap-1">
                               {isVerified ? (
-                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                  <CheckCircle className="mr-1 h-3 w-3" />Vérifié
-                                </Badge>
+                                <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20" onClick={() => handleSuspendDriver(d)}>
+                                  <Ban className="mr-1.5 h-4 w-4" />Suspendre
+                                </Button>
                               ) : (
                                 <>
                                   <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleVerify(d)}>
@@ -2536,59 +2580,12 @@ const MOCK_NOTIFICATIONS = [
 ];
 
 function NotificationsView() {
-  const { data: notifications } = useFetch<any[]>('/api/notifications', MOCK_NOTIFICATIONS);
-
-  const typeIcon = (type: string) => {
-    switch (type) {
-      case 'warning': return 'bg-amber-100 text-amber-600 dark:bg-amber-900/30';
-      case 'error': return 'bg-red-100 text-red-600 dark:bg-red-900/30';
-      case 'success': return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30';
-      default: return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30';
-    }
-  };
-
   return (
     <PageShell
       title="Notifications"
-      description={`${(notifications || MOCK_NOTIFICATIONS).filter((n: any) => !n.isRead).length} non lues`}
-      actions={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => toast.success('Toutes les notifications marquées comme lues')}
-        >
-          Tout marquer comme lu
-        </Button>
-      }
+      description="Centre de notifications"
     >
-      <Card>
-        <CardContent className="p-0">
-          <ScrollArea className="max-h-[520px]">
-            <div className="divide-y">
-              {(notifications || MOCK_NOTIFICATIONS).map((n: any, i: number) => (
-                <div
-                  key={n.id || i}
-                  className={`flex gap-4 p-4 transition-colors hover:bg-muted/50 ${!n.isRead ? 'bg-primary/5' : ''}`}
-                >
-                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${!n.isRead ? 'bg-primary/10' : typeIcon(n.type || 'info')}`}>
-                    <Bell className={`h-4 w-4 ${!n.isRead ? 'text-primary' : ''}`} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm ${!n.isRead ? 'font-semibold' : 'font-medium'}`}>{n.title || 'Notification'}</p>
-                      {!n.isRead && <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}
-                    </div>
-                    <p className="mt-0.5 text-sm text-muted-foreground line-clamp-2">{n.message || n.body || ''}</p>
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      {n.createdAt ? new Date(n.createdAt).toLocaleString('fr-FR') : ''}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+      <EmptyState message="Aucune notification" icon={Bell} />
     </PageShell>
   );
 }
@@ -2820,7 +2817,7 @@ export default function AdminApp() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-full bg-background overflow-hidden">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-64 flex-col border-r bg-sidebar shrink-0">
         <SidebarContent collapsed={false} onNavigate={handleNavigate} currentView={view} />
@@ -2857,13 +2854,9 @@ export default function AdminApp() {
             <Button
               variant="ghost"
               size="icon"
-              className="relative"
               onClick={() => navigate('notifications')}
             >
               <Bell className="h-4.5 w-4.5" />
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                3
-              </span>
             </Button>
             <Button variant="ghost" size="icon" onClick={() => navigate('profile')}>
               <Avatar className="h-7 w-7">

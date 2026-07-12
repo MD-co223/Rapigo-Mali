@@ -80,11 +80,11 @@ export default function Page() {
   // Show authenticated space
   if (isAuthenticated && user && effectiveSpace !== 'landing') {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="h-screen flex flex-col overflow-hidden">
         <TopBar user={user} onLogout={() => { logout(); setSpace('landing'); }} />
-        <div className="flex-1">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <AnimatePresence mode="wait">
-            <motion.div key={effectiveSpace} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            <motion.div key={effectiveSpace} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="h-full">
               {effectiveSpace === 'client' && <ClientApp />}
               {effectiveSpace === 'merchant' && <MerchantApp />}
               {effectiveSpace === 'driver' && <DriverApp />}
@@ -284,7 +284,7 @@ function TopBar({ user, onLogout }: { user: { firstName: string; lastName: strin
   ];
 
   return (
-    <header className="sticky top-0 z-50 glass-strong border-b">
+    <header className="shrink-0 glass-strong border-b">
       <div className="flex items-center justify-between h-14 px-4 max-w-full">
         <div className="flex items-center gap-3">
           <button onClick={() => setSpace('landing')} className="flex items-center gap-2 hover:opacity-80 transition">
