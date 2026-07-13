@@ -120,6 +120,9 @@ const businessTypeIcons: Record<string, React.ElementType> = {
   RESTAURANT: Utensils,
   PHARMACY: Pill,
   GROCERY: ShoppingBasket,
+  SUPERMARKET: ShoppingBasket,
+  BOUTIQUE: ShoppingBag,
+  COLIS: Box,
   GENERAL: Store,
 };
 
@@ -282,7 +285,7 @@ function HomeView() {
               >
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    {businessTypeIcons[m.businessType]?.({ className: 'w-6 h-6 text-primary' }) || <Store className="w-6 h-6 text-primary" />}
+                    {(() => { const Icon = businessTypeIcons[m.businessType] || Store; return <Icon className="w-6 h-6 text-primary" />; })()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">{m.businessName}</h3>
@@ -456,7 +459,7 @@ function SearchView() {
                 className="w-full glass-card p-3 rounded-xl flex items-center gap-3 hover:shadow-md transition-all text-left"
               >
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  {businessTypeIcons[m.businessType]?.({ className: 'w-5 h-5 text-primary' }) || <Store className="w-5 h-5 text-primary" />}
+                  {(() => { const Icon = businessTypeIcons[m.businessType] || Store; return <Icon className="w-5 h-5 text-primary" />; })()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-sm truncate">{m.businessName}</h3>
@@ -570,7 +573,7 @@ function CategoryView() {
             >
               <div className="flex items-start gap-3">
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  {businessTypeIcons[m.businessType]?.({ className: 'w-6 h-6 text-primary' }) || <Store className="w-6 h-6 text-primary" />}
+                  {(() => { const Icon = businessTypeIcons[m.businessType] || Store; return <Icon className="w-6 h-6 text-primary" />; })()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">{m.businessName}</h3>
@@ -669,7 +672,7 @@ function MerchantDetailView() {
             </div>
             <CardContent className="p-4 -mt-8 relative">
               <div className="w-16 h-16 rounded-2xl bg-card border-4 border-background flex items-center justify-center shadow-md">
-                {businessTypeIcons[merchant.businessType]?.({ className: 'w-8 h-8 text-primary' }) || <Store className="w-8 h-8 text-primary" />}
+                {(() => { const Icon = businessTypeIcons[merchant.businessType] || Store; return <Icon className="w-8 h-8 text-primary" />; })()}
               </div>
               <h2 className="font-bold text-lg mt-2">{merchant.businessName}</h2>
               <p className="text-sm text-muted-foreground mt-1">{merchant.description || merchant.address}</p>
@@ -2164,11 +2167,6 @@ export default function ClientApp() {
             >
               <div className="relative">
                 <tab.icon className="w-5 h-5" />
-                {tab.id === 'cart' && cartCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
-                    {cartCount > 9 ? '9+' : cartCount}
-                  </span>
-                )}
               </div>
               <span className="text-[10px] font-medium">{tab.label}</span>
               {view === tab.id && (

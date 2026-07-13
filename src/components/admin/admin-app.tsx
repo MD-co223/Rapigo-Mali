@@ -803,8 +803,8 @@ function UsersView() {
                         </TableCell>
                         <TableCell>
                           {user.role === 'ADMIN' ? (
-                            <Badge variant="secondary" className="bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400">
-                              <ShieldCheck className="mr-1 h-3 w-3" />Protégé
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                              <ShieldCheck className="mr-1 h-3 w-3" />Compte Admin Protégé
                             </Badge>
                           ) : (
                             <Button
@@ -1623,10 +1623,11 @@ function AdvertisementsView() {
   const [couponDialogOpen, setCouponDialogOpen] = useState(false);
   const [couponForm, setCouponForm] = useState({
     code: '',
-    type: 'POURCENTAGE',
+    type: 'PERCENTAGE',
     value: '',
-    minOrderAmount: '',
-    maxUsages: '',
+    minOrder: '',
+    maxUses: '',
+    startDate: '',
     endDate: '',
   });
   const { data: ads, loading } = useFetch<any[]>('/api/advertisements', MOCK_ADS);
@@ -1647,15 +1648,16 @@ function AdvertisementsView() {
           code: couponForm.code.toUpperCase(),
           type: couponForm.type,
           value: Number(couponForm.value),
-          minOrderAmount: Number(couponForm.minOrderAmount) || 0,
-          maxUsages: Number(couponForm.maxUsages) || null,
+          minOrder: Number(couponForm.minOrder) || 0,
+          maxUses: Number(couponForm.maxUses) || null,
+          startDate: couponForm.startDate || null,
           endDate: couponForm.endDate || null,
         }),
       });
       if (res.ok) {
         toast.success('Coupon créé avec succès');
         setCouponDialogOpen(false);
-        setCouponForm({ code: '', type: 'POURCENTAGE', value: '', minOrderAmount: '', maxUsages: '', endDate: '' });
+        setCouponForm({ code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', startDate: '', endDate: '' });
         refetchCoupons();
       } else {
         toast.error('Erreur');
@@ -1667,7 +1669,7 @@ function AdvertisementsView() {
 
   const couponTypeLabel = (type: string) => {
     switch (type) {
-      case 'POURCENTAGE': return 'Pourcentage';
+      case 'PERCENTAGE': return 'Pourcentage';
       case 'FIXED': return 'Montant fixe';
       case 'FREE_DELIVERY': return 'Livraison gratuite';
       default: return type;
@@ -1790,10 +1792,10 @@ function AdvertisementsView() {
                               <TableCell className="font-mono text-sm font-semibold">{coupon.code || '—'}</TableCell>
                               <TableCell className="text-sm">{couponTypeLabel(coupon.type)}</TableCell>
                               <TableCell className="text-sm font-medium">
-                                {coupon.type === 'FREE_DELIVERY' ? 'Gratuite' : coupon.type === 'POURCENTAGE' ? `${coupon.value}%` : formatPrice(coupon.value || 0)}
+                                {coupon.type === 'FREE_DELIVERY' ? 'Gratuite' : coupon.type === 'PERCENTAGE' ? `${coupon.value}%` : formatPrice(coupon.value || 0)}
                               </TableCell>
-                              <TableCell className="text-sm">{formatPrice(coupon.minOrderAmount || 0)}</TableCell>
-                              <TableCell className="text-sm">{coupon.maxUsages || '∞'}</TableCell>
+                              <TableCell className="text-sm">{formatPrice(coupon.minOrder || 0)}</TableCell>
+                              <TableCell className="text-sm">{coupon.maxUses || '∞'}</TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {coupon.endDate ? new Date(coupon.endDate).toLocaleDateString('fr-FR') : '—'}
                               </TableCell>
@@ -1839,7 +1841,7 @@ function AdvertisementsView() {
               <Select value={couponForm.type} onValueChange={(v) => setCouponForm({ ...couponForm, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="POURCENTAGE">Pourcentage</SelectItem>
+                  <SelectItem value="PERCENTAGE">Pourcentage</SelectItem>
                   <SelectItem value="FIXED">Montant fixe</SelectItem>
                   <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
                 </SelectContent>
@@ -1850,7 +1852,7 @@ function AdvertisementsView() {
                 <label className="text-sm font-medium">Valeur</label>
                 <Input
                   type="number"
-                  placeholder={couponForm.type === 'POURCENTAGE' ? '10' : '5000'}
+                  placeholder={couponForm.type === 'PERCENTAGE' ? '10' : '5000'}
                   value={couponForm.value}
                   onChange={(e) => setCouponForm({ ...couponForm, value: e.target.value })}
                 />
@@ -1861,8 +1863,8 @@ function AdvertisementsView() {
               <Input
                 type="number"
                 placeholder="0"
-                value={couponForm.minOrderAmount}
-                onChange={(e) => setCouponForm({ ...couponForm, minOrderAmount: e.target.value })}
+                value={couponForm.minOrder}
+                onChange={(e) => setCouponForm({ ...couponForm, minOrder: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -1870,8 +1872,16 @@ function AdvertisementsView() {
               <Input
                 type="number"
                 placeholder="Illimité"
-                value={couponForm.maxUsages}
-                onChange={(e) => setCouponForm({ ...couponForm, maxUsages: e.target.value })}
+                value={couponForm.maxUses}
+                onChange={(e) => setCouponForm({ ...couponForm, maxUses: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Date de début</label>
+              <Input
+                type="date"
+                value={couponForm.startDate}
+                onChange={(e) => setCouponForm({ ...couponForm, startDate: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -2722,39 +2732,40 @@ function ProfileView() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Informations du compte</CardTitle>
-            <CardDescription>Modifier vos informations personnelles</CardDescription>
+            <CardDescription>Compte administrateur protégé — lecture seule</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Prénom</label>
-                <Input defaultValue={user?.firstName || 'Admin'} />
+                <div className="flex h-10 w-full rounded-md border bg-muted/50 px-3 py-2 text-sm">
+                  {user?.firstName || 'Admin'}
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Nom</label>
-                <Input defaultValue={user?.lastName || 'Principal'} />
+                <div className="flex h-10 w-full rounded-md border bg-muted/50 px-3 py-2 text-sm">
+                  {user?.lastName || 'Principal'}
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Email</label>
-                <Input defaultValue={user?.email || 'admin@rapigo.ml'} type="email" />
+                <div className="flex h-10 w-full rounded-md border bg-muted/50 px-3 py-2 text-sm">
+                  {user?.email || 'admin@rapigo.ml'}
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Téléphone</label>
-                <Input defaultValue={user?.phone || '+223 70 00 00 00'} />
+                <div className="flex h-10 w-full rounded-md border bg-muted/50 px-3 py-2 text-sm">
+                  {user?.phone || '+223 70 00 00 00'}
+                </div>
               </div>
             </div>
             <Separator />
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Nouveau mot de passe</label>
-              <Input type="password" placeholder="Laisser vide pour ne pas changer" />
+            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+              <ShieldCheck className="h-4 w-4 text-amber-600" />
+              <span className="text-sm text-amber-800 dark:text-amber-300">Ce compte est protégé. Les modifications ne sont pas autorisées.</span>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Confirmer le mot de passe</label>
-              <Input type="password" placeholder="Confirmer le nouveau mot de passe" />
-            </div>
-            <Button size="sm" onClick={() => toast.success('Profil mis à jour avec succès')}>
-              Mettre à jour le profil
-            </Button>
           </CardContent>
         </Card>
       </div>

@@ -1,0 +1,1444 @@
+     1→     1→'use client';
+     2→     2→import { useState, useEffect, useCallback } from 'react';
+     3→     3→import { motion, AnimatePresence } from 'framer-motion';
+     4→     4→import { toast } from 'sonner';
+     5→     5→import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+     6→     6→import { useAuthStore, useDriverNav, formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/lib/store';
+     7→     7→import { Button } from '@/components/ui/button';
+     8→     8→import { Input } from '@/components/ui/input';
+     9→     9→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+    10→    10→import { Badge } from '@/components/ui/badge';
+    11→    11→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    12→    12→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+    13→    13→import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+    14→    14→import { Separator } from '@/components/ui/separator';
+    15→    15→import { Skeleton } from '@/components/ui/skeleton';
+    16→    16→import { Progress } from '@/components/ui/progress';
+    17→    17→import { Switch } from '@/components/ui/switch';
+    18→    18→import { Textarea } from '@/components/ui/textarea';
+    19→    19→import {
+    20→    20→  Home, Package, Clock, User, MapPin, Navigation, Phone, Star, Wallet, FileText,
+    21→    21→  Headphones, Bell, MessageCircle, ChevronRight, CheckCircle2, Circle, Truck,
+    22→    22→  TrendingUp, Award, ArrowLeft, Upload, ShieldCheck, AlertCircle, Plus, Minus,
+    23→    23→  Send, LogOut, CreditCard, ArrowUpRight, ArrowDownLeft, Route, Timer, CircleDot,
+    24→    24→} from 'lucide-react';
+    25→    25→
+    26→    26→// ─── Nav Items ──────────────────────────────────────────────────────────────
+    27→    27→
+    28→    28→const NAV_ITEMS = [
+    29→    29→  { id: 'home' as const, label: 'Accueil', icon: Home },
+    30→    30→  { id: 'history' as const, label: 'Historique', icon: Clock },
+    31→    31→  { id: 'earnings' as const, label: 'Revenus', icon: Wallet },
+    32→    32→  { id: 'ratings' as const, label: 'Évaluations', icon: Star },
+    33→    33→  { id: 'ride' as const, label: 'Course active', icon: Truck },
+    34→    34→  { id: 'navigation' as const, label: 'Navigation', icon: Navigation },
+    35→    35→  { id: 'wallet' as const, label: 'Portefeuille', icon: CreditCard },
+    36→    36→  { id: 'documents' as const, label: 'Documents', icon: FileText },
+    37→    37→  { id: 'support' as const, label: 'Support', icon: Headphones },
+    38→    38→  { id: 'profile' as const, label: 'Profil', icon: User },
+    39→    39→  { id: 'notifications' as const, label: 'Notifications', icon: Bell },
+    40→    40→  { id: 'chat' as const, label: 'Messages', icon: MessageCircle },
+    41→    41→];
+    42→    42→
+    43→    43→const MOBILE_TABS = [
+    44→    44→  { id: 'home' as const, label: 'Accueil', icon: Home },
+    45→    45→  { id: 'history' as const, label: 'Historique', icon: Clock },
+    46→    46→  { id: 'earnings' as const, label: 'Revenus', icon: Wallet },
+    47→    47→  { id: 'profile' as const, label: 'Profil', icon: User },
+    48→    48→];
+    49→    49→
+    50→    50→// ─── Empty State Component ──────────────────────────────────────────────────
+    51→    51→
+    52→    52→function EmptyState({ icon: Icon, title, description, action }: {
+    53→    53→  icon: React.ElementType;
+    54→    54→  title: string;
+    55→    55→  description?: string;
+    56→    56→  action?: { label: string; onClick: () => void };
+    57→    57→}) {
+    58→    58→  return (
+    59→    59→    <div className="flex flex-col items-center justify-center py-16 px-4">
+    60→    60→      <div className="rounded-full bg-muted p-4 mb-4">
+    61→    61→        <Icon className="h-8 w-8 text-muted-foreground" />
+    62→    62→      </div>
+    63→    63→      <p className="text-lg font-semibold text-muted-foreground">{title}</p>
+    64→    64→      {description && <p className="mt-1 text-sm text-muted-foreground text-center max-w-xs">{description}</p>}
+    65→    65→      {action && (
+    66→    66→        <Button onClick={action.onClick} className="mt-4 bg-emerald-600 hover:bg-emerald-700">
+    67→    67→          {action.label}
+    68→    68→        </Button>
+    69→    69→      )}
+    70→    70→    </div>
+    71→    71→  );
+    72→    72→}
+    73→    73→
+    74→    74→// ─── Loading Skeleton ──────────────────────────────────────────────────────
+    75→    75→
+    76→    76→function LoadingCards({ count = 3 }: { count?: number }) {
+    77→    77→  return (
+    78→    78→    <div className="space-y-3">
+    79→    79→      {Array.from({ length: count }).map((_, i) => (
+    80→    80→        <Card key={i} className="border-0 shadow-md">
+    81→    81→          <CardContent className="p-4 space-y-3">
+    82→    82→            <Skeleton className="h-4 w-3/4" />
+    83→    83→            <Skeleton className="h-4 w-1/2" />
+    84→    84→            <Skeleton className="h-10 w-full rounded-xl" />
+    85→    85→          </CardContent>
+    86→    86→        </Card>
+    87→    87→      ))}
+    88→    88→    </div>
+    89→    89→  );
+    90→    90→}
+    91→    91→
+    92→    92→// ─── Home View ──────────────────────────────────────────────────────────────
+    93→    93→
+    94→    94→function HomeView() {
+    95→    95→  const { navigate, data } = useDriverNav();
+    96→    96→  const user = useAuthStore((s) => s.user);
+    97→    97→  const [isOnline, setIsOnline] = useState(false);
+    98→    98→  const [orders, setOrders] = useState<unknown[]>([]);
+    99→    99→  const [loading, setLoading] = useState(true);
+   100→   100→  const [stats, setStats] = useState({ todayEarnings: 0, todayDeliveries: 0 });
+   101→   101→
+   102→   102→  const fetchOrders = useCallback(async () => {
+   103→   103→    try {
+   104→   104→      setLoading(true);
+   105→   105→      const res = await fetch('/api/orders?status=PENDING');
+   106→   106→      if (res.ok) {
+   107→   107→        const data = await res.json();
+   108→   108→        setOrders(Array.isArray(data) ? data : []);
+   109→   109→      }
+   110→   110→    } catch {
+   111→   111→      setOrders([]);
+   112→   112→    } finally {
+   113→   113→      setLoading(false);
+   114→   114→    }
+   115→   115→  }, []);
+   116→   116→
+   117→   117→  const fetchStats = useCallback(async () => {
+   118→   118→    try {
+   119→   119→      const res = await fetch('/api/stats');
+   120→   120→      if (res.ok) {
+   121→   121→        const data = await res.json();
+   122→   122→        setStats({
+   123→   123→          todayEarnings: data.totalRevenue || 0,
+   124→   124→          todayDeliveries: data.totalDeliveriesToday || 0,
+   125→   125→        });
+   126→   126→      }
+   127→   127→    } catch {
+   128→   128→      // keep defaults
+   129→   129→    }
+   130→   130→  }, []);
+   131→   131→
+   132→   132→  useEffect(() => {
+   133→   133→    if (isOnline) {
+   134→   134→      fetchOrders();
+   135→   135→      fetchStats();
+   136→   136→    } else {
+   137→   137→      setOrders([]);
+   138→   138→      setLoading(false);
+   139→   139→    }
+   140→   140→  }, [isOnline, fetchOrders, fetchStats]);
+   141→   141→
+   142→   142→  const handleToggleOnline = () => {
+   143→   143→    const next = !isOnline;
+   144→   144→    setIsOnline(next);
+   145→   145→    toast.success(next ? 'Vous êtes en ligne' : 'Vous êtes hors ligne');
+   146→   146→  };
+   147→   147→
+   148→   148→  const handleAcceptOrder = (order: Record<string, unknown>) => {
+   149→   149→    toast.success('Commande acceptée');
+   150→   150→    navigate('ride', { id: order.id as string });
+   151→   151→  };
+   152→   152→
+   153→   153→  const initials = user ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() : 'LV';
+   154→   154→
+   155→   155→  return (
+   156→   156→    <div className="space-y-5 pb-4">
+   157→   157→      {/* Online Toggle */}
+   158→   158→      <motion.div
+   159→   159→        className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 p-5 text-white shadow-lg"
+   160→   160→        initial={{ opacity: 0, y: -10 }}
+   161→   161→        animate={{ opacity: 1, y: 0 }}
+   162→   162→        transition={{ duration: 0.4 }}
+   163→   163→      >
+   164→   164→        <div className="flex items-center gap-3">
+   165→   165→          <motion.div
+   166→   166→            animate={{
+   167→   167→              scale: isOnline ? [1, 1.2, 1] : 1,
+   168→   168→              opacity: isOnline ? 1 : 0.5,
+   169→   169→            }}
+   170→   170→            transition={{ repeat: isOnline ? Infinity : 0, duration: 2 }}
+   171→   171→          >
+   172→   172→            <div className={`h-4 w-4 rounded-full ${isOnline ? 'bg-white' : 'bg-white/40'}`} />
+   173→   173→          </motion.div>
+   174→   174→          <div>
+   175→   175→            <p className="text-sm font-medium text-white/80">Statut</p>
+   176→   176→            <p className="text-lg font-bold">{isOnline ? 'En ligne' : 'Hors ligne'}</p>
+   177→   177→          </div>
+   178→   178→        </div>
+   179→   179→        <Button
+   180→   180→          variant="ghost"
+   181→   181→          size="lg"
+   182→   182→          onClick={handleToggleOnline}
+   183→   183→          className="relative h-14 w-24 rounded-full bg-white/20 hover:bg-white/30 text-white p-0"
+   184→   184→          aria-label="Toggle online status"
+   185→   185→        >
+   186→   186→          <motion.div
+   187→   187→            className="absolute top-1 flex h-12 w-[46px] items-center justify-center rounded-full bg-white shadow-lg"
+   188→   188→            animate={{ left: isOnline ? 'calc(100% - 50px)' : '2px' }}
+   189→   189→            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+   190→   190→          >
+   191→   191→            <Truck className={`h-5 w-5 ${isOnline ? 'text-emerald-600' : 'text-gray-400'}`} />
+   192→   192→          </motion.div>
+   193→   193→        </Button>
+   194→   194→      </motion.div>
+   195→   195→
+   196→   196→      {/* Driver Info Card */}
+   197→   197→      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+   198→   198→        <Card className="border-0 shadow-md glass-card">
+   199→   199→          <CardContent className="p-4">
+   200→   200→            <div className="flex items-center gap-3 mb-4">
+   201→   201→              <Avatar className="h-12 w-12 border-2 border-emerald-500">
+   202→   202→                <AvatarFallback className="bg-emerald-100 text-emerald-700 text-lg font-bold">{initials}</AvatarFallback>
+   203→   203→              </Avatar>
+   204→   204→              <div className="flex-1 min-w-0">
+   205→   205→                <p className="font-bold text-base truncate">{user ? `${user.firstName} ${user.lastName}` : 'Livreur'}</p>
+   206→   206→                <p className="text-sm text-muted-foreground">{user?.email || ''}</p>
+   207→   207→              </div>
+   208→   208→            </div>
+   209→   209→            <div className="grid grid-cols-3 gap-3">
+   210→   210→              <button className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-3 text-center" onClick={() => navigate('history')}>
+   211→   211→                <TrendingUp className="mx-auto mb-1 h-5 w-5 text-emerald-600" />
+   212→   212→                <p className="text-lg font-bold">{stats.todayDeliveries}</p>
+   213→   213→                <p className="text-[10px] text-muted-foreground">Livraisons</p>
+   214→   214→              </button>
+   215→   215→              <button className="rounded-xl bg-amber-50 dark:bg-amber-950/30 p-3 text-center" onClick={() => navigate('ratings')}>
+   216→   216→                <Star className="mx-auto mb-1 h-5 w-5 text-amber-500" />
+   217→   217→                <p className="text-lg font-bold">-</p>
+   218→   218→                <p className="text-[10px] text-muted-foreground">Note</p>
+   219→   219→              </button>
+   220→   220→              <button className="rounded-xl bg-blue-50 dark:bg-blue-950/30 p-3 text-center" onClick={() => navigate('earnings')}>
+   221→   221→                <Wallet className="mx-auto mb-1 h-5 w-5 text-blue-600" />
+   222→   222→                <p className="text-lg font-bold">{formatPrice(stats.todayEarnings)}</p>
+   223→   223→                <p className="text-[10px] text-muted-foreground">Revenus</p>
+   224→   224→              </button>
+   225→   225→            </div>
+   226→   226→          </CardContent>
+   227→   227→        </Card>
+   228→   228→      </motion.div>
+   229→   229→
+   230→   230→      {/* Available Orders */}
+   231→   231→      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+   232→   232→        <div className="mb-3 flex items-center justify-between px-1">
+   233→   233→          <h2 className="text-base font-bold">Courses disponibles</h2>
+   234→   234→          {orders.length > 0 && (
+   235→   235→            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+   236→   236→              {orders.length}
+   237→   237→            </Badge>
+   238→   238→          )}
+   239→   239→        </div>
+   240→   240→
+   241→   241→        {!isOnline ? (
+   242→   242→          <Card className="border-0 shadow-md">
+   243→   243→            <CardContent className="flex flex-col items-center justify-center py-12">
+   244→   244→              <AlertCircle className="h-12 w-12 text-muted-foreground mb-3" />
+   245→   245→              <p className="text-lg font-semibold text-muted-foreground">Vous êtes hors ligne</p>
+   246→   246→              <p className="mt-1 text-sm text-muted-foreground">Mettez-vous en ligne pour voir les courses disponibles</p>
+   247→   247→            </CardContent>
+   248→   248→          </Card>
+   249→   249→        ) : loading ? (
+   250→   250→          <LoadingCards />
+   251→   251→        ) : orders.length === 0 ? (
+   252→   252→          <EmptyState icon={Package} title="Aucune course disponible" description="Recherche en cours..." />
+   253→   253→        ) : (
+   254→   254→          <div className="space-y-3">
+   255→   255→            {(orders as Record<string, unknown>[]).map((order, idx) => (
+   256→   256→              <motion.div key={order.id as string} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * idx }}>
+   257→   257→                <Card className="border-0 shadow-md overflow-hidden">
+   258→   258→                  <CardContent className="p-4">
+   259→   259→                    <div className="mb-3 flex items-start gap-2">
+   260→   260→                      <div className="flex flex-col items-center gap-0.5 pt-1">
+   261→   261→                        <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+   262→   262→                        <div className="h-8 w-0.5 bg-gray-200 dark:bg-gray-700" />
+   263→   263→                        <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+   264→   264→                      </div>
+   265→   265→                      <div className="flex-1 space-y-3">
+   266→   266→                        <div>
+   267→   267→                          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Marchand</p>
+   268→   268→                          <p className="text-sm font-semibold">{(order.merchant as Record<string, unknown>)?.businessName || 'Marchand'}</p>
+   269→   269→                        </div>
+   270→   270→                        <div>
+   271→   271→                          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Livrer à</p>
+   272→   272→                          <p className="text-sm font-semibold">{(order.deliveryAddress as string) || 'Adresse non spécifiée'}</p>
+   273→   273→                        </div>
+   274→   274→                      </div>
+   275→   275→                    </div>
+   276→   276→                    <div className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-900 p-3 mb-3">
+   277→   277→                      <div className="text-center">
+   278→   278→                        <p className="text-xs text-muted-foreground">Gains</p>
+   279→   279→                        <p className="text-base font-bold text-emerald-600">{formatPrice(order.deliveryFee as number || 0)}</p>
+   280→   280→                      </div>
+   281→   281→                      <Separator orientation="vertical" className="h-8" />
+   282→   282→                      <div className="text-center">
+   283→   283→                        <p className="text-xs text-muted-foreground">Articles</p>
+   284→   284→                        <p className="text-base font-bold">{(order.items as unknown[])?.length || 0}</p>
+   285→   285→                      </div>
+   286→   286→                      <Separator orientation="vertical" className="h-8" />
+   287→   287→                      <div className="text-center">
+   288→   288→                        <p className="text-xs text-muted-foreground">Temps est.</p>
+   289→   289→                        <p className="text-base font-bold">~{order.estimatedTime || 30} min</p>
+   290→   290→                      </div>
+   291→   291→                    </div>
+   292→   292→                    <Button
+   293→   293→                      className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
+   294→   294→                      onClick={() => handleAcceptOrder(order)}
+   295→   295→                    >
+   296→   296→                      Accepter
+   297→   297→                    </Button>
+   298→   298→                  </CardContent>
+   299→   299→                </Card>
+   300→   300→              </motion.div>
+   301→   301→            ))}
+   302→   302→          </div>
+   303→   303→        )}
+   304→   304→      </motion.div>
+   305→   305→    </div>
+   306→   306→  );
+   307→   307→}
+   308→   308→
+   309→   309→// ─── Ride View ──────────────────────────────────────────────────────────────
+   310→   310→
+   311→   311→function RideView() {
+   312→   312→  const { view, data, navigate } = useDriverNav();
+   313→   313→  const [order, setOrder] = useState<Record<string, unknown> | null>(null);
+   314→   314→  const [loading, setLoading] = useState(true);
+   315→   315→  const [status, setStatus] = useState<string>('assigned');
+   316→   316→
+   317→   317→  useEffect(() => {
+   318→   318→    const fetchOrder = async () => {
+   319→   319→      if (!data?.id) {
+   320→   320→        setLoading(false);
+   321→   321→        return;
+   322→   322→      }
+   323→   323→      try {
+   324→   324→        setLoading(true);
+   325→   325→        const res = await fetch(`/api/orders?userId=${data.id}`);
+   326→   326→        if (res.ok) {
+   327→   327→          const all = await res.json();
+   328→   328→          const found = Array.isArray(all) ? all.find((o: Record<string, unknown>) => o.id === data.id) : null;
+   329→   329→          if (found) {
+   330→   330→            setOrder(found);
+   331→   331→            setStatus(found.status as string || 'CONFIRMED');
+   332→   332→          }
+   333→   333→        }
+   334→   334→      } catch {
+   335→   335→        // keep empty
+   336→   336→      } finally {
+   337→   337→        setLoading(false);
+   338→   338→      }
+   339→   339→    };
+   340→   340→    fetchOrder();
+   341→   341→  }, [data?.id]);
+   342→   342→
+   343→   343→  if (!data?.id && !order) {
+   344→   344→    return (
+   345→   345→      <EmptyState
+   346→   346→        icon={Truck}
+   347→   347→        title="Aucune course en cours"
+   348→   348→        description="Acceptez une course depuis l'accueil"
+   349→   349→        action={{ label: "Retour à l'accueil", onClick: () => navigate('home') }}
+   350→   350→      />
+   351→   351→    );
+   352→   352→  }
+   353→   353→
+   354→   354→  if (loading) {
+   355→   355→    return <LoadingCards count={2} />;
+   356→   356→  }
+   357→   357→
+   358→   358→  const merchantInfo = order?.merchant as Record<string, unknown> | undefined;
+   359→   359→  const driverInfo = order?.driver as Record<string, unknown> | undefined;
+   360→   360→  const driverUser = driverInfo?.user as Record<string, unknown> | undefined;
+   361→   361→
+   362→   362→  return (
+   363→   363→    <div className="space-y-4 pb-4">
+   364→   364→      {/* Back button */}
+   365→   365→      <Button variant="ghost" size="sm" onClick={() => navigate('home')} className="gap-2">
+   366→   366→        <ArrowLeft className="h-4 w-4" />
+   367→   367→        Retour
+   368→   368→      </Button>
+   369→   369→
+   370→   370→      <Card className="border-0 shadow-md glass-card">
+   371→   371→        <CardHeader>
+   372→   372→          <CardTitle className="text-base flex items-center gap-2">
+   373→   373→            <Package className="h-5 w-5 text-emerald-600" />
+   374→   374→            Course {order?.orderNumber || ''}
+   375→   375→          </CardTitle>
+   376→   376→          <Badge className={ORDER_STATUS_COLORS[status] || ORDER_STATUS_COLORS.PENDING}>
+   377→   377→            {ORDER_STATUS_LABELS[status] || status}
+   378→   378→          </Badge>
+   379→   379→        </CardHeader>
+   380→   380→        <CardContent className="space-y-4">
+   381→   381→          {/* Pickup */}
+   382→   382→          <div className="flex items-start gap-3">
+   383→   383→            <div className="mt-1">
+   384→   384→              <CircleDot className="h-5 w-5 text-emerald-500" />
+   385→   385→            </div>
+   386→   386→            <div>
+   387→   387→              <p className="text-xs text-muted-foreground uppercase tracking-wider">Récupérer</p>
+   388→   388→              <p className="text-sm font-semibold">{merchantInfo?.businessName || 'Marchand'}</p>
+   389→   389→              <p className="text-xs text-muted-foreground">{merchantInfo?.phone || ''}</p>
+   390→   390→            </div>
+   391→   391→          </div>
+   392→   392→
+   393→   393→          <div className="ml-2.5 h-6 w-0.5 bg-gray-200 dark:bg-gray-700" />
+   394→   394→
+   395→   395→          {/* Delivery */}
+   396→   396→          <div className="flex items-start gap-3">
+   397→   397→            <div className="mt-1">
+   398→   398→              <MapPin className="h-5 w-5 text-red-500" />
+   399→   399→            </div>
+   400→   400→            <div>
+   401→   401→              <p className="text-xs text-muted-foreground uppercase tracking-wider">Livrer à</p>
+   402→   402→              <p className="text-sm font-semibold">{order?.deliveryAddress || 'Adresse non spécifiée'}</p>
+   403→   403→              <p className="text-xs text-muted-foreground">{order?.deliveryQuartier || ''}, {order?.deliveryCity || 'Bamako'}</p>
+   404→   404→            </div>
+   405→   405→          </div>
+   406→   406→
+   407→   407→          <Separator />
+   408→   408→
+   409→   409→          {/* Customer & Earnings */}
+   410→   410→          <div className="grid grid-cols-2 gap-3">
+   411→   411→            <div className="rounded-xl bg-gray-50 dark:bg-gray-900 p-3">
+   412→   412→              <p className="text-xs text-muted-foreground">Client</p>
+   413→   413→              <p className="text-sm font-semibold">Client</p>
+   414→   414→              <p className="text-xs text-muted-foreground">{order?.paymentMethod || 'CASH'}</p>
+   415→   415→            </div>
+   416→   416→            <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-3">
+   417→   417→              <p className="text-xs text-muted-foreground">Gains</p>
+   418→   418→              <p className="text-lg font-bold text-emerald-600">{formatPrice(order?.deliveryFee as number || 0)}</p>
+   419→   419→            </div>
+   420→   420→          </div>
+   421→   421→        </CardContent>
+   422→   422→      </Card>
+   423→   423→
+   424→   424→      {/* Actions */}
+   425→   425→      <div className="space-y-3">
+   426→   426→        {status !== 'PICKED_UP' && status !== 'IN_TRANSIT' && (
+   427→   427→          <Button
+   428→   428→            className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
+   429→   429→            onClick={() => {
+   430→   430→              setStatus('PICKED_UP');
+   431→   431→              toast.success('Colis récupéré !');
+   432→   432→            }}
+   433→   433→          >
+   434→   434→            <Package className="mr-2 h-5 w-5" />
+   435→   435→            J&apos;ai récupéré la commande
+   436→   436→          </Button>
+   437→   437→        )}
+   438→   438→
+   439→   439→        <Button
+   440→   440→          className="w-full h-12 text-base font-bold"
+   441→   441→          variant="outline"
+   442→   442→          onClick={() => navigate('navigation', data)}
+   443→   443→        >
+   444→   444→          <Navigation className="mr-2 h-5 w-5" />
+   445→   445→          Commencer la navigation
+   446→   446→        </Button>
+   447→   447→
+   448→   448→        <Button
+   449→   449→          className="w-full h-12 text-base font-bold"
+   450→   450→          variant="outline"
+   451→   451→          onClick={() => toast.info('Appel en cours...')}
+   452→   452→        >
+   453→   453→          <Phone className="mr-2 h-5 w-5" />
+   454→   454→          Appeler le client
+   455→   455→        </Button>
+   456→   456→
+   457→   457→        <Button
+   458→   458→          className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
+   459→   459→          onClick={() => {
+   460→   460→            toast.success('Commande livrée !');
+   461→   461→            navigate('home');
+   462→   462→          }}
+   463→   463→        >
+   464→   464→          <CheckCircle2 className="mr-2 h-5 w-5" />
+   465→   465→          Livré
+   466→   466→        </Button>
+   467→   467→      </div>
+   468→   468→    </div>
+   469→   469→  );
+   470→   470→}
+   471→   471→
+   472→   472→// ─── Navigation View ────────────────────────────────────────────────────────
+   473→   473→
+   474→   474→function NavigationView() {
+   475→   475→  const { data, navigate } = useDriverNav();
+   476→   476→  const [order, setOrder] = useState<Record<string, unknown> | null>(null);
+   477→   477→  const [loading, setLoading] = useState(true);
+   478→   478→
+   479→   479→  useEffect(() => {
+   480→   480→    if (!data?.id) {
+   481→   481→      setLoading(false);
+   482→   482→      return;
+   483→   483→    }
+   484→   484→    const fetchOrder = async () => {
+   485→   485→      try {
+   486→   486→        const res = await fetch(`/api/orders?userId=${data.id}`);
+   487→   487→        if (res.ok) {
+   488→   488→          const all = await res.json();
+   489→   489→          const found = Array.isArray(all) ? all.find((o: Record<string, unknown>) => o.id === data.id) : null;
+   490→   490→          if (found) setOrder(found);
+   491→   491→        }
+   492→   492→      } catch {
+   493→   493→        // empty
+   494→   494→      } finally {
+   495→   495→        setLoading(false);
+   496→   496→      }
+   497→   497→    };
+   498→   498→    fetchOrder();
+   499→   499→  }, [data?.id]);
+   500→   500→
+   501→   501→  if (!data?.id && !order) {
+   502→   502→    return (
+   503→   503→      <EmptyState
+   504→   504→        icon={Navigation}
+   505→   505→        title="Aucune navigation en cours"
+   506→   506→        action={{ label: "Retour à l'accueil", onClick: () => navigate('home') }}
+   507→   507→      />
+   508→   508→    );
+   509→   509→  }
+   510→   510→
+   511→   511→  if (loading) return <LoadingCards count={1} />;
+   512→   512→
+   513→   513→  return (
+   514→   514→    <div className="space-y-4 pb-4">
+   515→   515→      <Button variant="ghost" size="sm" onClick={() => navigate('ride', data)} className="gap-2">
+   516→   516→        <ArrowLeft className="h-4 w-4" />
+   517→   517→        Retour à la course
+   518→   518→      </Button>
+   519→   519→
+   520→   520→      {/* Map Placeholder */}
+   521→   521→      <div className="relative h-64 rounded-2xl bg-gray-200 dark:bg-gray-800 overflow-hidden">
+   522→   522→        <div className="absolute inset-0 flex flex-col items-center justify-center">
+   523→   523→          <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
+   524→   524→            <Navigation className="h-12 w-12 text-emerald-500" />
+   525→   525→          </motion.div>
+   526→   526→          <p className="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">Navigation en cours...</p>
+   527→   527→        </div>
+   528→   528→      </div>
+   529→   529→
+   530→   530→      <Card className="border-0 shadow-md glass-card">
+   531→   531→        <CardContent className="p-4 space-y-3">
+   532→   532→          <div className="flex items-center gap-3">
+   533→   533→            <Route className="h-5 w-5 text-emerald-600" />
+   534→   534→            <div>
+   535→   535→              <p className="text-sm font-semibold">{order?.deliveryAddress || 'Destination'}</p>
+   536→   536→              <p className="text-xs text-muted-foreground">{order?.deliveryQuartier || ''}, {order?.deliveryCity || 'Bamako'}</p>
+   537→   537→            </div>
+   538→   538→          </div>
+   539→   539→
+   540→   540→          <div className="grid grid-cols-2 gap-3">
+   541→   541→            <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-3 text-center">
+   542→   542→              <Timer className="mx-auto mb-1 h-5 w-5 text-emerald-600" />
+   543→   543→              <p className="text-xl font-bold">~{order?.estimatedTime || 30} min</p>
+   544→   544→              <p className="text-xs text-muted-foreground">Temps estimé</p>
+   545→   545→            </div>
+   546→   546→            <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 p-3 text-center">
+   547→   547→              <Route className="mx-auto mb-1 h-5 w-5 text-amber-500" />
+   548→   548→              <p className="text-xl font-bold">-- km</p>
+   549→   549→              <p className="text-xs text-muted-foreground">Distance</p>
+   550→   550→            </div>
+   551→   551→          </div>
+   552→   552→
+   553→   553→          <Button
+   554→   554→            className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
+   555→   555→            onClick={() => {
+   556→   556→              toast.success('Livraison terminée !');
+   557→   557→              navigate('home');
+   558→   558→            }}
+   559→   559→          >
+   560→   560→            <CheckCircle2 className="mr-2 h-5 w-5" />
+   561→   561→            Terminer la livraison
+   562→   562→          </Button>
+   563→   563→        </CardContent>
+   564→   564→      </Card>
+   565→   565→    </div>
+   566→   566→  );
+   567→   567→}
+   568→   568→
+   569→   569→// ─── History View ───────────────────────────────────────────────────────────
+   570→   570→
+   571→   571→function HistoryView() {
+   572→   572→  const { navigate } = useDriverNav();
+   573→   573→  const [orders, setOrders] = useState<unknown[]>([]);
+   574→   574→  const [loading, setLoading] = useState(true);
+   575→   575→
+   576→   576→  useEffect(() => {
+   577→   577→    const fetchOrders = async () => {
+   578→   578→      try {
+   579→   579→        const res = await fetch('/api/orders');
+   580→   580→        if (res.ok) {
+   581→   581→          const data = await res.json();
+   582→   582→          setOrders(Array.isArray(data) ? data : []);
+   583→   583→        }
+   584→   584→      } catch {
+   585→   585→        setOrders([]);
+   586→   586→      } finally {
+   587→   587→        setLoading(false);
+   588→   588→      }
+   589→   589→    };
+   590→   590→    fetchOrders();
+   591→   591→  }, []);
+   592→   592→
+   593→   593→  if (loading) return <LoadingCards count={5} />;
+   594→   594→
+   595→   595→  if (orders.length === 0) {
+   596→   596→    return <EmptyState icon={Clock} title="Aucun historique" description="Vos courses livrées apparaîtront ici" />;
+   597→   597→  }
+   598→   598→
+   599→   599→  return (
+   600→   600→    <div className="space-y-3 pb-4">
+   601→   601→      {(orders as Record<string, unknown>[]).map((order) => {
+   602→   602→        const merchant = order.merchant as Record<string, unknown> | undefined;
+   603→   603→        return (
+   604→   604→          <Card
+   605→   605→            key={order.id as string}
+   606→   606→            className="border-0 shadow-md glass-card cursor-pointer hover:shadow-lg transition-shadow"
+   607→   607→            onClick={() => navigate('ride', { id: order.id as string })}
+   608→   608→          >
+   609→   609→            <CardContent className="p-4">
+   610→   610→              <div className="flex items-center justify-between mb-2">
+   611→   611→                <p className="text-sm font-bold">{order.orderNumber || ''}</p>
+   612→   612→                <Badge className={ORDER_STATUS_COLORS[order.status as string] || ORDER_STATUS_COLORS.PENDING}>
+   613→   613→                  {ORDER_STATUS_LABELS[order.status as string] || order.status}
+   614→   614→                </Badge>
+   615→   615→              </div>
+   616→   616→              <p className="text-sm text-muted-foreground mb-1">{merchant?.businessName || 'Marchand'}</p>
+   617→   617→              <div className="flex items-center justify-between">
+   618→   618→                <p className="text-xs text-muted-foreground">
+   619→   619→                  {order.createdAt ? new Date(order.createdAt as string).toLocaleDateString('fr-FR') : ''}
+   620→   620→                </p>
+   621→   621→                <p className="text-sm font-bold text-emerald-600">{formatPrice(order.total as number || 0)}</p>
+   622→   622→              </div>
+   623→   623→            </CardContent>
+   624→   624→          </Card>
+   625→   625→        );
+   626→   626→      })}
+   627→   627→    </div>
+   628→   628→  );
+   629→   629→}
+   630→   630→
+   631→   631→// ─── Earnings View ──────────────────────────────────────────────────────────
+   632→   632→
+   633→   633→function EarningsView() {
+   634→   634→  const [stats, setStats] = useState({ totalRevenue: 0, totalDeliveriesToday: 0 });
+   635→   635→  const [weeklyData, setWeeklyData] = useState<{ day: string; amount: number }[]>([]);
+   636→   636→  const [loading, setLoading] = useState(true);
+   637→   637→
+   638→   638→  useEffect(() => {
+   639→   639→    const fetchStats = async () => {
+   640→   640→      try {
+   641→   641→        const res = await fetch('/api/stats');
+   642→   642→        if (res.ok) {
+   643→   643→          const data = await res.json();
+   644→   644→          setStats({
+   645→   645→            totalRevenue: data.totalRevenue || 0,
+   646→   646→            totalDeliveriesToday: data.totalDeliveriesToday || 0,
+   647→   647→          });
+   648→   648→        }
+   649→   649→      } catch {
+   650→   650→        // keep defaults
+   651→   651→      } finally {
+   652→   652→        setLoading(false);
+   653→   653→      }
+   654→   654→    };
+   655→   655→    fetchStats();
+   656→   656→  }, []);
+   657→   657→
+   658→   658→  const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+   659→   659→  const weekData = days.map((day) => ({
+   660→   660→    day,
+   661→   661→    amount: weeklyData.find((d) => d.day === day)?.amount || 0,
+   662→   662→  }));
+   663→   663→
+   664→   664→  if (loading) {
+   665→   665→    return (
+   666→   666→      <div className="space-y-4">
+   667→   667→        <Skeleton className="h-32 w-full rounded-2xl" />
+   668→   668→        <Skeleton className="h-64 w-full rounded-2xl" />
+   669→   669→      </div>
+   670→   670→    );
+   671→   671→  }
+   672→   672→
+   673→   673→  if (stats.totalRevenue === 0 && weeklyData.length === 0) {
+   674→   674→    return <EmptyState icon={Wallet} title="Aucun revenu" description="Effectuez des livraisons pour voir vos revenus" />;
+   675→   675→  }
+   676→   676→
+   677→   677→  return (
+   678→   678→    <div className="space-y-4 pb-4">
+   679→   679→      {/* Summary Cards */}
+   680→   680→      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+   681→   681→        <Card className="border-0 shadow-md glass-card">
+   682→   682→          <CardContent className="p-4 text-center">
+   683→   683→            <TrendingUp className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
+   684→   684→            <p className="text-2xl font-bold gradient-text">{formatPrice(stats.totalRevenue)}</p>
+   685→   685→            <p className="text-xs text-muted-foreground mt-1">Total revenus</p>
+   686→   686→          </CardContent>
+   687→   687→        </Card>
+   688→   688→        <Card className="border-0 shadow-md glass-card">
+   689→   689→          <CardContent className="p-4 text-center">
+   690→   690→            <Clock className="mx-auto mb-2 h-6 w-6 text-amber-500" />
+   691→   691→            <p className="text-2xl font-bold">{formatPrice(Math.round(stats.totalRevenue / 30))}</p>
+   692→   692→            <p className="text-xs text-muted-foreground mt-1">Aujourd&apos;hui (estimé)</p>
+   693→   693→          </CardContent>
+   694→   694→        </Card>
+   695→   695→        <Card className="border-0 shadow-md glass-card">
+   696→   696→          <CardContent className="p-4 text-center">
+   697→   697→            <Package className="mx-auto mb-2 h-6 w-6 text-blue-600" />
+   698→   698→            <p className="text-2xl font-bold">{stats.totalDeliveriesToday}</p>
+   699→   699→            <p className="text-xs text-muted-foreground mt-1">Livraisons aujourd&apos;hui</p>
+   700→   700→          </CardContent>
+   701→   701→        </Card>
+   702→   702→      </div>
+   703→   703→
+   704→   704→      {/* Weekly Chart */}
+   705→   705→      <Card className="border-0 shadow-md glass-card">
+   706→   706→        <CardHeader>
+   707→   707→          <CardTitle className="text-base">Revenus de la semaine</CardTitle>
+   708→   708→        </CardHeader>
+   709→   709→        <CardContent>
+   710→   710→          <div className="h-64">
+   711→   711→            <ResponsiveContainer width="100%" height="100%">
+   712→   712→              <BarChart data={weekData}>
+   713→   713→                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+   714→   714→                <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+   715→   715→                <YAxis tick={{ fontSize: 12 }} />
+   716→   716→                <Tooltip
+   717→   717→                  formatter={(value: number) => [formatPrice(value), 'Revenus']}
+   718→   718→                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+   719→   719→                />
+   720→   720→                <Bar dataKey="amount" fill="#10b981" radius={[6, 6, 0, 0]} />
+   721→   721→              </BarChart>
+   722→   722→            </ResponsiveContainer>
+   723→   723→          </div>
+   724→   724→        </CardContent>
+   725→   725→      </Card>
+   726→   726→
+   727→   727→      {/* Transactions */}
+   728→   728→      <Card className="border-0 shadow-md glass-card">
+   729→   729→        <CardHeader>
+   730→   730→          <CardTitle className="text-base">Dernières transactions</CardTitle>
+   731→   731→        </CardHeader>
+   732→   732→        <CardContent>
+   733→   733→          <EmptyState icon={CreditCard} title="Aucune transaction" description="Les transactions apparaîtront ici" />
+   734→   734→        </CardContent>
+   735→   735→      </Card>
+   736→   736→    </div>
+   737→   737→  );
+   738→   738→}
+   739→   739→
+   740→   740→// ─── Ratings View ───────────────────────────────────────────────────────────
+   741→   741→
+   742→   742→function RatingsView() {
+   743→   743→  const [ratings, setRatings] = useState<{ average: number; total: number; reviews: { name: string; rating: number; comment: string; date: string }[] }>({
+   744→   744→    average: 0, total: 0, reviews: [],
+   745→   745→  });
+   746→   746→  const [loading, setLoading] = useState(true);
+   747→   747→
+   748→   748→  useEffect(() => {
+   749→   749→    const fetchRatings = async () => {
+   750→   750→      try {
+   751→   751→        const res = await fetch('/api/stats');
+   752→   752→        if (res.ok) {
+   753→   753→          const data = await res.json();
+   754→   754→          setRatings({
+   755→   755→            average: data.avgRating || 0,
+   756→   756→            total: 0,
+   757→   757→            reviews: [],
+   758→   758→          });
+   759→   759→        }
+   760→   760→      } catch {
+   761→   761→        // keep defaults
+   762→   762→      } finally {
+   763→   763→        setLoading(false);
+   764→   764→      }
+   765→   765→    };
+   766→   766→    fetchRatings();
+   767→   767→  }, []);
+   768→   768→
+   769→   769→  if (loading) {
+   770→   770→    return (
+   771→   771→      <div className="space-y-4">
+   772→   772→        <Skeleton className="h-32 w-full rounded-2xl" />
+   773→   773→        <Skeleton className="h-48 w-full rounded-2xl" />
+   774→   774→      </div>
+   775→   775→    );
+   776→   776→  }
+   777→   777→
+   778→   778→  if (ratings.average === 0 && ratings.total === 0) {
+   779→   779→    return <EmptyState icon={Star} title="Aucune évaluation" description="Les évaluations de vos clients apparaîtront ici" />;
+   780→   780→  }
+   781→   781→
+   782→   782→  const distribution = [
+   783→   783→    { stars: 5, count: 0, percentage: 0 },
+   784→   784→    { stars: 4, count: 0, percentage: 0 },
+   785→   785→    { stars: 3, count: 0, percentage: 0 },
+   786→   786→    { stars: 2, count: 0, percentage: 0 },
+   787→   787→    { stars: 1, count: 0, percentage: 0 },
+   788→   788→  ];
+   789→   789→
+   790→   790→  return (
+   791→   791→    <div className="space-y-4 pb-4">
+   792→   792→      {/* Average Rating */}
+   793→   793→      <Card className="border-0 shadow-md glass-card">
+   794→   794→        <CardContent className="p-6 text-center">
+   795→   795→          <div className="flex items-center justify-center gap-1 mb-2">
+   796→   796→            {Array.from({ length: 5 }).map((_, i) => (
+   797→   797→              <Star
+   798→   798→                key={i}
+   799→   799→                className={`h-8 w-8 ${i < Math.round(ratings.average) ? 'text-amber-500 fill-amber-500' : 'text-gray-300'}`}
+   800→   800→              />
+   801→   801→            ))}
+   802→   802→          </div>
+   803→   803→          <p className="text-4xl font-bold">{ratings.average.toFixed(1)}</p>
+   804→   804→          <p className="text-sm text-muted-foreground mt-1">{ratings.total} évaluation{ratings.total !== 1 ? 's' : ''}</p>
+   805→   805→        </CardContent>
+   806→   806→      </Card>
+   807→   807→
+   808→   808→      {/* Distribution */}
+   809→   809→      <Card className="border-0 shadow-md glass-card">
+   810→   810→        <CardHeader>
+   811→   811→          <CardTitle className="text-base">Répartition des notes</CardTitle>
+   812→   812→        </CardHeader>
+   813→   813→        <CardContent className="space-y-3">
+   814→   814→          {distribution.map((d) => (
+   815→   815→            <div key={d.stars} className="flex items-center gap-3">
+   816→   816→              <span className="text-sm font-medium w-12">{d.stars} étoile{d.stars > 1 ? 's' : ''}</span>
+   817→   817→              <Progress value={d.percentage} className="flex-1 h-2" />
+   818→   818→              <span className="text-sm text-muted-foreground w-8 text-right">{d.percentage}%</span>
+   819→   819→            </div>
+   820→   820→          ))}
+   821→   821→        </CardContent>
+   822→   822→      </Card>
+   823→   823→
+   824→   824→      {/* Reviews */}
+   825→   825→      <Card className="border-0 shadow-md glass-card">
+   826→   826→        <CardHeader>
+   827→   827→          <CardTitle className="text-base">Avis récents</CardTitle>
+   828→   828→        </CardHeader>
+   829→   829→        <CardContent>
+   830→   830→          {ratings.reviews.length === 0 ? (
+   831→   831→            <p className="text-sm text-muted-foreground text-center py-4">Aucun avis pour le moment</p>
+   832→   832→          ) : (
+   833→   833→            <div className="space-y-4">
+   834→   834→              {ratings.reviews.map((review, i) => (
+   835→   835→                <div key={i} className="border-b last:border-0 pb-4 last:pb-0">
+   836→   836→                  <div className="flex items-center justify-between mb-1">
+   837→   837→                    <div className="flex items-center gap-2">
+   838→   838→                      <Avatar className="h-8 w-8">
+   839→   839→                        <AvatarFallback className="text-xs">{review.name?.[0] || '?'}</AvatarFallback>
+   840→   840→                      </Avatar>
+   841→   841→                      <p className="text-sm font-semibold">{review.name}</p>
+   842→   842→                    </div>
+   843→   843→                    <span className="text-xs text-muted-foreground">{review.date}</span>
+   844→   844→                  </div>
+   845→   845→                  <div className="flex items-center gap-1 mb-1">
+   846→   846→                    {Array.from({ length: 5 }).map((_, i) => (
+   847→   847→                      <Star key={i} className={`h-3 w-3 ${i < review.rating ? 'text-amber-500 fill-amber-500' : 'text-gray-300'}`} />
+   848→   848→                    ))}
+   849→   849→                  </div>
+   850→   850→                  <p className="text-sm text-muted-foreground">{review.comment}</p>
+   851→   851→                </div>
+   852→   852→              ))}
+   853→   853→            </div>
+   854→   854→          )}
+   855→   855→        </CardContent>
+   856→   856→      </Card>
+   857→   857→    </div>
+   858→   858→  );
+   859→   859→}
+   860→   860→
+   861→   861→// ─── Wallet View ────────────────────────────────────────────────────────────
+   862→   862→
+   863→   863→function WalletView() {
+   864→   864→  const [balance, setBalance] = useState(0);
+   865→   865→  const [transactions, setTransactions] = useState<{ id: string; type: string; description: string; amount: number; date: string }[]>([]);
+   866→   866→  const [loading, setLoading] = useState(true);
+   867→   867→  const [dialogOpen, setDialogOpen] = useState(false);
+   868→   868→  const [dialogType, setDialogType] = useState<'add' | 'withdraw'>('add');
+   869→   869→  const [amount, setAmount] = useState('');
+   870→   870→
+   871→   871→  useEffect(() => {
+   872→   872→    const fetchWallet = async () => {
+   873→   873→      try {
+   874→   874→        const res = await fetch('/api/stats');
+   875→   875→        if (res.ok) {
+   876→   876→          const data = await res.json();
+   877→   877→          setBalance(data.totalRevenue || 0);
+   878→   878→        }
+   879→   879→      } catch {
+   880→   880→        // keep defaults
+   881→   881→      } finally {
+   882→   882→        setLoading(false);
+   883→   883→      }
+   884→   884→    };
+   885→   885→    fetchWallet();
+   886→   886→  }, []);
+   887→   887→
+   888→   888→  if (loading) {
+   889→   889→    return (
+   890→   890→      <div className="space-y-4">
+   891→   891→        <Skeleton className="h-40 w-full rounded-2xl" />
+   892→   892→        <Skeleton className="h-48 w-full rounded-2xl" />
+   893→   893→      </div>
+   894→   894→    );
+   895→   895→  }
+   896→   896→
+   897→   897→  return (
+   898→   898→    <div className="space-y-4 pb-4">
+   899→   899→      {/* Balance Card */}
+   900→   900→      <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-600 to-emerald-700 text-white">
+   901→   901→        <CardContent className="p-6">
+   902→   902→          <p className="text-sm text-white/80">Solde disponible</p>
+   903→   903→          <p className="text-3xl font-bold mt-1">{formatPrice(balance)}</p>
+   904→   904→          <div className="flex gap-3 mt-4">
+   905→   905→            <Button
+   906→   906→              variant="secondary"
+   907→   907→              className="flex-1"
+   908→   908→              onClick={() => { setDialogType('add'); setDialogOpen(true); }}
+   909→   909→            >
+   910→   910→              <Plus className="mr-2 h-4 w-4" />
+   911→   911→              Ajouter
+   912→   912→            </Button>
+   913→   913→            <Button
+   914→   914→              variant="secondary"
+   915→   915→              className="flex-1"
+   916→   916→              onClick={() => { setDialogType('withdraw'); setDialogOpen(true); }}
+   917→   917→            >
+   918→   918→              <Minus className="mr-2 h-4 w-4" />
+   919→   919→              Retirer
+   920→   920→            </Button>
+   921→   921→          </div>
+   922→   922→        </CardContent>
+   923→   923→      </Card>
+   924→   924→
+   925→   925→      {/* Transactions */}
+   926→   926→      <Card className="border-0 shadow-md glass-card">
+   927→   927→        <CardHeader>
+   928→   928→          <CardTitle className="text-base">Historique des transactions</CardTitle>
+   929→   929→        </CardHeader>
+   930→   930→        <CardContent>
+   931→   931→          {transactions.length === 0 ? (
+   932→   932→            <EmptyState icon={CreditCard} title="Aucune transaction" description="Vos transactions apparaîtront ici" />
+   933→   933→          ) : (
+   934→   934→            <div className="space-y-3 max-h-96 overflow-y-auto">
+   935→   935→              {transactions.map((tx) => (
+   936→   936→                <div key={tx.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
+   937→   937→                  <div className={`rounded-full p-2 ${tx.type === 'credit' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+   938→   938→                    {tx.type === 'credit' ? (
+   939→   939→                      <ArrowDownLeft className="h-4 w-4 text-emerald-600" />
+   940→   940→                    ) : (
+   941→   941→                      <ArrowUpRight className="h-4 w-4 text-red-600" />
+   942→   942→                    )}
+   943→   943→                  </div>
+   944→   944→                  <div className="flex-1 min-w-0">
+   945→   945→                    <p className="text-sm font-medium truncate">{tx.description}</p>
+   946→   946→                    <p className="text-xs text-muted-foreground">{tx.date}</p>
+   947→   947→                  </div>
+   948→   948→                  <p className={`text-sm font-bold ${tx.type === 'credit' ? 'text-emerald-600' : 'text-red-600'}`}>
+   949→   949→                    {tx.type === 'credit' ? '+' : '-'}{formatPrice(tx.amount)}
+   950→   950→                  </p>
+   951→   951→                </div>
+   952→   952→              ))}
+   953→   953→            </div>
+   954→   954→          )}
+   955→   955→        </CardContent>
+   956→   956→      </Card>
+   957→   957→
+   958→   958→      {/* Add/Withdraw Dialog */}
+   959→   959→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   960→   960→        <DialogContent>
+   961→   961→          <DialogHeader>
+   962→   962→            <DialogTitle>{dialogType === 'add' ? 'Ajouter des fonds' : 'Retirer des fonds'}</DialogTitle>
+   963→   963→            <DialogDescription>
+   964→   964→              {dialogType === 'add' ? 'Entrez le montant à ajouter à votre portefeuille.' : 'Entrez le montant à retirer de votre portefeuille.'}
+   965→   965→            </DialogDescription>
+   966→   966→          </DialogHeader>
+   967→   967→          <div className="space-y-4">
+   968→   968→            <Input
+   969→   969→              type="number"
+   970→   970→              placeholder="Montant en FCFA"
+   971→   971→              value={amount}
+   972→   972→              onChange={(e) => setAmount(e.target.value)}
+   973→   973→            />
+   974→   974→          </div>
+   975→   975→          <DialogFooter>
+   976→   976→            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+   977→   977→            <Button
+   978→   978→              className="bg-emerald-600 hover:bg-emerald-700"
+   979→   979→              onClick={() => {
+   980→   980→                toast.success(dialogType === 'add' ? 'Fonds ajoutés avec succès' : 'Retrait effectué');
+   981→   981→                setDialogOpen(false);
+   982→   982→                setAmount('');
+   983→   983→              }}
+   984→   984→            >
+   985→   985→              {dialogType === 'add' ? 'Ajouter' : 'Retirer'}
+   986→   986→            </Button>
+   987→   987→          </DialogFooter>
+   988→   988→        </DialogContent>
+   989→   989→      </Dialog>
+   990→   990→    </div>
+   991→   991→  );
+   992→   992→}
+   993→   993→
+   994→   994→// ─── Support View ───────────────────────────────────────────────────────────
+   995→   995→
+   996→   996→function SupportView() {
+   997→   997→  const [subject, setSubject] = useState('');
+   998→   998→  const [message, setMessage] = useState('');
+   999→   999→  const [sending, setSending] = useState(false);
+  1000→  1000→
+  1001→  1001→  const handleSend = async () => {
+  1002→  1002→    if (!subject.trim() || !message.trim()) {
+  1003→  1003→      toast.error('Veuillez remplir tous les champs');
+  1004→  1004→      return;
+  1005→  1005→    }
+  1006→  1006→    setSending(true);
+  1007→  1007→    try {
+  1008→  1008→      const res = await fetch('/api/support', {
+  1009→  1009→        method: 'POST',
+  1010→  1010→        headers: { 'Content-Type': 'application/json' },
+  1011→  1011→        body: JSON.stringify({ subject, message }),
+  1012→  1012→      });
+  1013→  1013→      if (res.ok) {
+  1014→  1014→        toast.success('Message envoyé avec succès');
+  1015→  1015→        setSubject('');
+  1016→  1016→        setMessage('');
+  1017→  1017→      } else {
+  1018→  1018→        toast.error("Erreur lors de l'envoi");
+  1019→  1019→      }
+  1020→  1020→    } catch {
+  1021→  1021→      toast.error("Erreur de connexion");
+  1022→  1022→    } finally {
+  1023→  1023→      setSending(false);
+  1024→  1024→    }
+  1025→  1025→  };
+  1026→  1026→
+  1027→  1027→  return (
+  1028→  1028→    <div className="space-y-4 pb-4">
+  1029→  1029→      <Card className="border-0 shadow-md glass-card">
+  1030→  1030→        <CardHeader>
+  1031→  1031→          <CardTitle className="text-base flex items-center gap-2">
+  1032→  1032→            <Headphones className="h-5 w-5 text-emerald-600" />
+  1033→  1033→            Support
+  1034→  1034→          </CardTitle>
+  1035→  1035→          <CardDescription>Notre équipe est là pour vous aider</CardDescription>
+  1036→  1036→        </CardHeader>
+  1037→  1037→        <CardContent className="space-y-4">
+  1038→  1038→          <div>
+  1039→  1039→            <label className="text-sm font-medium mb-1.5 block">Sujet</label>
+  1040→  1040→            <Input
+  1041→  1041→              placeholder="Décrivez votre problème..."
+  1042→  1042→              value={subject}
+  1043→  1043→              onChange={(e) => setSubject(e.target.value)}
+  1044→  1044→            />
+  1045→  1045→          </div>
+  1046→  1046→          <div>
+  1047→  1047→            <label className="text-sm font-medium mb-1.5 block">Message</label>
+  1048→  1048→            <Textarea
+  1049→  1049→              placeholder="Détaillez votre demande..."
+  1050→  1050→              value={message}
+  1051→  1051→              onChange={(e) => setMessage(e.target.value)}
+  1052→  1052→              rows={5}
+  1053→  1053→            />
+  1054→  1054→          </div>
+  1055→  1055→          <Button
+  1056→  1056→            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700"
+  1057→  1057→            onClick={handleSend}
+  1058→  1058→            disabled={sending}
+  1059→  1059→          >
+  1060→  1060→            {sending ? (
+  1061→  1061→              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
+  1062→  1062→                <Send className="mr-2 h-4 w-4" />
+  1063→  1063→              </motion.div>
+  1064→  1064→            ) : (
+  1065→  1065→              <Send className="mr-2 h-4 w-4" />
+  1066→  1066→            )}
+  1067→  1067→            Envoyer
+  1068→  1068→          </Button>
+  1069→  1069→        </CardContent>
+  1070→  1070→      </Card>
+  1071→  1071→    </div>
+  1072→  1072→  );
+  1073→  1073→}
+  1074→  1074→
+  1075→  1075→// ─── Profile View ───────────────────────────────────────────────────────────
+  1076→  1076→
+  1077→  1077→function ProfileView() {
+  1078→  1078→  const user = useAuthStore((s) => s.user);
+  1079→  1079→  const logout = useAuthStore((s) => s.logout);
+  1080→  1080→  const [vehicleInfo, setVehicleInfo] = useState({ type: '', plate: '', color: '' });
+  1081→  1081→  const [editing, setEditing] = useState(false);
+  1082→  1082→
+  1083→  1083→  return (
+  1084→  1084→    <div className="space-y-4 pb-4">
+  1085→  1085→      {/* User Info */}
+  1086→  1086→      <Card className="border-0 shadow-md glass-card">
+  1087→  1087→        <CardContent className="p-6">
+  1088→  1088→          <div className="flex items-center gap-4 mb-4">
+  1089→  1089→            <Avatar className="h-16 w-16 border-2 border-emerald-500">
+  1090→  1090→              <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xl font-bold">
+  1091→  1091→                {user ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() : 'LV'}
+  1092→  1092→              </AvatarFallback>
+  1093→  1093→            </Avatar>
+  1094→  1094→            <div>
+  1095→  1095→              <p className="text-xl font-bold">{user ? `${user.firstName} ${user.lastName}` : 'Livreur'}</p>
+  1096→  1096→              <p className="text-sm text-muted-foreground">{user?.email || ''}</p>
+  1097→  1097→            </div>
+  1098→  1098→          </div>
+  1099→  1099→          {user?.isVerified && (
+  1100→  1100→            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+  1101→  1101→              <ShieldCheck className="mr-1 h-3 w-3" />
+  1102→  1102→              Vérifié
+  1103→  1103→            </Badge>
+  1104→  1104→          )}
+  1105→  1105→        </CardContent>
+  1106→  1106→      </Card>
+  1107→  1107→
+  1108→  1108→      {/* Vehicle Info */}
+  1109→  1109→      <Card className="border-0 shadow-md glass-card">
+  1110→  1110→        <CardHeader className="flex flex-row items-center justify-between">
+  1111→  1111→          <CardTitle className="text-base flex items-center gap-2">
+  1112→  1112→            <Truck className="h-5 w-5 text-emerald-600" />
+  1113→  1113→            Informations véhicule
+  1114→  1114→          </CardTitle>
+  1115→  1115→          <Button variant="ghost" size="sm" onClick={() => setEditing(!editing)}>
+  1116→  1116→            {editing ? 'Annuler' : 'Modifier'}
+  1117→  1117→          </Button>
+  1118→  1118→        </CardHeader>
+  1119→  1119→        <CardContent className="space-y-3">
+  1120→  1120→          <div>
+  1121→  1121→            <label className="text-sm font-medium mb-1.5 block">Type de véhicule</label>
+  1122→  1122→            <Input
+  1123→  1123→              placeholder="Ex: Moto, Voiture..."
+  1124→  1124→              value={vehicleInfo.type}
+  1125→  1125→              onChange={(e) => setVehicleInfo({ ...vehicleInfo, type: e.target.value })}
+  1126→  1126→              disabled={!editing}
+  1127→  1127→            />
+  1128→  1128→          </div>
+  1129→  1129→          <div>
+  1130→  1130→            <label className="text-sm font-medium mb-1.5 block">Immatriculation</label>
+  1131→  1131→            <Input
+  1132→  1132→              placeholder="Ex: AK-0452-BM"
+  1133→  1133→              value={vehicleInfo.plate}
+  1134→  1134→              onChange={(e) => setVehicleInfo({ ...vehicleInfo, plate: e.target.value })}
+  1135→  1135→              disabled={!editing}
+  1136→  1136→            />
+  1137→  1137→          </div>
+  1138→  1138→          <div>
+  1139→  1139→            <label className="text-sm font-medium mb-1.5 block">Couleur</label>
+  1140→  1140→            <Input
+  1141→  1141→              placeholder="Ex: Rouge, Noir..."
+  1142→  1142→              value={vehicleInfo.color}
+  1143→  1143→              onChange={(e) => setVehicleInfo({ ...vehicleInfo, color: e.target.value })}
+  1144→  1144→              disabled={!editing}
+  1145→  1145→            />
+  1146→  1146→          </div>
+  1147→  1147→          {editing && (
+  1148→  1148→            <Button
+  1149→  1149→              className="w-full bg-emerald-600 hover:bg-emerald-700"
+  1150→  1150→              onClick={() => {
+  1151→  1151→                setEditing(false);
+  1152→  1152→                toast.success('Informations véhicule mises à jour');
+  1153→  1153→              }}
+  1154→  1154→            >
+  1155→  1155→              Enregistrer
+  1156→  1156→            </Button>
+  1157→  1157→          )}
+  1158→  1158→        </CardContent>
+  1159→  1159→      </Card>
+  1160→  1160→
+  1161→  1161→      {/* Logout */}
+  1162→  1162→      <Button
+  1163→  1163→        variant="outline"
+  1164→  1164→        className="w-full h-12 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30"
+  1165→  1165→        onClick={logout}
+  1166→  1166→      >
+  1167→  1167→        <LogOut className="mr-2 h-5 w-5" />
+  1168→  1168→        Se déconnecter
+  1169→  1169→      </Button>
+  1170→  1170→    </div>
+  1171→  1171→  );
+  1172→  1172→}
+  1173→  1173→
+  1174→  1174→// ─── Notifications View ─────────────────────────────────────────────────────
+  1175→  1175→
+  1176→  1176→function NotificationsView() {
+  1177→  1177→  return <EmptyState icon={Bell} title="Aucune notification" description="Vos notifications apparaîtront ici" />;
+  1178→  1178→}
+  1179→  1179→
+  1180→  1180→// ─── Chat View ──────────────────────────────────────────────────────────────
+  1181→  1181→
+  1182→  1182→function ChatView() {
+  1183→  1183→  return <EmptyState icon={MessageCircle} title="Aucune conversation" description="Vos conversations avec les clients apparaîtront ici" />;
+  1184→  1184→}
+  1185→  1185→
+  1186→  1186→// ─── Documents View ─────────────────────────────────────────────────────────
+  1187→  1187→
+  1188→  1188→const DOCUMENT_TYPES = [
+  1189→  1189→  { id: 'id_card', name: "Carte d'identité nationale", description: "Pièce d'identité en cours de validité" },
+  1190→  1190→  { id: 'license', name: 'Permis de conduire', description: 'Permis moto ou voiture catégorie A/B' },
+  1191→  1191→  { id: 'registration', name: "Carte grise du véhicule", description: "Enregistrement du véhicule" },
+  1192→  1192→  { id: 'selfie', name: 'Selfie avec pièce', description: "Photo de vous avec votre pièce d'identité" },
+  1193→  1193→];
+  1194→  1194→
+  1195→  1195→function DocumentsView() {
+  1196→  1196→  const [documents, setDocuments] = useState<Record<string, 'pending' | 'submitted' | 'verified'>>({});
+  1197→  1197→
+  1198→  1198→  const handleUpload = (docId: string, name: string) => {
+  1199→  1199→    const input = document.createElement('input');
+  1200→  1200→    input.type = 'file';
+  1201→  1201→    input.accept = 'image/*,.pdf';
+  1202→  1202→    input.onchange = () => {
+  1203→  1203→      if (input.files && input.files.length > 0) {
+  1204→  1204→        setDocuments((prev) => ({ ...prev, [docId]: 'submitted' }));
+  1205→  1205→        toast.success('Document soumis');
+  1206→  1206→      }
+  1207→  1207→    };
+  1208→  1208→    input.click();
+  1209→  1209→  };
+  1210→  1210→
+  1211→  1211→  return (
+  1212→  1212→    <div className="space-y-4 pb-4">
+  1213→  1213→      <Card className="border-0 shadow-md glass-card">
+  1214→  1214→        <CardHeader>
+  1215→  1215→          <CardTitle className="text-base flex items-center gap-2">
+  1216→  1216→            <FileText className="h-5 w-5 text-emerald-600" />
+  1217→  1217→            Documents de vérification
+  1218→  1218→          </CardTitle>
+  1219→  1219→          <CardDescription>Soumettez vos documents pour vérification</CardDescription>
+  1220→  1220→        </CardHeader>
+  1221→  1221→        <CardContent className="space-y-3">
+  1222→  1222→          {DOCUMENT_TYPES.map((doc) => {
+  1223→  1223→            const status = documents[doc.id] || 'pending';
+  1224→  1224→            return (
+  1225→  1225→              <div key={doc.id} className="flex items-center gap-3 p-4 rounded-xl border bg-card">
+  1226→  1226→                <div className={`rounded-full p-2 ${
+  1227→  1227→                  status === 'verified' ? 'bg-emerald-100 dark:bg-emerald-900/30' :
+  1228→  1228→                  status === 'submitted' ? 'bg-amber-100 dark:bg-amber-900/30' :
+  1229→  1229→                  'bg-gray-100 dark:bg-gray-900'
+  1230→  1230→                }`}>
+  1231→  1231→                  <FileText className={`h-5 w-5 ${
+  1232→  1232→                    status === 'verified' ? 'text-emerald-600' :
+  1233→  1233→                    status === 'submitted' ? 'text-amber-600' :
+  1234→  1234→                    'text-gray-400'
+  1235→  1235→                  }`} />
+  1236→  1236→                </div>
+  1237→  1237→                <div className="flex-1 min-w-0">
+  1238→  1238→                  <p className="text-sm font-semibold">{doc.name}</p>
+  1239→  1239→                  <p className="text-xs text-muted-foreground">{doc.description}</p>
+  1240→  1240→                </div>
+  1241→  1241→                <div className="flex items-center gap-2">
+  1242→  1242→                  <Badge variant="secondary" className={
+  1243→  1243→                    status === 'verified' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+  1244→  1244→                    status === 'submitted' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+  1245→  1245→                    'bg-gray-100 text-gray-500'
+  1246→  1246→                  }>
+  1247→  1247→                    {status === 'verified' ? 'Vérifié' : status === 'submitted' ? 'En cours' : 'Non soumis'}
+  1248→  1248→                  </Badge>
+  1249→  1249→                  <Button variant="ghost" size="icon" onClick={() => handleUpload(doc.id, doc.name)}>
+  1250→  1250→                    <Upload className="h-4 w-4" />
+  1251→  1251→                  </Button>
+  1252→  1252→                </div>
+  1253→  1253→              </div>
+  1254→  1254→            );
+  1255→  1255→          })}
+  1256→  1256→        </CardContent>
+  1257→  1257→      </Card>
+  1258→  1258→    </div>
+  1259→  1259→  );
+  1260→  1260→}
+  1261→  1261→
+  1262→  1262→// ─── View Renderer ──────────────────────────────────────────────────────────
+  1263→  1263→
+  1264→  1264→function ViewRenderer({ view }: { view: string }) {
+  1265→  1265→  switch (view) {
+  1266→  1266→    case 'home': return <HomeView />;
+  1267→  1267→    case 'ride': return <RideView />;
+  1268→  1268→    case 'navigation': return <NavigationView />;
+  1269→  1269→    case 'history': return <HistoryView />;
+  1270→  1270→    case 'earnings': return <EarningsView />;
+  1271→  1271→    case 'ratings': return <RatingsView />;
+  1272→  1272→    case 'wallet': return <WalletView />;
+  1273→  1273→    case 'support': return <SupportView />;
+  1274→  1274→    case 'profile': return <ProfileView />;
+  1275→  1275→    case 'notifications': return <NotificationsView />;
+  1276→  1276→    case 'chat': return <ChatView />;
+  1277→  1277→    case 'documents': return <DocumentsView />;
+  1278→  1278→    default: return <HomeView />;
+  1279→  1279→  }
+  1280→  1280→}
+  1281→  1281→
+  1282→  1282→// ─── Main Driver App ────────────────────────────────────────────────────────
+  1283→  1283→
+  1284→  1284→export default function DriverApp() {
+  1285→  1285→  const { view, navigate } = useDriverNav();
+  1286→  1286→  const [sidebarOpen, setSidebarOpen] = useState(false);
+  1287→  1287→
+  1288→  1288→  const currentNav = NAV_ITEMS.find((item) => item.id === view);
+  1289→  1289→
+  1290→  1290→  return (
+  1291→  1291→    <div className="flex h-full">
+  1292→  1292→      {/* Desktop Sidebar */}
+  1293→  1293→      <aside className="hidden md:flex w-60 flex-col border-r bg-card shrink-0">
+  1294→  1294→        <div className="p-4">
+  1295→  1295→          <h1 className="text-xl font-bold gradient-text">Rapigo Driver</h1>
+  1296→  1296→        </div>
+  1297→  1297→        <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-1">
+  1298→  1298→          {NAV_ITEMS.map((item) => {
+  1299→  1299→            const Icon = item.icon;
+  1300→  1300→            const isActive = view === item.id;
+  1301→  1301→            return (
+  1302→  1302→              <button
+  1303→  1303→                key={item.id}
+  1304→  1304→                onClick={() => navigate(item.id)}
+  1305→  1305→                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+  1306→  1306→                  isActive
+  1307→  1307→                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+  1308→  1308→                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+  1309→  1309→                }`}
+  1310→  1310→              >
+  1311→  1311→                <Icon className="h-4 w-4" />
+  1312→  1312→                {item.label}
+  1313→  1313→              </button>
+  1314→  1314→            );
+  1315→  1315→          })}
+  1316→  1316→        </nav>
+  1317→  1317→      </aside>
+  1318→  1318→
+  1319→  1319→      {/* Main Content */}
+  1320→  1320→      <main className="flex-1 flex flex-col min-h-0">
+  1321→  1321→        {/* Mobile Header */}
+  1322→  1322→        <header className="md:hidden sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b px-4 py-3">
+  1323→  1323→          <div className="flex items-center justify-between">
+  1324→  1324→            <Button
+  1325→  1325→              variant="ghost"
+  1326→  1326→              size="icon"
+  1327→  1327→              onClick={() => setSidebarOpen(true)}
+  1328→  1328→              className="md:hidden"
+  1329→  1329→            >
+  1330→  1330→              <ChevronRight className="h-5 w-5 rotate-180" />
+  1331→  1331→            </Button>
+  1332→  1332→            <h1 className="text-base font-bold gradient-text">Rapigo Driver</h1>
+  1333→  1333→            <Button
+  1334→  1334→              variant="ghost"
+  1335→  1335→              size="icon"
+  1336→  1336→              className="md:hidden"
+  1337→  1337→              onClick={() => navigate('notifications')}
+  1338→  1338→            >
+  1339→  1339→              <Bell className="h-5 w-5" />
+  1340→  1340→            </Button>
+  1341→  1341→          </div>
+  1342→  1342→        </header>
+  1343→  1343→
+  1344→  1344→        {/* Mobile Sidebar Overlay */}
+  1345→  1345→        <AnimatePresence>
+  1346→  1346→          {sidebarOpen && (
+  1347→  1347→            <>
+  1348→  1348→              <motion.div
+  1349→  1349→                initial={{ opacity: 0 }}
+  1350→  1350→                animate={{ opacity: 1 }}
+  1351→  1351→                exit={{ opacity: 0 }}
+  1352→  1352→                className="fixed inset-0 z-40 bg-black/50 md:hidden"
+  1353→  1353→                onClick={() => setSidebarOpen(false)}
+  1354→  1354→              />
+  1355→  1355→              <motion.aside
+  1356→  1356→                initial={{ x: -280 }}
+  1357→  1357→                animate={{ x: 0 }}
+  1358→  1358→                exit={{ x: -280 }}
+  1359→  1359→                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1360→  1360→                className="fixed left-0 top-0 bottom-0 z-50 w-60 bg-card border-r shadow-xl md:hidden"
+  1361→  1361→              >
+  1362→  1362→                <div className="p-4 flex items-center justify-between">
+  1363→  1363→                  <h1 className="text-xl font-bold gradient-text">Rapigo Driver</h1>
+  1364→  1364→                  <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
+  1365→  1365→                    <ArrowLeft className="h-5 w-5" />
+  1366→  1366→                  </Button>
+  1367→  1367→                </div>
+  1368→  1368→                <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-1">
+  1369→  1369→                  {NAV_ITEMS.map((item) => {
+  1370→  1370→                    const Icon = item.icon;
+  1371→  1371→                    const isActive = view === item.id;
+  1372→  1372→                    return (
+  1373→  1373→                      <button
+  1374→  1374→                        key={item.id}
+  1375→  1375→                        onClick={() => { navigate(item.id); setSidebarOpen(false); }}
+  1376→  1376→                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+  1377→  1377→                          isActive
+  1378→  1378→                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+  1379→  1379→                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+  1380→  1380→                        }`}
+  1381→  1381→                      >
+  1382→  1382→                        <Icon className="h-4 w-4" />
+  1383→  1383→                        {item.label}
+  1384→  1384→                      </button>
+  1385→  1385→                    );
+  1386→  1386→                  })}
+  1387→  1387→                </nav>
+  1388→  1388→              </motion.aside>
+  1389→  1389→            </>
+  1390→  1390→          )}
+  1391→  1391→        </AnimatePresence>
+  1392→  1392→
+  1393→  1393→        {/* Desktop Header */}
+  1394→  1394→        <div className="hidden md:block px-6 py-4 border-b">
+  1395→  1395→          <h2 className="text-lg font-bold flex items-center gap-2">
+  1396→  1396→            {currentNav && <currentNav.icon className="h-5 w-5 text-emerald-600" />}
+  1397→  1397→            {currentNav?.label || 'Accueil'}
+  1398→  1398→          </h2>
+  1399→  1399→        </div>
+  1400→  1400→
+  1401→  1401→        {/* Page Content */}
+  1402→  1402→        <div className="flex-1 overflow-y-auto">
+  1403→  1403→          <div className="p-4 md:p-6 max-w-3xl mx-auto">
+  1404→  1404→            <AnimatePresence mode="wait">
+  1405→  1405→              <motion.div
+  1406→  1406→                key={view}
+  1407→  1407→                initial={{ opacity: 0, y: 8 }}
+  1408→  1408→                animate={{ opacity: 1, y: 0 }}
+  1409→  1409→                exit={{ opacity: 0, y: -8 }}
+  1410→  1410→                transition={{ duration: 0.2 }}
+  1411→  1411→              >
+  1412→  1412→                <ViewRenderer view={view} />
+  1413→  1413→              </motion.div>
+  1414→  1414→            </AnimatePresence>
+  1415→  1415→          </div>
+  1416→  1416→        </div>
+  1417→  1417→
+  1418→  1418→        {/* Mobile Bottom Tab Bar */}
+  1419→  1419→        <nav className="md:hidden sticky bottom-0 z-30 bg-background/80 backdrop-blur-lg border-t">
+  1420→  1420→          <div className="flex items-center justify-around py-1">
+  1421→  1421→            {MOBILE_TABS.map((tab) => {
+  1422→  1422→              const Icon = tab.icon;
+  1423→  1423→              const isActive = view === tab.id;
+  1424→  1424→              return (
+  1425→  1425→                <button
+  1426→  1426→                  key={tab.id}
+  1427→  1427→                  onClick={() => navigate(tab.id)}
+  1428→  1428→                  className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-colors min-w-[64px] ${
+  1429→  1429→                    isActive
+  1430→  1430→                      ? 'text-emerald-600'
+  1431→  1431→                      : 'text-muted-foreground'
+  1432→  1432→                  }`}
+  1433→  1433→                >
+  1434→  1434→                  <Icon className="h-5 w-5" />
+  1435→  1435→                  <span className="text-[10px] font-medium">{tab.label}</span>
+  1436→  1436→                </button>
+  1437→  1437→              );
+  1438→  1438→            })}
+  1439→  1439→          </div>
+  1440→  1440→        </nav>
+  1441→  1441→      </main>
+  1442→  1442→    </div>
+  1443→  1443→  );
+  1444→  1444→}

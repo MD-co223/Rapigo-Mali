@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         image: data.image || null,
         images: data.images ? JSON.stringify(data.images) : null,
         isAvailable: data.isAvailable !== false,
-        isFeatured: false,
+        isFeatured: !!data.isFeatured,
       },
     });
     return NextResponse.json(product, { status: 201 });
@@ -80,6 +80,7 @@ export async function PUT(request: NextRequest) {
     if (data.image !== undefined) updateData.image = data.image;
     if (data.images !== undefined) updateData.images = data.images ? JSON.stringify(data.images) : null;
     if (data.isAvailable !== undefined) updateData.isAvailable = data.isAvailable;
+    if (data.isFeatured !== undefined) updateData.isFeatured = data.isFeatured;
 
     const product = await db.product.update({
       where: { id: data.id },

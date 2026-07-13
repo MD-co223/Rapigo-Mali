@@ -105,7 +105,7 @@ export const useDriverNav = create<DriverNavState>()((set) => ({
 }));
 
 // Admin sub-navigation
-type AdminView = 'dashboard' | 'users' | 'merchants' | 'drivers' | 'orders' | 'payments' | 'subscriptions' | 'advertisements' | 'categories' | 'products' | 'support' | 'reports' | 'audit-logs' | 'settings' | 'notifications' | 'cities' | 'profile';
+export type AdminView = 'dashboard' | 'users' | 'merchants' | 'drivers' | 'orders' | 'payments' | 'subscriptions' | 'advertisements' | 'categories' | 'products' | 'support' | 'reports' | 'audit-logs' | 'settings' | 'notifications' | 'cities' | 'profile';
 
 interface AdminNavState {
   view: AdminView;

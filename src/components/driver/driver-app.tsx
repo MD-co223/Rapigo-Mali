@@ -23,6 +23,37 @@ import {
   Send, LogOut, CreditCard, ArrowUpRight, ArrowDownLeft, Route, Timer, CircleDot,
 } from 'lucide-react';
 
+// ─── Types ──────────────────────────────────────────────────────────────
+
+interface OrderData {
+  id?: string;
+  orderNumber?: string;
+  status?: string;
+  deliveryAddress?: string;
+  deliveryCity?: string;
+  deliveryQuartier?: string;
+  paymentMethod?: string;
+  deliveryFee?: number;
+  total?: number;
+  merchantId?: string;
+  clientId?: string;
+  driverId?: string;
+  estimatedTime?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  merchant?: MerchantInfo;
+  driver?: { user?: { firstName?: string; lastName?: string; phone?: string }; [key: string]: any };
+  items?: any[];
+  [key: string]: any;
+}
+
+interface MerchantInfo {
+  businessName?: string;
+  phone?: string;
+  address?: string;
+  [key: string]: any;
+}
+
 // ─── Nav Items ──────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
@@ -95,7 +126,7 @@ function HomeView() {
   const { navigate, data } = useDriverNav();
   const user = useAuthStore((s) => s.user);
   const [isOnline, setIsOnline] = useState(false);
-  const [orders, setOrders] = useState<unknown[]>([]);
+  const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ todayEarnings: 0, todayDeliveries: 0 });
 
@@ -145,9 +176,22 @@ function HomeView() {
     toast.success(next ? 'Vous êtes en ligne' : 'Vous êtes hors ligne');
   };
 
-  const handleAcceptOrder = (order: Record<string, unknown>) => {
-    toast.success('Commande acceptée');
-    navigate('ride', { id: order.id as string });
+  const handleAcceptOrder = async (order: Record<string, unknown>) => {
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CONFIRMED' }),
+      });
+      if (res.ok) {
+        toast.success('Commande acceptée');
+        navigate('ride', { id: order.id as string });
+      } else {
+        toast.error("Erreur lors de l'acceptation");
+      }
+    } catch {
+      toast.error('Erreur de connexion');
+    }
   };
 
   const initials = user ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() : 'LV';
@@ -265,7 +309,7 @@ function HomeView() {
                       <div className="flex-1 space-y-3">
                         <div>
                           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Marchand</p>
-                          <p className="text-sm font-semibold">{(order.merchant as Record<string, unknown>)?.businessName || 'Marchand'}</p>
+                          <p className="text-sm font-semibold">{String((order.merchant as Record<string, unknown>)?.businessName || 'Marchand')}</p>
                         </div>
                         <div>
                           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Livrer à</p>
@@ -286,7 +330,7 @@ function HomeView() {
                       <Separator orientation="vertical" className="h-8" />
                       <div className="text-center">
                         <p className="text-xs text-muted-foreground">Temps est.</p>
-                        <p className="text-base font-bold">~{order.estimatedTime || 30} min</p>
+                        <p className="text-base font-bold">~{String(order.estimatedTime || 30)} min</p>
                       </div>
                     </div>
                     <Button
@@ -310,7 +354,7 @@ function HomeView() {
 
 function RideView() {
   const { view, data, navigate } = useDriverNav();
-  const [order, setOrder] = useState<Record<string, unknown> | null>(null);
+  const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string>('assigned');
 
@@ -322,10 +366,9 @@ function RideView() {
       }
       try {
         setLoading(true);
-        const res = await fetch(`/api/orders?userId=${data.id}`);
+        const res = await fetch(`/api/orders/${data.id}`);
         if (res.ok) {
-          const all = await res.json();
-          const found = Array.isArray(all) ? all.find((o: Record<string, unknown>) => o.id === data.id) : null;
+          const found = await res.json();
           if (found) {
             setOrder(found);
             setStatus(found.status as string || 'CONFIRMED');
@@ -355,7 +398,7 @@ function RideView() {
     return <LoadingCards count={2} />;
   }
 
-  const merchantInfo = order?.merchant as Record<string, unknown> | undefined;
+  const merchantInfo = order?.merchant as MerchantInfo | undefined;
   const driverInfo = order?.driver as Record<string, unknown> | undefined;
   const driverUser = driverInfo?.user as Record<string, unknown> | undefined;
 
@@ -423,12 +466,25 @@ function RideView() {
 
       {/* Actions */}
       <div className="space-y-3">
-        {status !== 'PICKED_UP' && status !== 'IN_TRANSIT' && (
+        {status !== 'PICKED_UP' && status !== 'IN_TRANSIT' && status !== 'DELIVERED' && (
           <Button
             className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => {
-              setStatus('PICKED_UP');
-              toast.success('Colis récupéré !');
+            onClick={async () => {
+              try {
+                const res = await fetch(`/api/orders/${order?.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ status: 'PICKED_UP' }),
+                });
+                if (res.ok) {
+                  setStatus('PICKED_UP');
+                  toast.success('Colis récupéré !');
+                } else {
+                  toast.error('Erreur lors de la mise à jour');
+                }
+              } catch {
+                toast.error('Erreur de connexion');
+              }
             }}
           >
             <Package className="mr-2 h-5 w-5" />
@@ -454,16 +510,31 @@ function RideView() {
           Appeler le client
         </Button>
 
-        <Button
-          className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
-          onClick={() => {
-            toast.success('Commande livrée !');
-            navigate('home');
-          }}
-        >
-          <CheckCircle2 className="mr-2 h-5 w-5" />
-          Livré
-        </Button>
+        {status !== 'DELIVERED' && (
+          <Button
+            className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
+            onClick={async () => {
+              try {
+                const res = await fetch(`/api/orders/${order?.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ status: 'DELIVERED' }),
+                });
+                if (res.ok) {
+                  toast.success('Commande livrée !');
+                  navigate('home');
+                } else {
+                  toast.error('Erreur lors de la livraison');
+                }
+              } catch {
+                toast.error('Erreur de connexion');
+              }
+            }}
+          >
+            <CheckCircle2 className="mr-2 h-5 w-5" />
+            Livré
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -473,7 +544,7 @@ function RideView() {
 
 function NavigationView() {
   const { data, navigate } = useDriverNav();
-  const [order, setOrder] = useState<Record<string, unknown> | null>(null);
+  const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -483,10 +554,9 @@ function NavigationView() {
     }
     const fetchOrder = async () => {
       try {
-        const res = await fetch(`/api/orders?userId=${data.id}`);
+        const res = await fetch(`/api/orders/${data.id}`);
         if (res.ok) {
-          const all = await res.json();
-          const found = Array.isArray(all) ? all.find((o: Record<string, unknown>) => o.id === data.id) : null;
+          const found = await res.json();
           if (found) setOrder(found);
         }
       } catch {
@@ -552,9 +622,22 @@ function NavigationView() {
 
           <Button
             className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => {
-              toast.success('Livraison terminée !');
-              navigate('home');
+            onClick={async () => {
+              try {
+                const res = await fetch(`/api/orders/${order?.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ status: 'DELIVERED' }),
+                });
+                if (res.ok) {
+                  toast.success('Livraison terminée !');
+                  navigate('home');
+                } else {
+                  toast.error('Erreur lors de la livraison');
+                }
+              } catch {
+                toast.error('Erreur de connexion');
+              }
             }}
           >
             <CheckCircle2 className="mr-2 h-5 w-5" />
@@ -570,7 +653,7 @@ function NavigationView() {
 
 function HistoryView() {
   const { navigate } = useDriverNav();
-  const [orders, setOrders] = useState<unknown[]>([]);
+  const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -598,19 +681,20 @@ function HistoryView() {
 
   return (
     <div className="space-y-3 pb-4">
-      {(orders as Record<string, unknown>[]).map((order) => {
-        const merchant = order.merchant as Record<string, unknown> | undefined;
+      {orders.map((order) => {
+        const merchant = order.merchant as MerchantInfo | undefined;
+        const orderStatus = String(order.status || 'PENDING');
         return (
           <Card
-            key={order.id as string}
+            key={order.id || ''}
             className="border-0 shadow-md glass-card cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => navigate('ride', { id: order.id as string })}
+            onClick={() => navigate('ride', { id: order.id || '' })}
           >
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-bold">{order.orderNumber || ''}</p>
-                <Badge className={ORDER_STATUS_COLORS[order.status as string] || ORDER_STATUS_COLORS.PENDING}>
-                  {ORDER_STATUS_LABELS[order.status as string] || order.status}
+                <p className="text-sm font-bold">{String(order.orderNumber || '')}</p>
+                <Badge className={ORDER_STATUS_COLORS[orderStatus] || ORDER_STATUS_COLORS.PENDING}>
+                  {ORDER_STATUS_LABELS[orderStatus] || orderStatus}
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground mb-1">{merchant?.businessName || 'Marchand'}</p>
@@ -700,6 +784,15 @@ function EarningsView() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Withdrawal Button */}
+      <Button
+        className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
+        onClick={() => toast.info('Bientôt disponible')}
+      >
+        <Wallet className="mr-2 h-5 w-5" />
+        Demander un retrait
+      </Button>
 
       {/* Weekly Chart */}
       <Card className="border-0 shadow-md glass-card">
@@ -1186,23 +1279,36 @@ function ChatView() {
 // ─── Documents View ─────────────────────────────────────────────────────────
 
 const DOCUMENT_TYPES = [
-  { id: 'id_card', name: "Carte d'identité nationale", description: "Pièce d'identité en cours de validité" },
-  { id: 'license', name: 'Permis de conduire', description: 'Permis moto ou voiture catégorie A/B' },
-  { id: 'registration', name: "Carte grise du véhicule", description: "Enregistrement du véhicule" },
-  { id: 'selfie', name: 'Selfie avec pièce', description: "Photo de vous avec votre pièce d'identité" },
+  { id: 'id_card', field: 'idCardImage', name: "Carte d'identité nationale", description: "Pièce d'identité en cours de validité" },
+  { id: 'license', field: 'licenseImage', name: 'Permis de conduire', description: 'Permis moto ou voiture catégorie A/B' },
+  { id: 'registration', field: 'vehicleImage', name: "Carte grise du véhicule", description: "Enregistrement du véhicule" },
+  { id: 'selfie', field: 'selfieImage', name: 'Selfie avec pièce', description: "Photo de vous avec votre pièce d'identité" },
 ];
 
-function DocumentsView() {
-  const [documents, setDocuments] = useState<Record<string, 'pending' | 'submitted' | 'verified'>>({});
+type DocStatus = 'pending' | 'submitted' | 'verified';
 
-  const handleUpload = (docId: string, name: string) => {
+function DocumentsView() {
+  const [documents, setDocuments] = useState<Record<string, DocStatus>>({});
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+
+  const handleUpload = (docId: string, docName: string) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*,.pdf';
     input.onchange = () => {
       if (input.files && input.files.length > 0) {
-        setDocuments((prev) => ({ ...prev, [docId]: 'submitted' }));
-        toast.success('Document soumis');
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          setPreviews((prev) => ({ ...prev, [docId]: base64 }));
+          setDocuments((prev) => ({ ...prev, [docId]: 'submitted' }));
+          toast.success(`${docName} soumis avec succès`);
+        };
+        reader.onerror = () => {
+          toast.error("Erreur lors de la lecture du fichier");
+        };
+        reader.readAsDataURL(file);
       }
     };
     input.click();
@@ -1221,24 +1327,31 @@ function DocumentsView() {
         <CardContent className="space-y-3">
           {DOCUMENT_TYPES.map((doc) => {
             const status = documents[doc.id] || 'pending';
+            const preview = previews[doc.id];
             return (
               <div key={doc.id} className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-                <div className={`rounded-full p-2 ${
-                  status === 'verified' ? 'bg-emerald-100 dark:bg-emerald-900/30' :
-                  status === 'submitted' ? 'bg-amber-100 dark:bg-amber-900/30' :
-                  'bg-gray-100 dark:bg-gray-900'
-                }`}>
-                  <FileText className={`h-5 w-5 ${
-                    status === 'verified' ? 'text-emerald-600' :
-                    status === 'submitted' ? 'text-amber-600' :
-                    'text-gray-400'
-                  }`} />
-                </div>
+                {preview ? (
+                  <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0 border">
+                    <img src={preview} alt={doc.name} className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <div className={`rounded-full p-2 shrink-0 ${
+                    status === 'verified' ? 'bg-emerald-100 dark:bg-emerald-900/30' :
+                    status === 'submitted' ? 'bg-amber-100 dark:bg-amber-900/30' :
+                    'bg-gray-100 dark:bg-gray-900'
+                  }`}>
+                    <FileText className={`h-5 w-5 ${
+                      status === 'verified' ? 'text-emerald-600' :
+                      status === 'submitted' ? 'text-amber-600' :
+                      'text-gray-400'
+                    }`} />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold">{doc.name}</p>
                   <p className="text-xs text-muted-foreground">{doc.description}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <Badge variant="secondary" className={
                     status === 'verified' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
                     status === 'submitted' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :

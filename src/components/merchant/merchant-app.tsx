@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { LayoutDashboard, Package, ShoppingCart, BarChart3, Megaphone, Receipt, Crown, Settings, Headphones, Plus, Search, Star, TrendingUp, TrendingDown, Clock, ChevronLeft, ChevronRight, Eye, Pencil, Trash2, Bell, MessageSquare, User, ArrowLeft, Tag, Gift, Copy, Check, CreditCard, MapPin, Phone, Store, ImageIcon, Filter, ArrowUpRight, ArrowDownRight, Users } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, BarChart3, Megaphone, Receipt, Crown, Settings, Headphones, Plus, Search, Star, TrendingUp, TrendingDown, Clock, ChevronLeft, ChevronRight, Eye, Pencil, Trash2, Bell, MessageSquare, User, ArrowLeft, Tag, Gift, Copy, Check, CreditCard, MapPin, Phone, Store, ImageIcon, Filter, ArrowUpRight, ArrowDownRight, Users, X, Upload } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuthStore, useMerchantNav, formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/lib/store';
 import { Button } from '@/components/ui/button';
@@ -221,7 +221,7 @@ export default function MerchantApp() {
 
 // ─── 1. DASHBOARD VIEW ───────────────────────────────────
 function DashboardView({ merchantId, navigate }: { merchantId?: string; navigate: (v: 'orders' | 'add-product' | 'order-detail', d?: Record<string, string>) => void }) {
-  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+  const [stats, setStats] = useState<Record<string, string | number | null | undefined> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -235,7 +235,7 @@ function DashboardView({ merchantId, navigate }: { merchantId?: string; navigate
     })();
   }, [merchantId]);
 
-  const recentOrders = (stats?.recentOrders as Array<Record<string, unknown>>) || [];
+  const recentOrders = (stats?.recentOrders as unknown as Array<Record<string, any>>) || [];
   const kpis = [
     { label: 'Total commandes', value: stats?.totalOrders ?? 0, icon: ShoppingCart, color: 'text-blue-600 dark:text-blue-400' },
     { label: "Revenu du jour", value: formatPrice((stats?.todayRevenue as number) || 0), icon: TrendingUp, color: 'text-emerald-600 dark:text-emerald-400' },
@@ -288,19 +288,20 @@ function DashboardView({ merchantId, navigate }: { merchantId?: string; navigate
             <EmptyState icon={ShoppingCart} title="Aucune commande pour le moment" />
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {recentOrders.map((order: Record<string, unknown>) => {
+              {recentOrders.map((order) => {
                 const items = order.items as Array<Record<string, unknown>> | undefined;
+                const orderStatus = String(order.status || '');
                 return (
                   <div
-                    key={order.id as string}
+                    key={String(order.id)}
                     className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => navigate('order-detail', { id: order.id as string })}
+                    onClick={() => navigate('order-detail', { id: String(order.id) })}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">#{order.orderNumber as string}</span>
-                        <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[order.status as string] || ''}`}>
-                          {ORDER_STATUS_LABELS[order.status as string] || order.status}
+                        <span className="text-sm font-medium">#{String(order.orderNumber)}</span>
+                        <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[orderStatus] || ''}`}>
+                          {ORDER_STATUS_LABELS[orderStatus] || orderStatus}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -321,7 +322,7 @@ function DashboardView({ merchantId, navigate }: { merchantId?: string; navigate
 
 // ─── 2. PRODUCTS VIEW ────────────────────────────────────
 function ProductsView({ merchantId, navigate }: { merchantId?: string; navigate: (v: 'add-product' | 'products', d?: Record<string, string>) => void }) {
-  const [products, setProducts] = useState<Array<Record<string, unknown>>>([]);
+  const [products, setProducts] = useState<Array<Record<string, any>>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -456,8 +457,9 @@ function AddProductView({ merchantId, data, navigate }: { merchantId?: string; d
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [categories, setCategories] = useState<Array<Record<string, unknown>>>([]);
+  const [images, setImages] = useState<string[]>([]);
   const [form, setForm] = useState({
-    name: '', description: '', price: '', comparePrice: '', stock: '', categoryId: '', image: '',
+    name: '', description: '', price: '', comparePrice: '', stock: '', categoryId: '', isAvailable: true, isFeatured: false,
   });
 
   useEffect(() => {
@@ -473,6 +475,15 @@ function AddProductView({ merchantId, data, navigate }: { merchantId?: string; d
           const products: Array<Record<string, unknown>> = await res.json();
           const p = products.find((x) => x.id === data.id);
           if (p) {
+            // Parse images array from product
+            let parsedImages: string[] = [];
+            if (p.images) {
+              try { parsedImages = typeof p.images === 'string' ? JSON.parse(p.images) : (p.images as string[]); } catch { /* ignore */ }
+            }
+            if (p.image && !parsedImages.includes(p.image as string)) {
+              parsedImages.unshift(p.image as string);
+            }
+            setImages(parsedImages);
             setForm({
               name: p.name as string,
               description: (p.description as string) || '',
@@ -480,7 +491,8 @@ function AddProductView({ merchantId, data, navigate }: { merchantId?: string; d
               comparePrice: p.comparePrice ? String(p.comparePrice) : '',
               stock: String(p.stock),
               categoryId: (p.categoryId as string) || '',
-              image: (p.image as string) || '',
+              isAvailable: p.isAvailable !== false,
+              isFeatured: (p.isFeatured as boolean) || false,
             });
           }
         }
@@ -505,7 +517,10 @@ function AddProductView({ merchantId, data, navigate }: { merchantId?: string; d
         stock: parseInt(form.stock) || 0,
         merchantId,
         categoryId: form.categoryId || null,
-        image: form.image || null,
+        image: images[0] || null,
+        images: images.length > 0 ? images : null,
+        isAvailable: form.isAvailable,
+        isFeatured: form.isFeatured,
       };
       if (isEditing) body.id = data!.id;
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -520,7 +535,7 @@ function AddProductView({ merchantId, data, navigate }: { merchantId?: string; d
     setSaving(false);
   };
 
-  const setField = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+  const setField = (key: string, value: string | boolean) => setForm((f) => ({ ...f, [key]: value }));
 
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
 
@@ -574,17 +589,65 @@ function AddProductView({ merchantId, data, navigate }: { merchantId?: string; d
                 </select>
               </div>
             </div>
+            {/* Multi-Image Upload */}
             <div>
-              <label className="text-sm font-medium mb-1 block">URL de l&apos;image</label>
-              <div className="relative">
-                <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input value={form.image} onChange={(e) => setField('image', e.target.value)} placeholder="https://..." className="pl-9" />
+              <label className="text-sm font-medium mb-1 block">Photos du produit</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative w-20 h-20 rounded-xl overflow-hidden border bg-muted group">
+                    <img src={img} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setImages((imgs) => imgs.filter((_, i) => i !== idx))}
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    {idx === 0 && (
+                      <span className="absolute bottom-0 left-0 right-0 text-[8px] text-center bg-black/60 text-white py-0.5">Principale</span>
+                    )}
+                  </div>
+                ))}
+                <label className="w-20 h-20 rounded-xl border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors">
+                  <Upload className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-[9px] text-muted-foreground mt-0.5">Ajouter</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      files.forEach((file) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const result = reader.result as string;
+                          setImages((prev) => [...prev, result]);
+                        };
+                        reader.readAsDataURL(file);
+                      });
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
               </div>
-              {form.image && (
-                <div className="mt-2 w-20 h-20 rounded-xl overflow-hidden border bg-muted">
-                  <img src={form.image} alt="Aperçu" className="w-full h-full object-cover" />
-                </div>
-              )}
+              <p className="text-[11px] text-muted-foreground mt-1">La première photo sera l&apos;image principale</p>
+            </div>
+
+            {/* Availability & Featured Toggles */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-muted-foreground" />
+                <label className="text-sm font-medium">Produit disponible</label>
+              </div>
+              <Switch checked={form.isAvailable as boolean} onCheckedChange={(v) => setField('isAvailable', v)} />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-muted-foreground" />
+                <label className="text-sm font-medium">Produit mis en avant</label>
+              </div>
+              <Switch checked={form.isFeatured as boolean} onCheckedChange={(v) => setField('isFeatured', v)} />
             </div>
           </CardContent>
         </Card>
@@ -602,7 +665,7 @@ function AddProductView({ merchantId, data, navigate }: { merchantId?: string; d
 
 // ─── 4. ORDERS VIEW ──────────────────────────────────────
 function OrdersView({ merchantId, navigate }: { merchantId?: string; navigate: (v: 'order-detail' | 'orders', d?: Record<string, string>) => void }) {
-  const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
+  const [orders, setOrders] = useState<Array<Record<string, any>>>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('all');
 
@@ -829,7 +892,7 @@ function OrderDetailView({ data, navigate }: { data?: Record<string, string>; na
 
 // ─── 6. STATS VIEW ───────────────────────────────────────
 function StatsView({ merchantId }: { merchantId?: string }) {
-  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+  const [stats, setStats] = useState<Record<string, string | number | null | undefined> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -846,9 +909,9 @@ function StatsView({ merchantId }: { merchantId?: string }) {
   if (loading) return <div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}</div>;
   if (!stats) return <EmptyState icon={BarChart3} title="Aucune donnée statistique" />;
 
-  const weeklyRevenue = (stats.weeklyRevenue as Array<{ day: string; revenue: number }>) || [];
-  const ordersByStatus = (stats.ordersByStatus as Array<{ status: string; count: number }>) || [];
-  const topProducts = (stats.topProducts as Array<{ productName: string; _sum: { quantity: number; totalPrice: number } }>) || [];
+  const weeklyRevenue = (stats.weeklyRevenue as unknown as Array<{ day: string; revenue: number }>) || [];
+  const ordersByStatus = (stats.ordersByStatus as unknown as Array<{ status: string; count: number }>) || [];
+  const topProducts = (stats.topProducts as unknown as Array<{ productName: string; _sum: { quantity: number; totalPrice: number } }>) || [];
 
   return (
     <div className="space-y-6">

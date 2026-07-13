@@ -1,0 +1,1429 @@
+     1→     1→'use client';
+     2→     2→import React, { useState, useEffect } from 'react';
+     3→     3→import { motion, AnimatePresence } from 'framer-motion';
+     4→     4→import { toast } from 'sonner';
+     5→     5→import { LayoutDashboard, Package, ShoppingCart, BarChart3, Megaphone, Receipt, Crown, Settings, Headphones, Plus, Search, Star, TrendingUp, TrendingDown, Clock, ChevronLeft, ChevronRight, Eye, Pencil, Trash2, Bell, MessageSquare, User, ArrowLeft, Tag, Gift, Copy, Check, CreditCard, MapPin, Phone, Store, ImageIcon, Filter, ArrowUpRight, ArrowDownRight, Users } from 'lucide-react';
+     6→     6→import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+     7→     7→import { useAuthStore, useMerchantNav, formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/lib/store';
+     8→     8→import { Button } from '@/components/ui/button';
+     9→     9→import { Input } from '@/components/ui/input';
+    10→    10→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+    11→    11→import { Badge } from '@/components/ui/badge';
+    12→    12→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    13→    13→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+    14→    14→import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+    15→    15→import { Separator } from '@/components/ui/separator';
+    16→    16→import { Skeleton } from '@/components/ui/skeleton';
+    17→    17→import { Switch } from '@/components/ui/switch';
+    18→    18→import { Textarea } from '@/components/ui/textarea';
+    19→    19→import { Progress } from '@/components/ui/progress';
+    20→    20→
+    21→    21→// ─── Types ───────────────────────────────────────────────
+    22→    22→interface MerchantInfo {
+    23→    23→  id: string;
+    24→    24→  businessName: string;
+    25→    25→  businessType: string;
+    26→    26→  description: string | null;
+    27→    27→  address: string;
+    28→    28→  phone: string;
+    29→    29→  operatingHours: string;
+    30→    30→  rating: number;
+    31→    31→  city: string;
+    32→    32→  quartier: string | null;
+    33→    33→  subscriptions: Array<{ plan: { name: string; price: number; features: string | null } }>;
+    34→    34→}
+    35→    35→
+    36→    36→// ─── Helpers ─────────────────────────────────────────────
+    37→    37→function EmptyState({ icon: Icon, title, action, onAction }: { icon: React.ElementType; title: string; action?: string; onAction?: () => void }) {
+    38→    38→  return (
+    39→    39→    <div className="flex flex-col items-center justify-center py-16 px-4">
+    40→    40→      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+    41→    41→        <Icon className="w-8 h-8 text-muted-foreground" />
+    42→    42→      </div>
+    43→    43→      <p className="text-muted-foreground text-center text-sm">{title}</p>
+    44→    44→      {action && onAction && (
+    45→    45→        <Button onClick={onAction} variant="outline" className="mt-4" size="sm">
+    46→    46→          {action}
+    47→    47→        </Button>
+    48→    48→      )}
+    49→    49→    </div>
+    50→    50→  );
+    51→    51→}
+    52→    52→
+    53→    53→function LoadingCards() {
+    54→    54→  return (
+    55→    55→    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    56→    56→      {Array.from({ length: 4 }).map((_, i) => (
+    57→    57→        <Card key={i} className="glass-card"><CardContent className="p-4"><Skeleton className="h-4 w-24 mb-2" /><Skeleton className="h-8 w-16" /></CardContent></Card>
+    58→    58→      ))}
+    59→    59→    </div>
+    60→    60→  );
+    61→    61→}
+    62→    62→
+    63→    63→const pageVariants = {
+    64→    64→  initial: { opacity: 0, x: 20 },
+    65→    65→  animate: { opacity: 1, x: 0 },
+    66→    66→  exit: { opacity: 0, x: -20 },
+    67→    67→};
+    68→    68→
+    69→    69→// ─── SIDEBAR ITEMS ───────────────────────────────────────
+    70→    70→const NAV_ITEMS = [
+    71→    71→  { id: 'dashboard' as const, label: 'Tableau de bord', icon: LayoutDashboard },
+    72→    72→  { id: 'products' as const, label: 'Produits', icon: Package },
+    73→    73→  { id: 'orders' as const, label: 'Commandes', icon: ShoppingCart },
+    74→    74→  { id: 'stats' as const, label: 'Statistiques', icon: BarChart3 },
+    75→    75→  { id: 'marketing' as const, label: 'Marketing', icon: Megaphone },
+    76→    76→  { id: 'subscription' as const, label: 'Abonnement', icon: Crown },
+    77→    77→  { id: 'billing' as const, label: 'Facturation', icon: Receipt },
+    78→    78→  { id: 'settings' as const, label: 'Paramètres', icon: Settings },
+    79→    79→  { id: 'support' as const, label: 'Support', icon: Headphones },
+    80→    80→  { id: 'profile' as const, label: 'Profil', icon: User },
+    81→    81→];
+    82→    82→
+    83→    83→// ─── MAIN COMPONENT ──────────────────────────────────────
+    84→    84→export default function MerchantApp() {
+    85→    85→  const { view, data, navigate } = useMerchantNav();
+    86→    86→  const { user, logout } = useAuthStore();
+    87→    87→  const [merchant, setMerchant] = useState<MerchantInfo | null>(null);
+    88→    88→  const [merchantLoading, setMerchantLoading] = useState(true);
+    89→    89→
+    90→    90→  // Fetch merchant info on mount
+    91→    91→  useEffect(() => {
+    92→    92→    if (!user?.id) return;
+    93→    93→    (async () => {
+    94→    94→      try {
+    95→    95→        const res = await fetch(`/api/merchants/me?userId=${user.id}`);
+    96→    96→        if (res.ok) {
+    97→    97→          const m = await res.json();
+    98→    98→          setMerchant(m);
+    99→    99→        }
+   100→   100→      } catch { /* silent */ }
+   101→   101→      setMerchantLoading(false);
+   102→   102→    })();
+   103→   103→  }, [user?.id]);
+   104→   104→
+   105→   105→  const merchantId = merchant?.id;
+   106→   106→
+   107→   107→  return (
+   108→   108→    <div className="flex h-full bg-background">
+   109→   109→      {/* Desktop Sidebar */}
+   110→   110→      <aside className="hidden md:flex flex-col w-60 border-r bg-card/50 backdrop-blur-sm shrink-0">
+   111→   111→        <div className="p-4 border-b">
+   112→   112→          <div className="flex items-center gap-2">
+   113→   113→            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+   114→   114→              <Store className="w-5 h-5 text-primary-foreground" />
+   115→   115→            </div>
+   116→   116→            <div className="min-w-0">
+   117→   117→              <p className="font-semibold text-sm truncate gradient-text">Rapigo</p>
+   118→   118→              <p className="text-xs text-muted-foreground truncate">{merchantLoading ? 'Chargement...' : merchant?.businessName || 'Marchand'}</p>
+   119→   119→            </div>
+   120→   120→          </div>
+   121→   121→        </div>
+   122→   122→        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+   123→   123→          {NAV_ITEMS.map((item) => {
+   124→   124→            const Icon = item.icon;
+   125→   125→            const isActive = view === item.id || (item.id === 'orders' && view === 'order-detail');
+   126→   126→            return (
+   127→   127→              <button
+   128→   128→                key={item.id}
+   129→   129→                onClick={() => navigate(item.id)}
+   130→   130→                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${isActive ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+   131→   131→              >
+   132→   132→                <Icon className="w-4 h-4 shrink-0" />
+   133→   133→                <span>{item.label}</span>
+   134→   134→              </button>
+   135→   135→            );
+   136→   136→          })}
+   137→   137→        </nav>
+   138→   138→        <div className="p-3 border-t">
+   139→   139→          <Button variant="ghost" size="sm" className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={logout}>
+   140→   140→            Déconnexion
+   141→   141→          </Button>
+   142→   142→        </div>
+   143→   143→      </aside>
+   144→   144→
+   145→   145→      {/* Main Content */}
+   146→   146→      <main className="flex-1 flex flex-col min-w-0">
+   147→   147→        {/* Top bar for mobile */}
+   148→   148→        <header className="md:hidden flex items-center justify-between px-4 py-3 border-b bg-card/50 backdrop-blur-sm shrink-0">
+   149→   149→          <div className="flex items-center gap-2">
+   150→   150→            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+   151→   151→              <Store className="w-4 h-4 text-primary-foreground" />
+   152→   152→            </div>
+   153→   153→            <span className="font-semibold text-sm gradient-text">Rapigo</span>
+   154→   154→          </div>
+   155→   155→          <div className="flex items-center gap-2">
+   156→   156→            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('notifications')}>
+   157→   157→              <Bell className="w-4 h-4" />
+   158→   158→            </Button>
+   159→   159→            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('chat')}>
+   160→   160→              <MessageSquare className="w-4 h-4" />
+   161→   161→            </Button>
+   162→   162→          </div>
+   163→   163→        </header>
+   164→   164→
+   165→   165→        {/* Page Content */}
+   166→   166→        <div className="flex-1 overflow-y-auto">
+   167→   167→          <AnimatePresence mode="wait">
+   168→   168→            <motion.div
+   169→   169→              key={view}
+   170→   170→              variants={pageVariants}
+   171→   171→              initial="initial"
+   172→   172→              animate="animate"
+   173→   173→              exit="exit"
+   174→   174→              transition={{ duration: 0.2 }}
+   175→   175→              className="p-4 md:p-6 pb-24 md:pb-6"
+   176→   176→            >
+   177→   177→              {view === 'dashboard' && <DashboardView merchantId={merchantId} navigate={navigate} />}
+   178→   178→              {view === 'products' && <ProductsView merchantId={merchantId} navigate={navigate} />}
+   179→   179→              {view === 'add-product' && <AddProductView merchantId={merchantId} data={data} navigate={navigate} />}
+   180→   180→              {view === 'orders' && <OrdersView merchantId={merchantId} navigate={navigate} />}
+   181→   181→              {view === 'order-detail' && <OrderDetailView data={data} navigate={navigate} />}
+   182→   182→              {view === 'stats' && <StatsView merchantId={merchantId} />}
+   183→   183→              {view === 'marketing' && <MarketingView merchantId={merchantId} />}
+   184→   184→              {view === 'billing' && <BillingView merchantId={merchantId} />}
+   185→   185→              {view === 'settings' && <SettingsView merchant={merchant} userId={user?.id} setMerchant={setMerchant} />}
+   186→   186→              {view === 'subscription' && <SubscriptionView merchant={merchant} />}
+   187→   187→              {view === 'chat' && <EmptyState icon={MessageSquare} title="Aucune conversation" />}
+   188→   188→              {view === 'support' && <SupportView userId={user?.id} />}
+   189→   189→              {view === 'notifications' && <EmptyState icon={Bell} title="Aucune notification" />}
+   190→   190→              {view === 'profile' && <ProfileView />}
+   191→   191→            </motion.div>
+   192→   192→          </AnimatePresence>
+   193→   193→        </div>
+   194→   194→
+   195→   195→        {/* Mobile Bottom Tab Bar */}
+   196→   196→        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-lg border-t flex safe-area-bottom z-50">
+   197→   197→          {[
+   198→   198→            { id: 'dashboard' as const, label: 'Tableau de bord', icon: LayoutDashboard },
+   199→   199→            { id: 'products' as const, label: 'Produits', icon: Package },
+   200→   200→            { id: 'orders' as const, label: 'Commandes', icon: ShoppingCart },
+   201→   201→            { id: 'profile' as const, label: 'Profil', icon: User },
+   202→   202→          ].map((tab) => {
+   203→   203→            const Icon = tab.icon;
+   204→   204→            const isActive = view === tab.id;
+   205→   205→            return (
+   206→   206→              <button
+   207→   207→                key={tab.id}
+   208→   208→                onClick={() => navigate(tab.id)}
+   209→   209→                className={`flex-1 flex flex-col items-center gap-1 py-2 pt-2.5 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
+   210→   210→              >
+   211→   211→                <Icon className="w-5 h-5" />
+   212→   212→                <span className="text-[10px] font-medium">{tab.label}</span>
+   213→   213→              </button>
+   214→   214→            );
+   215→   215→          })}
+   216→   216→        </nav>
+   217→   217→      </main>
+   218→   218→    </div>
+   219→   219→  );
+   220→   220→}
+   221→   221→
+   222→   222→// ─── 1. DASHBOARD VIEW ───────────────────────────────────
+   223→   223→function DashboardView({ merchantId, navigate }: { merchantId?: string; navigate: (v: 'orders' | 'add-product' | 'order-detail', d?: Record<string, string>) => void }) {
+   224→   224→  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+   225→   225→  const [loading, setLoading] = useState(true);
+   226→   226→
+   227→   227→  useEffect(() => {
+   228→   228→    if (!merchantId) return;
+   229→   229→    (async () => {
+   230→   230→      try {
+   231→   231→        const res = await fetch(`/api/stats/merchant?merchantId=${merchantId}`);
+   232→   232→        if (res.ok) setStats(await res.json());
+   233→   233→      } catch { /* silent */ }
+   234→   234→      setLoading(false);
+   235→   235→    })();
+   236→   236→  }, [merchantId]);
+   237→   237→
+   238→   238→  const recentOrders = (stats?.recentOrders as Array<Record<string, unknown>>) || [];
+   239→   239→  const kpis = [
+   240→   240→    { label: 'Total commandes', value: stats?.totalOrders ?? 0, icon: ShoppingCart, color: 'text-blue-600 dark:text-blue-400' },
+   241→   241→    { label: "Revenu du jour", value: formatPrice((stats?.todayRevenue as number) || 0), icon: TrendingUp, color: 'text-emerald-600 dark:text-emerald-400' },
+   242→   242→    { label: 'En attente', value: stats?.pendingOrders ?? 0, icon: Clock, color: 'text-yellow-600 dark:text-yellow-400' },
+   243→   243→    { label: 'Note moyenne', value: `${((stats?.avgRating as number) || 0).toFixed(1)} ★`, icon: Star, color: 'text-orange-600 dark:text-orange-400' },
+   244→   244→  ];
+   245→   245→
+   246→   246→  return (
+   247→   247→    <div className="space-y-6">
+   248→   248→      <div className="flex items-center justify-between">
+   249→   249→        <div>
+   250→   250→          <h1 className="text-2xl font-bold gradient-text">Tableau de bord</h1>
+   251→   251→          <p className="text-sm text-muted-foreground mt-1">Vue d&apos;ensemble de votre activité</p>
+   252→   252→        </div>
+   253→   253→        <Button size="sm" onClick={() => navigate('add-product')}>
+   254→   254→          <Plus className="w-4 h-4 mr-1" /> Produit
+   255→   255→        </Button>
+   256→   256→      </div>
+   257→   257→
+   258→   258→      {loading ? <LoadingCards /> : (
+   259→   259→        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   260→   260→          {kpis.map((kpi) => (
+   261→   261→            <Card key={kpi.label} className="glass-card">
+   262→   262→              <CardContent className="p-4">
+   263→   263→                <div className="flex items-center justify-between mb-2">
+   264→   264→                  <span className="text-xs text-muted-foreground">{kpi.label}</span>
+   265→   265→                  <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+   266→   266→                </div>
+   267→   267→                <p className="text-xl font-bold">{kpi.value}</p>
+   268→   268→              </CardContent>
+   269→   269→            </Card>
+   270→   270→          ))}
+   271→   271→        </div>
+   272→   272→      )}
+   273→   273→
+   274→   274→      {/* Recent Orders */}
+   275→   275→      <Card className="glass-card">
+   276→   276→        <CardHeader className="pb-3">
+   277→   277→          <div className="flex items-center justify-between">
+   278→   278→            <CardTitle className="text-base">Commandes récentes</CardTitle>
+   279→   279→            <Button variant="ghost" size="sm" onClick={() => navigate('orders')}>
+   280→   280→              Voir tout <ChevronRight className="w-4 h-4 ml-1" />
+   281→   281→            </Button>
+   282→   282→          </div>
+   283→   283→        </CardHeader>
+   284→   284→        <CardContent>
+   285→   285→          {loading ? (
+   286→   286→            <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+   287→   287→          ) : recentOrders.length === 0 ? (
+   288→   288→            <EmptyState icon={ShoppingCart} title="Aucune commande pour le moment" />
+   289→   289→          ) : (
+   290→   290→            <div className="space-y-2 max-h-96 overflow-y-auto">
+   291→   291→              {recentOrders.map((order: Record<string, unknown>) => {
+   292→   292→                const items = order.items as Array<Record<string, unknown>> | undefined;
+   293→   293→                return (
+   294→   294→                  <div
+   295→   295→                    key={order.id as string}
+   296→   296→                    className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 cursor-pointer transition-colors"
+   297→   297→                    onClick={() => navigate('order-detail', { id: order.id as string })}
+   298→   298→                  >
+   299→   299→                    <div className="min-w-0 flex-1">
+   300→   300→                      <div className="flex items-center gap-2">
+   301→   301→                        <span className="text-sm font-medium">#{order.orderNumber as string}</span>
+   302→   302→                        <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[order.status as string] || ''}`}>
+   303→   303→                          {ORDER_STATUS_LABELS[order.status as string] || order.status}
+   304→   304→                        </Badge>
+   305→   305→                      </div>
+   306→   306→                      <p className="text-xs text-muted-foreground mt-0.5">
+   307→   307→                        {items?.length ?? 0} article(s) · {new Date(order.createdAt as string).toLocaleDateString('fr-FR')}
+   308→   308→                      </p>
+   309→   309→                    </div>
+   310→   310→                    <span className="text-sm font-semibold">{formatPrice(order.total as number)}</span>
+   311→   311→                  </div>
+   312→   312→                );
+   313→   313→              })}
+   314→   314→            </div>
+   315→   315→          )}
+   316→   316→        </CardContent>
+   317→   317→      </Card>
+   318→   318→    </div>
+   319→   319→  );
+   320→   320→}
+   321→   321→
+   322→   322→// ─── 2. PRODUCTS VIEW ────────────────────────────────────
+   323→   323→function ProductsView({ merchantId, navigate }: { merchantId?: string; navigate: (v: 'add-product' | 'products', d?: Record<string, string>) => void }) {
+   324→   324→  const [products, setProducts] = useState<Array<Record<string, unknown>>>([]);
+   325→   325→  const [loading, setLoading] = useState(true);
+   326→   326→  const [search, setSearch] = useState('');
+   327→   327→  const [deleteId, setDeleteId] = useState<string | null>(null);
+   328→   328→
+   329→   329→  const [fetchTrigger, setFetchTrigger] = useState(0);
+   330→   330→
+   331→   331→  useEffect(() => {
+   332→   332→    if (!merchantId) return;
+   333→   333→    let cancelled = false;
+   334→   334→    (async () => {
+   335→   335→      setLoading(true);
+   336→   336→      try {
+   337→   337→        const q = search ? `&search=${encodeURIComponent(search)}` : '';
+   338→   338→        const res = await fetch(`/api/products?merchantId=${merchantId}&all=true${q}`);
+   339→   339→        if (res.ok && !cancelled) setProducts(await res.json());
+   340→   340→      } catch { /* silent */ }
+   341→   341→      if (!cancelled) setLoading(false);
+   342→   342→    })();
+   343→   343→    return () => { cancelled = true; };
+   344→   344→  }, [merchantId, search, fetchTrigger]);
+   345→   345→
+   346→   346→  const refetchProducts = () => setFetchTrigger((t) => t + 1);
+   347→   347→
+   348→   348→  const handleDelete = async () => {
+   349→   349→    if (!deleteId) return;
+   350→   350→    try {
+   351→   351→      const res = await fetch(`/api/products?id=${deleteId}`, { method: 'DELETE' });
+   352→   352→      if (res.ok) {
+   353→   353→        toast.success('Produit supprimé');
+   354→   354→        refetchProducts();
+   355→   355→      } else toast.error('Erreur lors de la suppression');
+   356→   356→    } catch { toast.error('Erreur serveur'); }
+   357→   357→    setDeleteId(null);
+   358→   358→  };
+   359→   359→
+   360→   360→  const handleToggle = async (product: Record<string, unknown>) => {
+   361→   361→    try {
+   362→   362→      const res = await fetch('/api/products', {
+   363→   363→        method: 'PUT',
+   364→   364→        headers: { 'Content-Type': 'application/json' },
+   365→   365→        body: JSON.stringify({ id: product.id, isAvailable: !product.isAvailable }),
+   366→   366→      });
+   367→   367→      if (res.ok) {
+   368→   368→        toast.success(product.isAvailable ? 'Produit désactivé' : 'Produit activé');
+   369→   369→        refetchProducts();
+   370→   370→      }
+   371→   371→    } catch { toast.error('Erreur serveur'); }
+   372→   372→  };
+   373→   373→
+   374→   374→  return (
+   375→   375→    <div className="space-y-4">
+   376→   376→      <div className="flex items-center justify-between">
+   377→   377→        <div>
+   378→   378→          <h1 className="text-2xl font-bold gradient-text">Produits</h1>
+   379→   379→          <p className="text-sm text-muted-foreground mt-1">{products.length} produit(s)</p>
+   380→   380→        </div>
+   381→   381→        <Button size="sm" onClick={() => navigate('add-product')}>
+   382→   382→          <Plus className="w-4 h-4 mr-1" /> Ajouter
+   383→   383→        </Button>
+   384→   384→      </div>
+   385→   385→
+   386→   386→      <div className="relative">
+   387→   387→        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   388→   388→        <Input placeholder="Rechercher un produit..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+   389→   389→      </div>
+   390→   390→
+   391→   391→      {loading ? (
+   392→   392→        <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
+   393→   393→      ) : products.length === 0 ? (
+   394→   394→        <EmptyState icon={Package} title="Aucun produit" action="Ajouter un produit" onAction={() => navigate('add-product')} />
+   395→   395→      ) : (
+   396→   396→        <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto">
+   397→   397→          {products.map((p) => (
+   398→   398→            <Card key={p.id as string} className="glass-card">
+   399→   399→              <CardContent className="p-4">
+   400→   400→                <div className="flex items-center gap-3">
+   401→   401→                  <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+   402→   402→                    {p.image ? (
+   403→   403→                      <img src={p.image as string} alt="" className="w-full h-full object-cover" />
+   404→   404→                    ) : (
+   405→   405→                      <ImageIcon className="w-5 h-5 text-muted-foreground" />
+   406→   406→                    )}
+   407→   407→                  </div>
+   408→   408→                  <div className="flex-1 min-w-0">
+   409→   409→                    <div className="flex items-center gap-2">
+   410→   410→                      <p className="text-sm font-medium truncate">{p.name as string}</p>
+   411→   411→                      <Badge variant={p.isAvailable ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+   412→   412→                        {p.isAvailable ? 'Actif' : 'Inactif'}
+   413→   413→                      </Badge>
+   414→   414→                    </div>
+   415→   415→                    <p className="text-xs text-muted-foreground mt-0.5">{p.category?.name || ''} · Stock: {p.stock as number}</p>
+   416→   416→                    <div className="flex items-center gap-2 mt-1">
+   417→   417→                      <span className="text-sm font-semibold">{formatPrice(p.price as number)}</span>
+   418→   418→                      {p.comparePrice && <span className="text-xs text-muted-foreground line-through">{formatPrice(p.comparePrice as number)}</span>}
+   419→   419→                    </div>
+   420→   420→                  </div>
+   421→   421→                  <div className="flex items-center gap-1 shrink-0">
+   422→   422→                    <Switch checked={p.isAvailable as boolean} onCheckedChange={() => handleToggle(p)} />
+   423→   423→                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('add-product', { id: p.id as string })}>
+   424→   424→                      <Pencil className="w-4 h-4" />
+   425→   425→                    </Button>
+   426→   426→                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => setDeleteId(p.id as string)}>
+   427→   427→                      <Trash2 className="w-4 h-4" />
+   428→   428→                    </Button>
+   429→   429→                  </div>
+   430→   430→                </div>
+   431→   431→              </CardContent>
+   432→   432→            </Card>
+   433→   433→          ))}
+   434→   434→        </div>
+   435→   435→      )}
+   436→   436→
+   437→   437→      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+   438→   438→        <DialogContent>
+   439→   439→          <DialogHeader>
+   440→   440→            <DialogTitle>Supprimer le produit</DialogTitle>
+   441→   441→            <DialogDescription>Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible.</DialogDescription>
+   442→   442→          </DialogHeader>
+   443→   443→          <DialogFooter>
+   444→   444→            <Button variant="outline" onClick={() => setDeleteId(null)}>Annuler</Button>
+   445→   445→            <Button variant="destructive" onClick={handleDelete}>Supprimer</Button>
+   446→   446→          </DialogFooter>
+   447→   447→        </DialogContent>
+   448→   448→      </Dialog>
+   449→   449→    </div>
+   450→   450→  );
+   451→   451→}
+   452→   452→
+   453→   453→// ─── 3. ADD/EDIT PRODUCT VIEW ────────────────────────────
+   454→   454→function AddProductView({ merchantId, data, navigate }: { merchantId?: string; data?: Record<string, string>; navigate: (v: 'products') => void }) {
+   455→   455→  const isEditing = !!data?.id;
+   456→   456→  const [loading, setLoading] = useState(isEditing);
+   457→   457→  const [saving, setSaving] = useState(false);
+   458→   458→  const [categories, setCategories] = useState<Array<Record<string, unknown>>>([]);
+   459→   459→  const [form, setForm] = useState({
+   460→   460→    name: '', description: '', price: '', comparePrice: '', stock: '', categoryId: '', image: '',
+   461→   461→  });
+   462→   462→
+   463→   463→  useEffect(() => {
+   464→   464→    fetch('/api/categories').then(r => r.ok && r.json()).then(setCategories).catch(() => {});
+   465→   465→  }, []);
+   466→   466→
+   467→   467→  useEffect(() => {
+   468→   468→    if (!isEditing || !data?.id) return;
+   469→   469→    (async () => {
+   470→   470→      try {
+   471→   471→        const res = await fetch(`/api/products?merchantId=${merchantId}&all=true`);
+   472→   472→        if (res.ok) {
+   473→   473→          const products: Array<Record<string, unknown>> = await res.json();
+   474→   474→          const p = products.find((x) => x.id === data.id);
+   475→   475→          if (p) {
+   476→   476→            setForm({
+   477→   477→              name: p.name as string,
+   478→   478→              description: (p.description as string) || '',
+   479→   479→              price: String(p.price),
+   480→   480→              comparePrice: p.comparePrice ? String(p.comparePrice) : '',
+   481→   481→              stock: String(p.stock),
+   482→   482→              categoryId: (p.categoryId as string) || '',
+   483→   483→              image: (p.image as string) || '',
+   484→   484→            });
+   485→   485→          }
+   486→   486→        }
+   487→   487→      } catch { /* silent */ }
+   488→   488→      setLoading(false);
+   489→   489→    })();
+   490→   490→  }, [isEditing, data?.id, merchantId]);
+   491→   491→
+   492→   492→  const handleSubmit = async (e: React.FormEvent) => {
+   493→   493→    e.preventDefault();
+   494→   494→    if (!merchantId) return toast.error('Marchand non trouvé');
+   495→   495→    if (!form.name || !form.price) return toast.error('Nom et prix requis');
+   496→   496→    setSaving(true);
+   497→   497→    try {
+   498→   498→      const url = '/api/products';
+   499→   499→      const method = isEditing ? 'PUT' : 'POST';
+   500→   500→      const body: Record<string, unknown> = {
+   501→   501→        name: form.name,
+   502→   502→        description: form.description,
+   503→   503→        price: form.price,
+   504→   504→        comparePrice: form.comparePrice || null,
+   505→   505→        stock: parseInt(form.stock) || 0,
+   506→   506→        merchantId,
+   507→   507→        categoryId: form.categoryId || null,
+   508→   508→        image: form.image || null,
+   509→   509→      };
+   510→   510→      if (isEditing) body.id = data!.id;
+   511→   511→      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+   512→   512→      if (res.ok) {
+   513→   513→        toast.success(isEditing ? 'Produit mis à jour' : 'Produit créé avec succès');
+   514→   514→        navigate('products');
+   515→   515→      } else {
+   516→   516→        const err = await res.json();
+   517→   517→        toast.error(err.error || 'Erreur');
+   518→   518→      }
+   519→   519→    } catch { toast.error('Erreur serveur'); }
+   520→   520→    setSaving(false);
+   521→   521→  };
+   522→   522→
+   523→   523→  const setField = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+   524→   524→
+   525→   525→  if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+   526→   526→
+   527→   527→  return (
+   528→   528→    <div className="space-y-4 max-w-2xl">
+   529→   529→      <div className="flex items-center gap-3">
+   530→   530→        <Button variant="ghost" size="icon" onClick={() => navigate('products')}>
+   531→   531→          <ArrowLeft className="w-5 h-5" />
+   532→   532→        </Button>
+   533→   533→        <h1 className="text-2xl font-bold gradient-text">{isEditing ? 'Modifier le produit' : 'Ajouter un produit'}</h1>
+   534→   534→      </div>
+   535→   535→
+   536→   536→      <form onSubmit={handleSubmit} className="space-y-4">
+   537→   537→        <Card className="glass-card">
+   538→   538→          <CardHeader><CardTitle className="text-base">Informations de base</CardTitle></CardHeader>
+   539→   539→          <CardContent className="space-y-4">
+   540→   540→            <div>
+   541→   541→              <label className="text-sm font-medium mb-1 block">Nom du produit *</label>
+   542→   542→              <Input value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="Ex: Poulet Braisé" required />
+   543→   543→            </div>
+   544→   544→            <div>
+   545→   545→              <label className="text-sm font-medium mb-1 block">Description</label>
+   546→   546→              <Textarea value={form.description} onChange={(e) => setField('description', e.target.value)} placeholder="Description du produit..." rows={3} />
+   547→   547→            </div>
+   548→   548→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   549→   549→              <div>
+   550→   550→                <label className="text-sm font-medium mb-1 block">Prix (FCFA) *</label>
+   551→   551→                <Input type="number" value={form.price} onChange={(e) => setField('price', e.target.value)} placeholder="5000" required />
+   552→   552→              </div>
+   553→   553→              <div>
+   554→   554→                <label className="text-sm font-medium mb-1 block">Prix barré (FCFA)</label>
+   555→   555→                <Input type="number" value={form.comparePrice} onChange={(e) => setField('comparePrice', e.target.value)} placeholder="6000" />
+   556→   556→              </div>
+   557→   557→            </div>
+   558→   558→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   559→   559→              <div>
+   560→   560→                <label className="text-sm font-medium mb-1 block">Stock</label>
+   561→   561→                <Input type="number" value={form.stock} onChange={(e) => setField('stock', e.target.value)} placeholder="50" />
+   562→   562→              </div>
+   563→   563→              <div>
+   564→   564→                <label className="text-sm font-medium mb-1 block">Catégorie</label>
+   565→   565→                <select
+   566→   566→                  value={form.categoryId}
+   567→   567→                  onChange={(e) => setField('categoryId', e.target.value)}
+   568→   568→                  className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+   569→   569→                >
+   570→   570→                  <option value="">Aucune catégorie</option>
+   571→   571→                  {categories.map((c) => (
+   572→   572→                    <option key={c.id as string} value={c.id as string}>{c.name as string}</option>
+   573→   573→                  ))}
+   574→   574→                </select>
+   575→   575→              </div>
+   576→   576→            </div>
+   577→   577→            <div>
+   578→   578→              <label className="text-sm font-medium mb-1 block">URL de l&apos;image</label>
+   579→   579→              <div className="relative">
+   580→   580→                <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   581→   581→                <Input value={form.image} onChange={(e) => setField('image', e.target.value)} placeholder="https://..." className="pl-9" />
+   582→   582→              </div>
+   583→   583→              {form.image && (
+   584→   584→                <div className="mt-2 w-20 h-20 rounded-xl overflow-hidden border bg-muted">
+   585→   585→                  <img src={form.image} alt="Aperçu" className="w-full h-full object-cover" />
+   586→   586→                </div>
+   587→   587→              )}
+   588→   588→            </div>
+   589→   589→          </CardContent>
+   590→   590→        </Card>
+   591→   591→
+   592→   592→        <div className="flex gap-3">
+   593→   593→          <Button type="button" variant="outline" onClick={() => navigate('products')} className="flex-1">Annuler</Button>
+   594→   594→          <Button type="submit" disabled={saving} className="flex-1">
+   595→   595→            {saving ? 'Enregistrement...' : isEditing ? 'Mettre à jour' : 'Créer le produit'}
+   596→   596→          </Button>
+   597→   597→        </div>
+   598→   598→      </form>
+   599→   599→    </div>
+   600→   600→  );
+   601→   601→}
+   602→   602→
+   603→   603→// ─── 4. ORDERS VIEW ──────────────────────────────────────
+   604→   604→function OrdersView({ merchantId, navigate }: { merchantId?: string; navigate: (v: 'order-detail' | 'orders', d?: Record<string, string>) => void }) {
+   605→   605→  const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
+   606→   606→  const [loading, setLoading] = useState(true);
+   607→   607→  const [tab, setTab] = useState('all');
+   608→   608→
+   609→   609→  useEffect(() => {
+   610→   610→    if (!merchantId) return;
+   611→   611→    let cancelled = false;
+   612→   612→    (async () => {
+   613→   613→      setLoading(true);
+   614→   614→      try {
+   615→   615→        const statusParam = tab !== 'all' ? `&status=${tab}` : '';
+   616→   616→        const res = await fetch(`/api/orders?merchantId=${merchantId}${statusParam}`);
+   617→   617→        if (res.ok && !cancelled) setOrders(await res.json());
+   618→   618→      } catch { /* silent */ }
+   619→   619→      if (!cancelled) setLoading(false);
+   620→   620→    })();
+   621→   621→    return () => { cancelled = true; };
+   622→   622→  }, [merchantId, tab]);
+   623→   623→
+   624→   624→  const tabs = [
+   625→   625→    { id: 'all', label: 'Toutes' },
+   626→   626→    { id: 'PENDING', label: 'En attente' },
+   627→   627→    { id: 'CONFIRMED', label: 'Confirmées' },
+   628→   628→    { id: 'PREPARING', label: 'En cours' },
+   629→   629→    { id: 'DELIVERED', label: 'Livrées' },
+   630→   630→    { id: 'CANCELLED', label: 'Annulées' },
+   631→   631→  ];
+   632→   632→
+   633→   633→  return (
+   634→   634→    <div className="space-y-4">
+   635→   635→      <div>
+   636→   636→        <h1 className="text-2xl font-bold gradient-text">Commandes</h1>
+   637→   637→        <p className="text-sm text-muted-foreground mt-1">{orders.length} commande(s)</p>
+   638→   638→      </div>
+   639→   639→
+   640→   640→      <Tabs value={tab} onValueChange={setTab}>
+   641→   641→        <TabsList className="w-full overflow-x-auto flex">
+   642→   642→          {tabs.map((t) => (
+   643→   643→            <TabsTrigger key={t.id} value={t.id} className="text-xs whitespace-nowrap">{t.label}</TabsTrigger>
+   644→   644→          ))}
+   645→   645→        </TabsList>
+   646→   646→      </Tabs>
+   647→   647→
+   648→   648→      {loading ? (
+   649→   649→        <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+   650→   650→      ) : orders.length === 0 ? (
+   651→   651→        <EmptyState icon={ShoppingCart} title="Aucune commande trouvée" />
+   652→   652→      ) : (
+   653→   653→        <div className="space-y-2 max-h-[calc(100vh-230px)] overflow-y-auto">
+   654→   654→          {orders.map((order) => {
+   655→   655→            const items = order.items as Array<Record<string, unknown>> | undefined;
+   656→   656→            return (
+   657→   657→              <Card key={order.id as string} className="glass-card cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('order-detail', { id: order.id as string })}>
+   658→   658→                <CardContent className="p-4">
+   659→   659→                  <div className="flex items-center justify-between">
+   660→   660→                    <div className="min-w-0 flex-1">
+   661→   661→                      <div className="flex items-center gap-2 flex-wrap">
+   662→   662→                        <span className="text-sm font-medium">#{order.orderNumber as string}</span>
+   663→   663→                        <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[order.status as string] || ''}`}>
+   664→   664→                          {ORDER_STATUS_LABELS[order.status as string] || order.status}
+   665→   665→                        </Badge>
+   666→   666→                      </div>
+   667→   667→                      <p className="text-xs text-muted-foreground mt-1">
+   668→   668→                        {items?.length ?? 0} article(s) · {new Date(order.createdAt as string).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+   669→   669→                      </p>
+   670→   670→                      <p className="text-xs text-muted-foreground">{order.deliveryAddress as string}</p>
+   671→   671→                    </div>
+   672→   672→                    <div className="text-right shrink-0 ml-3">
+   673→   673→                      <p className="text-sm font-bold">{formatPrice(order.total as number)}</p>
+   674→   674→                      <p className="text-[10px] text-muted-foreground">{order.paymentMethod as string}</p>
+   675→   675→                    </div>
+   676→   676→                  </div>
+   677→   677→                </CardContent>
+   678→   678→              </Card>
+   679→   679→            );
+   680→   680→          })}
+   681→   681→        </div>
+   682→   682→      )}
+   683→   683→    </div>
+   684→   684→  );
+   685→   685→}
+   686→   686→
+   687→   687→// ─── 5. ORDER DETAIL VIEW ────────────────────────────────
+   688→   688→function OrderDetailView({ data, navigate }: { data?: Record<string, string>; navigate: (v: 'orders') => void }) {
+   689→   689→  const [order, setOrder] = useState<Record<string, unknown> | null>(null);
+   690→   690→  const [loading, setLoading] = useState(true);
+   691→   691→  const [updating, setUpdating] = useState(false);
+   692→   692→
+   693→   693→  useEffect(() => {
+   694→   694→    if (!data?.id) return;
+   695→   695→    (async () => {
+   696→   696→      try {
+   697→   697→        const res = await fetch(`/api/orders/${data.id}`);
+   698→   698→        if (res.ok) setOrder(await res.json());
+   699→   699→      } catch { /* silent */ }
+   700→   700→      setLoading(false);
+   701→   701→    })();
+   702→   702→  }, [data?.id]);
+   703→   703→
+   704→   704→  const updateStatus = async (status: string) => {
+   705→   705→    if (!order) return;
+   706→   706→    setUpdating(true);
+   707→   707→    try {
+   708→   708→      const res = await fetch(`/api/orders/${order.id}`, {
+   709→   709→        method: 'PUT',
+   710→   710→        headers: { 'Content-Type': 'application/json' },
+   711→   711→        body: JSON.stringify({ status }),
+   712→   712→      });
+   713→   713→      if (res.ok) {
+   714→   714→        const updated = await res.json();
+   715→   715→        setOrder(updated);
+   716→   716→        toast.success(`Commande mise à jour: ${ORDER_STATUS_LABELS[status]}`);
+   717→   717→      } else toast.error('Erreur lors de la mise à jour');
+   718→   718→    } catch { toast.error('Erreur serveur'); }
+   719→   719→    setUpdating(false);
+   720→   720→  };
+   721→   721→
+   722→   722→  if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-32" /><Skeleton className="h-48 w-full" /></div>;
+   723→   723→  if (!order) return <EmptyState icon={ShoppingCart} title="Commande non trouvée" action="Retour aux commandes" onAction={() => navigate('orders')} />;
+   724→   724→
+   725→   725→  const items = (order.items as Array<Record<string, unknown>>) || [];
+   726→   726→  const status = order.status as string;
+   727→   727→  const merchantFlow = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'];
+   728→   728→  const currentIndex = merchantFlow.indexOf(status);
+   729→   729→
+   730→   730→  return (
+   731→   731→    <div className="space-y-4 max-w-2xl">
+   732→   732→      <div className="flex items-center gap-3">
+   733→   733→        <Button variant="ghost" size="icon" onClick={() => navigate('orders')}>
+   734→   734→          <ArrowLeft className="w-5 h-5" />
+   735→   735→        </Button>
+   736→   736→        <div>
+   737→   737→          <h1 className="text-xl font-bold">Commande #{order.orderNumber as string}</h1>
+   738→   738→          <p className="text-xs text-muted-foreground">{new Date(order.createdAt as string).toLocaleString('fr-FR')}</p>
+   739→   739→        </div>
+   740→   740→      </div>
+   741→   741→
+   742→   742→      {/* Status Badge */}
+   743→   743→      <Card className="glass-card">
+   744→   744→        <CardContent className="p-4">
+   745→   745→          <Badge className={`text-sm px-3 py-1 ${ORDER_STATUS_COLORS[status]}`}>
+   746→   746→            {ORDER_STATUS_LABELS[status]}
+   747→   747→          </Badge>
+   748→   748→          <div className="flex items-center gap-2 mt-3">
+   749→   749→            {merchantFlow.map((s, i) => (
+   750→   750→              <React.Fragment key={s}>
+   751→   751→                <div className={`w-3 h-3 rounded-full ${i <= currentIndex ? 'bg-primary' : 'bg-muted'}`} />
+   752→   752→                {i < merchantFlow.length - 1 && <div className={`flex-1 h-0.5 ${i < currentIndex ? 'bg-primary' : 'bg-muted'}`} />}
+   753→   753→              </React.Fragment>
+   754→   754→            ))}
+   755→   755→          </div>
+   756→   756→          <div className="flex justify-between mt-1">
+   757→   757→            {merchantFlow.map((s) => (
+   758→   758→              <span key={s} className="text-[9px] text-muted-foreground text-center flex-1">{ORDER_STATUS_LABELS[s]}</span>
+   759→   759→            ))}
+   760→   760→          </div>
+   761→   761→        </CardContent>
+   762→   762→      </Card>
+   763→   763→
+   764→   764→      {/* Action Buttons */}
+   765→   765→      {status !== 'DELIVERED' && status !== 'CANCELLED' && (
+   766→   766→        <div className="flex gap-2 flex-wrap">
+   767→   767→          {status === 'PENDING' && (
+   768→   768→            <Button size="sm" onClick={() => updateStatus('CONFIRMED')} disabled={updating}>
+   769→   769→              <Check className="w-4 h-4 mr-1" /> Confirmer
+   770→   770→            </Button>
+   771→   771→          )}
+   772→   772→          {status === 'CONFIRMED' && (
+   773→   773→            <Button size="sm" onClick={() => updateStatus('PREPARING')} disabled={updating}>
+   774→   774→              <Package className="w-4 h-4 mr-1" /> Préparer
+   775→   775→            </Button>
+   776→   776→          )}
+   777→   777→          {status === 'PREPARING' && (
+   778→   778→            <Button size="sm" onClick={() => updateStatus('READY')} disabled={updating}>
+   779→   779→              <Check className="w-4 h-4 mr-1" /> Prête
+   780→   780→            </Button>
+   781→   781→          )}
+   782→   782→        </div>
+   783→   783→      )}
+   784→   784→
+   785→   785→      {/* Items */}
+   786→   786→      <Card className="glass-card">
+   787→   787→        <CardHeader><CardTitle className="text-base">Articles</CardTitle></CardHeader>
+   788→   788→        <CardContent className="space-y-3">
+   789→   789→          {items.map((item) => (
+   790→   790→            <div key={item.id as string} className="flex items-center gap-3">
+   791→   791→              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+   792→   792→                {item.productImage ? <img src={item.productImage as string} alt="" className="w-full h-full object-cover" /> : <Package className="w-4 h-4 text-muted-foreground" />}
+   793→   793→              </div>
+   794→   794→              <div className="flex-1 min-w-0">
+   795→   795→                <p className="text-sm font-medium truncate">{item.productName as string}</p>
+   796→   796→                <p className="text-xs text-muted-foreground">x{item.quantity as number}</p>
+   797→   797→              </div>
+   798→   798→              <span className="text-sm font-semibold">{formatPrice(item.totalPrice as number)}</span>
+   799→   799→            </div>
+   800→   800→          ))}
+   801→   801→        </CardContent>
+   802→   802→      </Card>
+   803→   803→
+   804→   804→      {/* Customer & Delivery */}
+   805→   805→      <Card className="glass-card">
+   806→   806→        <CardHeader><CardTitle className="text-base">Livraison</CardTitle></CardHeader>
+   807→   807→        <CardContent className="space-y-2 text-sm">
+   808→   808→          <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-muted-foreground shrink-0" /><span>{order.deliveryAddress as string}, {order.deliveryCity as string}</span></div>
+   809→   809→          <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-muted-foreground shrink-0" /><span>~{order.estimatedTime as number} min</span></div>
+   810→   810→          <div className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-muted-foreground shrink-0" /><span>{order.paymentMethod as string}</span></div>
+   811→   811→        </CardContent>
+   812→   812→      </Card>
+   813→   813→
+   814→   814→      {/* Totals */}
+   815→   815→      <Card className="glass-card">
+   816→   816→        <CardContent className="p-4 space-y-2 text-sm">
+   817→   817→          <div className="flex justify-between"><span className="text-muted-foreground">Sous-total</span><span>{formatPrice(order.subtotal as number)}</span></div>
+   818→   818→          <div className="flex justify-between"><span className="text-muted-foreground">Livraison</span><span>{formatPrice(order.deliveryFee as number)}</span></div>
+   819→   819→          {(order.discount as number) > 0 && (
+   820→   820→            <div className="flex justify-between text-emerald-600"><span>Remise</span><span>-{formatPrice(order.discount as number)}</span></div>
+   821→   821→          )}
+   822→   822→          <Separator />
+   823→   823→          <div className="flex justify-between font-bold text-base"><span>Total</span><span>{formatPrice(order.total as number)}</span></div>
+   824→   824→        </CardContent>
+   825→   825→      </Card>
+   826→   826→    </div>
+   827→   827→  );
+   828→   828→}
+   829→   829→
+   830→   830→// ─── 6. STATS VIEW ───────────────────────────────────────
+   831→   831→function StatsView({ merchantId }: { merchantId?: string }) {
+   832→   832→  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+   833→   833→  const [loading, setLoading] = useState(true);
+   834→   834→
+   835→   835→  useEffect(() => {
+   836→   836→    if (!merchantId) return;
+   837→   837→    (async () => {
+   838→   838→      try {
+   839→   839→        const res = await fetch(`/api/stats/merchant?merchantId=${merchantId}`);
+   840→   840→        if (res.ok) setStats(await res.json());
+   841→   841→      } catch { /* silent */ }
+   842→   842→      setLoading(false);
+   843→   843→    })();
+   844→   844→  }, [merchantId]);
+   845→   845→
+   846→   846→  if (loading) return <div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}</div>;
+   847→   847→  if (!stats) return <EmptyState icon={BarChart3} title="Aucune donnée statistique" />;
+   848→   848→
+   849→   849→  const weeklyRevenue = (stats.weeklyRevenue as Array<{ day: string; revenue: number }>) || [];
+   850→   850→  const ordersByStatus = (stats.ordersByStatus as Array<{ status: string; count: number }>) || [];
+   851→   851→  const topProducts = (stats.topProducts as Array<{ productName: string; _sum: { quantity: number; totalPrice: number } }>) || [];
+   852→   852→
+   853→   853→  return (
+   854→   854→    <div className="space-y-6">
+   855→   855→      <div>
+   856→   856→        <h1 className="text-2xl font-bold gradient-text">Statistiques</h1>
+   857→   857→        <p className="text-sm text-muted-foreground mt-1">Analyse de votre activité</p>
+   858→   858→      </div>
+   859→   859→
+   860→   860→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   861→   861→        {[
+   862→   862→          { label: 'Total commandes', value: stats.totalOrders, icon: ShoppingCart, color: 'text-blue-600' },
+   863→   863→          { label: 'Revenu total', value: formatPrice((stats.totalRevenue as number) || 0), icon: TrendingUp, color: 'text-emerald-600' },
+   864→   864→          { label: 'En attente', value: stats.pendingOrders, icon: Clock, color: 'text-yellow-600' },
+   865→   865→          { label: 'Produits', value: stats.productCount, icon: Package, color: 'text-purple-600' },
+   866→   866→        ].map((kpi) => (
+   867→   867→          <Card key={kpi.label} className="glass-card">
+   868→   868→            <CardContent className="p-4">
+   869→   869→              <div className="flex items-center justify-between mb-2">
+   870→   870→                <span className="text-xs text-muted-foreground">{kpi.label}</span>
+   871→   871→                <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+   872→   872→              </div>
+   873→   873→              <p className="text-xl font-bold">{kpi.value}</p>
+   874→   874→            </CardContent>
+   875→   875→          </Card>
+   876→   876→        ))}
+   877→   877→      </div>
+   878→   878→
+   879→   879→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+   880→   880→        {/* Revenue Chart */}
+   881→   881→        <Card className="glass-card">
+   882→   882→          <CardHeader><CardTitle className="text-base">Revenu des 7 derniers jours</CardTitle></CardHeader>
+   883→   883→          <CardContent>
+   884→   884→            {weeklyRevenue.length === 0 ? (
+   885→   885→              <EmptyState icon={TrendingUp} title="Aucune donnée de revenu" />
+   886→   886→            ) : (
+   887→   887→              <ResponsiveContainer width="100%" height={200}>
+   888→   888→                <LineChart data={weeklyRevenue}>
+   889→   889→                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+   890→   890→                  <XAxis dataKey="day" fontSize={11} tickLine={false} />
+   891→   891→                  <YAxis fontSize={11} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+   892→   892→                  <Tooltip formatter={(value: number) => formatPrice(value)} />
+   893→   893→                  <Line type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 4 }} />
+   894→   894→                </LineChart>
+   895→   895→              </ResponsiveContainer>
+   896→   896→            )}
+   897→   897→          </CardContent>
+   898→   898→        </Card>
+   899→   899→
+   900→   900→        {/* Orders by Status */}
+   901→   901→        <Card className="glass-card">
+   902→   902→          <CardHeader><CardTitle className="text-base">Commandes par statut</CardTitle></CardHeader>
+   903→   903→          <CardContent>
+   904→   904→            {ordersByStatus.length === 0 ? (
+   905→   905→              <EmptyState icon={ShoppingCart} title="Aucune donnée" />
+   906→   906→            ) : (
+   907→   907→              <ResponsiveContainer width="100%" height={200}>
+   908→   908→                <BarChart data={ordersByStatus}>
+   909→   909→                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+   910→   910→                  <XAxis dataKey="status" fontSize={11} tickLine={false} tickFormatter={(v) => ORDER_STATUS_LABELS[v]?.substring(0, 8) || v} />
+   911→   911→                  <YAxis fontSize={11} tickLine={false} allowDecimals={false} />
+   912→   912→                  <Tooltip formatter={(value: number) => [value, 'Commandes']} labelFormatter={(v) => ORDER_STATUS_LABELS[v] || v} />
+   913→   913→                  <Bar dataKey="count" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+   914→   914→                </BarChart>
+   915→   915→              </ResponsiveContainer>
+   916→   916→            )}
+   917→   917→          </CardContent>
+   918→   918→        </Card>
+   919→   919→      </div>
+   920→   920→
+   921→   921→      {/* Top Products */}
+   922→   922→      <Card className="glass-card">
+   923→   923→        <CardHeader><CardTitle className="text-base">Produits les plus vendus</CardTitle></CardHeader>
+   924→   924→        <CardContent>
+   925→   925→          {topProducts.length === 0 ? (
+   926→   926→            <EmptyState icon={Package} title="Aucune donnée" />
+   927→   927→          ) : (
+   928→   928→            <div className="space-y-3">
+   929→   929→              {topProducts.map((p, i) => (
+   930→   930→                <div key={i} className="flex items-center justify-between">
+   931→   931→                  <div className="flex items-center gap-3">
+   932→   932→                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">{i + 1}</span>
+   933→   933→                    <span className="text-sm">{p.productName}</span>
+   934→   934→                  </div>
+   935→   935→                  <div className="text-right">
+   936→   936→                    <p className="text-sm font-semibold">{formatPrice(p._sum.totalPrice)}</p>
+   937→   937→                    <p className="text-[10px] text-muted-foreground">{p._sum.quantity} vendu(s)</p>
+   938→   938→                  </div>
+   939→   939→                </div>
+   940→   940→              ))}
+   941→   941→            </div>
+   942→   942→          )}
+   943→   943→        </CardContent>
+   944→   944→      </Card>
+   945→   945→    </div>
+   946→   946→  );
+   947→   947→}
+   948→   948→
+   949→   949→// ─── 7. MARKETING VIEW ───────────────────────────────────
+   950→   950→function MarketingView({ merchantId }: { merchantId?: string }) {
+   951→   951→  const [coupons, setCoupons] = useState<Array<Record<string, unknown>>>([]);
+   952→   952→  const [loading, setLoading] = useState(true);
+   953→   953→  const [dialogOpen, setDialogOpen] = useState(false);
+   954→   954→  const [saving, setSaving] = useState(false);
+   955→   955→  const [form, setForm] = useState({ title: '', type: 'PERCENTAGE', value: '', code: '', startDate: '', endDate: '', maxUses: '' });
+   956→   956→
+   957→   957→  const [couponTrigger, setCouponTrigger] = useState(0);
+   958→   958→
+   959→   959→  useEffect(() => {
+   960→   960→    let cancelled = false;
+   961→   961→    fetch('/api/coupons')
+   962→   962→      .then((r) => r.ok ? r.json() : [])
+   963→   963→      .then((all) => {
+   964→   964→        if (!cancelled) setCoupons((all as Array<Record<string, unknown>>).filter((c) => c.merchantId === merchantId));
+   965→   965→      })
+   966→   966→      .catch(() => {})
+   967→   967→      .finally(() => { if (!cancelled) setLoading(false); });
+   968→   968→    return () => { cancelled = true; };
+   969→   969→  }, [merchantId, couponTrigger]);
+   970→   970→
+   971→   971→  const refetchCoupons = () => setCouponTrigger((t) => t + 1);
+   972→   972→
+   973→   973→  const handleCreate = async (e: React.FormEvent) => {
+   974→   974→    e.preventDefault();
+   975→   975→    if (!form.code || !form.value || !form.endDate) return toast.error('Code, valeur et date de fin requis');
+   976→   976→    setSaving(true);
+   977→   977→    try {
+   978→   978→      const res = await fetch('/api/coupons', {
+   979→   979→        method: 'POST',
+   980→   980→        headers: { 'Content-Type': 'application/json' },
+   981→   981→        body: JSON.stringify({
+   982→   982→          ...form,
+   983→   983→          value: parseFloat(form.value),
+   984→   984→          maxUses: form.maxUses ? parseInt(form.maxUses) : null,
+   985→   985→          merchantId,
+   986→   986→          startDate: form.startDate || new Date().toISOString().split('T')[0],
+   987→   987→        }),
+   988→   988→      });
+   989→   989→      if (res.ok) {
+   990→   990→        toast.success('Promotion créée avec succès');
+   991→   991→        setDialogOpen(false);
+   992→   992→        setForm({ title: '', type: 'PERCENTAGE', value: '', code: '', startDate: '', endDate: '', maxUses: '' });
+   993→   993→        refetchCoupons();
+   994→   994→      } else {
+   995→   995→        const err = await res.json();
+   996→   996→        toast.error(err.error || 'Erreur');
+   997→   997→      }
+   998→   998→    } catch { toast.error('Erreur serveur'); }
+   999→   999→    setSaving(false);
+  1000→  1000→  };
+  1001→  1001→
+  1002→  1002→  return (
+  1003→  1003→    <div className="space-y-4">
+  1004→  1004→      <div className="flex items-center justify-between">
+  1005→  1005→        <div>
+  1006→  1006→          <h1 className="text-2xl font-bold gradient-text">Marketing</h1>
+  1007→  1007→          <p className="text-sm text-muted-foreground mt-1">Gérez vos promotions</p>
+  1008→  1008→        </div>
+  1009→  1009→        <Button size="sm" onClick={() => setDialogOpen(true)}>
+  1010→  1010→          <Plus className="w-4 h-4 mr-1" /> Créer une promotion
+  1011→  1011→        </Button>
+  1012→  1012→      </div>
+  1013→  1013→
+  1014→  1014→      {loading ? (
+  1015→  1015→        <div className="space-y-3">{Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
+  1016→  1016→      ) : coupons.length === 0 ? (
+  1017→  1017→        <EmptyState icon={Megaphone} title="Aucune promotion active" action="Créer une promotion" onAction={() => setDialogOpen(true)} />
+  1018→  1018→      ) : (
+  1019→  1019→        <div className="space-y-2 max-h-96 overflow-y-auto">
+  1020→  1020→          {coupons.map((c) => (
+  1021→  1021→            <Card key={c.id as string} className="glass-card">
+  1022→  1022→              <CardContent className="p-4">
+  1023→  1023→                <div className="flex items-center justify-between">
+  1024→  1024→                  <div>
+  1025→  1025→                    <div className="flex items-center gap-2">
+  1026→  1026→                      <Tag className="w-4 h-4 text-primary" />
+  1027→  1027→                      <span className="font-mono font-bold text-sm">{c.code as string}</span>
+  1028→  1028→                      <Badge variant="outline" className="text-[10px]">{c.type as string}</Badge>
+  1029→  1029→                    </div>
+  1030→  1030→                    <p className="text-xs text-muted-foreground mt-1">
+  1031→  1031→                      {c.type === 'PERCENTAGE' ? `${c.value}%` : formatPrice(c.value as number)} · Expire le {new Date(c.endDate as string).toLocaleDateString('fr-FR')}
+  1032→  1032→                    </p>
+  1033→  1033→                  </div>
+  1034→  1034→                  <Badge variant={c.isActive ? 'default' : 'secondary'} className="text-[10px]">
+  1035→  1035→                    {c.isActive ? 'Active' : 'Inactive'}
+  1036→  1036→                  </Badge>
+  1037→  1037→                </div>
+  1038→  1038→              </CardContent>
+  1039→  1039→            </Card>
+  1040→  1040→          ))}
+  1041→  1041→        </div>
+  1042→  1042→      )}
+  1043→  1043→
+  1044→  1044→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+  1045→  1045→        <DialogContent className="max-w-md">
+  1046→  1046→          <DialogHeader>
+  1047→  1047→            <DialogTitle>Créer une promotion</DialogTitle>
+  1048→  1048→            <DialogDescription>Configurez votre coupon de réduction</DialogDescription>
+  1049→  1049→          </DialogHeader>
+  1050→  1050→          <form onSubmit={handleCreate} className="space-y-4">
+  1051→  1051→            <div>
+  1052→  1052→              <label className="text-sm font-medium mb-1 block">Titre</label>
+  1053→  1053→              <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Promo d'été" />
+  1054→  1054→            </div>
+  1055→  1055→            <div className="grid grid-cols-2 gap-3">
+  1056→  1056→              <div>
+  1057→  1057→                <label className="text-sm font-medium mb-1 block">Type</label>
+  1058→  1058→                <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+  1059→  1059→                  <option value="PERCENTAGE">Pourcentage</option>
+  1060→  1060→                  <option value="FIXED">Montant fixe</option>
+  1061→  1061→                </select>
+  1062→  1062→              </div>
+  1063→  1063→              <div>
+  1064→  1064→                <label className="text-sm font-medium mb-1 block">Valeur {form.type === 'PERCENTAGE' ? '(%)' : '(FCFA)'}</label>
+  1065→  1065→                <Input type="number" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))} placeholder={form.type === 'PERCENTAGE' ? '10' : '500'} required />
+  1066→  1066→              </div>
+  1067→  1067→            </div>
+  1068→  1068→            <div>
+  1069→  1069→              <label className="text-sm font-medium mb-1 block">Code promo</label>
+  1070→  1070→              <Input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="PROMO10" required />
+  1071→  1071→            </div>
+  1072→  1072→            <div className="grid grid-cols-2 gap-3">
+  1073→  1073→              <div>
+  1074→  1074→                <label className="text-sm font-medium mb-1 block">Date début</label>
+  1075→  1075→                <Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+  1076→  1076→              </div>
+  1077→  1077→              <div>
+  1078→  1078→                <label className="text-sm font-medium mb-1 block">Date fin *</label>
+  1079→  1079→                <Input type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} required />
+  1080→  1080→              </div>
+  1081→  1081→            </div>
+  1082→  1082→            <div>
+  1083→  1083→              <label className="text-sm font-medium mb-1 block">Utilisations max</label>
+  1084→  1084→              <Input type="number" value={form.maxUses} onChange={(e) => setForm((f) => ({ ...f, maxUses: e.target.value }))} placeholder="Illimité" />
+  1085→  1085→            </div>
+  1086→  1086→            <DialogFooter>
+  1087→  1087→              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+  1088→  1088→              <Button type="submit" disabled={saving}>{saving ? 'Création...' : 'Créer'}</Button>
+  1089→  1089→            </DialogFooter>
+  1090→  1090→          </form>
+  1091→  1091→        </DialogContent>
+  1092→  1092→      </Dialog>
+  1093→  1093→    </div>
+  1094→  1094→  );
+  1095→  1095→}
+  1096→  1096→
+  1097→  1097→// ─── 8. BILLING VIEW ─────────────────────────────────────
+  1098→  1098→function BillingView({ merchantId }: { merchantId?: string }) {
+  1099→  1099→  const [plans, setPlans] = useState<Array<Record<string, unknown>>>([]);
+  1100→  1100→  const [loading, setLoading] = useState(true);
+  1101→  1101→
+  1102→  1102→  useEffect(() => {
+  1103→  1103→    (async () => {
+  1104→  1104→      try {
+  1105→  1105→        const res = await fetch('/api/plans');
+  1106→  1106→        if (res.ok) setPlans(await res.json());
+  1107→  1107→      } catch { /* silent */ }
+  1108→  1108→      setLoading(false);
+  1109→  1109→    })();
+  1110→  1110→  }, []);
+  1111→  1111→
+  1112→  1112→  return (
+  1113→  1113→    <div className="space-y-4">
+  1114→  1114→      <div>
+  1115→  1115→        <h1 className="text-2xl font-bold gradient-text">Facturation</h1>
+  1116→  1116→        <p className="text-sm text-muted-foreground mt-1">Historique et informations de facturation</p>
+  1117→  1117→      </div>
+  1118→  1118→
+  1119→  1119→      <EmptyState icon={Receipt} title="Aucune facture" />
+  1120→  1120→
+  1121→  1121→      {loading ? (
+  1122→  1122→        <Skeleton className="h-40 w-full" />
+  1123→  1123→      ) : plans.length > 0 ? (
+  1124→  1124→        <Card className="glass-card">
+  1125→  1125→          <CardHeader>
+  1126→  1126→            <CardTitle className="text-base">Formules disponibles</CardTitle>
+  1127→  1127→            <CardDescription>Votre plan actuel et les options disponibles</CardDescription>
+  1128→  1128→          </CardHeader>
+  1129→  1129→          <CardContent>
+  1130→  1130→            <div className="space-y-3 max-h-96 overflow-y-auto">
+  1131→  1131→              {plans.map((plan) => {
+  1132→  1132→                const features = plan.features ? (typeof plan.features === 'string' ? JSON.parse(plan.features) : plan.features) as string[] : [];
+  1133→  1133→                return (
+  1134→  1134→                  <div key={plan.id as string} className="flex items-center justify-between p-3 rounded-xl border">
+  1135→  1135→                    <div>
+  1136→  1136→                      <p className="text-sm font-medium">{plan.name as string}</p>
+  1137→  1137→                      <p className="text-xs text-muted-foreground">{features.slice(0, 3).join(' · ')}</p>
+  1138→  1138→                    </div>
+  1139→  1139→                    <span className="text-sm font-bold">{formatPrice(plan.price as number)}<span className="text-xs text-muted-foreground font-normal">/{plan.duration as number}j</span></span>
+  1140→  1140→                  </div>
+  1141→  1141→                );
+  1142→  1142→              })}
+  1143→  1143→            </div>
+  1144→  1144→          </CardContent>
+  1145→  1145→        </Card>
+  1146→  1146→      ) : null}
+  1147→  1147→    </div>
+  1148→  1148→  );
+  1149→  1149→}
+  1150→  1150→
+  1151→  1151→// ─── 9. SETTINGS VIEW ────────────────────────────────────
+  1152→  1152→function SettingsView({ merchant, userId, setMerchant }: { merchant?: MerchantInfo | null; userId?: string; setMerchant: (m: MerchantInfo) => void }) {
+  1153→  1153→  const [saving, setSaving] = useState(false);
+  1154→  1154→  const [form, setForm] = useState({
+  1155→  1155→    businessName: '', description: '', address: '', phone: '', operatingHours: '', businessType: '',
+  1156→  1156→  });
+  1157→  1157→
+  1158→  1158→  const initializedRef = React.useRef(false);
+  1159→  1159→
+  1160→  1160→  useEffect(() => {
+  1161→  1161→    if (merchant && !initializedRef.current) {
+  1162→  1162→      initializedRef.current = true;
+  1163→  1163→      (async () => {
+  1164→  1164→        setForm({
+  1165→  1165→          businessName: merchant.businessName || '',
+  1166→  1166→          description: merchant.description || '',
+  1167→  1167→          address: merchant.address || '',
+  1168→  1168→          phone: merchant.phone || '',
+  1169→  1169→          operatingHours: merchant.operatingHours || '',
+  1170→  1170→          businessType: merchant.businessType || '',
+  1171→  1171→        });
+  1172→  1172→      })();
+  1173→  1173→    }
+  1174→  1174→  }, [merchant]);
+  1175→  1175→
+  1176→  1176→  const handleSave = async () => {
+  1177→  1177→    if (!userId) return;
+  1178→  1178→    setSaving(true);
+  1179→  1179→    try {
+  1180→  1180→      const res = await fetch('/api/merchants/me', {
+  1181→  1181→        method: 'PUT',
+  1182→  1182→        headers: { 'Content-Type': 'application/json' },
+  1183→  1183→        body: JSON.stringify({ userId, ...form }),
+  1184→  1184→      });
+  1185→  1185→      if (res.ok) {
+  1186→  1186→        const updated = await res.json();
+  1187→  1187→        setMerchant(updated);
+  1188→  1188→        toast.success('Paramètres enregistrés');
+  1189→  1189→      } else toast.error('Erreur lors de l\'enregistrement');
+  1190→  1190→    } catch { toast.error('Erreur serveur'); }
+  1191→  1191→    setSaving(false);
+  1192→  1192→  };
+  1193→  1193→
+  1194→  1194→  const setField = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+  1195→  1195→
+  1196→  1196→  return (
+  1197→  1197→    <div className="space-y-4 max-w-2xl">
+  1198→  1198→      <div>
+  1199→  1199→        <h1 className="text-2xl font-bold gradient-text">Paramètres</h1>
+  1200→  1200→        <p className="text-sm text-muted-foreground mt-1">Informations de votre commerce</p>
+  1201→  1201→      </div>
+  1202→  1202→
+  1203→  1203→      <Card className="glass-card">
+  1204→  1204→        <CardContent className="p-4 space-y-4">
+  1205→  1205→          <div>
+  1206→  1206→            <label className="text-sm font-medium mb-1 block">Nom du commerce</label>
+  1207→  1207→            <Input value={form.businessName} onChange={(e) => setField('businessName', e.target.value)} />
+  1208→  1208→          </div>
+  1209→  1209→          <div>
+  1210→  1210→            <label className="text-sm font-medium mb-1 block">Description</label>
+  1211→  1211→            <Textarea value={form.description} onChange={(e) => setField('description', e.target.value)} rows={3} />
+  1212→  1212→          </div>
+  1213→  1213→          <div>
+  1214→  1214→            <label className="text-sm font-medium mb-1 block">Adresse</label>
+  1215→  1215→            <Input value={form.address} onChange={(e) => setField('address', e.target.value)} />
+  1216→  1216→          </div>
+  1217→  1217→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1218→  1218→            <div>
+  1219→  1219→              <label className="text-sm font-medium mb-1 block">Téléphone</label>
+  1220→  1220→              <Input value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
+  1221→  1221→            </div>
+  1222→  1222→            <div>
+  1223→  1223→              <label className="text-sm font-medium mb-1 block">Horaires</label>
+  1224→  1224→              <Input value={form.operatingHours} onChange={(e) => setField('operatingHours', e.target.value)} placeholder="08:00-22:00" />
+  1225→  1225→            </div>
+  1226→  1226→          </div>
+  1227→  1227→          <div>
+  1228→  1228→            <label className="text-sm font-medium mb-1 block">Type de commerce</label>
+  1229→  1229→            <select value={form.businessType} onChange={(e) => setField('businessType', e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+  1230→  1230→              <option value="RESTAURANT">Restaurant</option>
+  1231→  1231→              <option value="SUPERMARKET">Supermarché</option>
+  1232→  1232→              <option value="PHARMACY">Pharmacie</option>
+  1233→  1233→              <option value="BOUTIQUE">Boutique</option>
+  1234→  1234→              <option value="COLIS">Service de colis</option>
+  1235→  1235→            </select>
+  1236→  1236→          </div>
+  1237→  1237→          <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+  1238→  1238→            {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
+  1239→  1239→          </Button>
+  1240→  1240→        </CardContent>
+  1241→  1241→      </Card>
+  1242→  1242→    </div>
+  1243→  1243→  );
+  1244→  1244→}
+  1245→  1245→
+  1246→  1246→// ─── 10. SUBSCRIPTION VIEW ───────────────────────────────
+  1247→  1247→function SubscriptionView({ merchant }: { merchant?: MerchantInfo | null }) {
+  1248→  1248→  const [plans, setPlans] = useState<Array<Record<string, unknown>>>([]);
+  1249→  1249→  const [loading, setLoading] = useState(true);
+  1250→  1250→
+  1251→  1251→  useEffect(() => {
+  1252→  1252→    (async () => {
+  1253→  1253→      try {
+  1254→  1254→        const res = await fetch('/api/plans');
+  1255→  1255→        if (res.ok) setPlans(await res.json());
+  1256→  1256→      } catch { /* silent */ }
+  1257→  1257→      setLoading(false);
+  1258→  1258→    })();
+  1259→  1259→  }, []);
+  1260→  1260→
+  1261→  1261→  const currentPlan = merchant?.subscriptions?.[0]?.plan;
+  1262→  1262→
+  1263→  1263→  return (
+  1264→  1264→    <div className="space-y-4">
+  1265→  1265→      <div>
+  1266→  1266→        <h1 className="text-2xl font-bold gradient-text">Abonnement</h1>
+  1267→  1267→        <p className="text-sm text-muted-foreground mt-1">Gérez votre formule</p>
+  1268→  1268→      </div>
+  1269→  1269→
+  1270→  1270→      {currentPlan && (
+  1271→  1271→        <Card className="glass-card border-primary/30 bg-primary/5">
+  1272→  1272→          <CardContent className="p-4">
+  1273→  1273→            <div className="flex items-center gap-3">
+  1274→  1274→              <Crown className="w-8 h-8 text-primary" />
+  1275→  1275→              <div>
+  1276→  1276→                <p className="text-sm font-medium">Plan actuel</p>
+  1277→  1277→                <p className="text-lg font-bold gradient-text">{currentPlan.name}</p>
+  1278→  1278→              </div>
+  1279→  1279→            </div>
+  1280→  1280→          </CardContent>
+  1281→  1281→        </Card>
+  1282→  1282→      )}
+  1283→  1283→
+  1284→  1284→      {loading ? (
+  1285→  1285→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  1286→  1286→          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-60 w-full" />)}
+  1287→  1287→        </div>
+  1288→  1288→      ) : plans.length === 0 ? (
+  1289→  1289→        <EmptyState icon={Crown} title="Aucun plan disponible" />
+  1290→  1290→      ) : (
+  1291→  1291→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  1292→  1292→          {plans.map((plan) => {
+  1293→  1293→            const features = plan.features ? (typeof plan.features === 'string' ? JSON.parse(plan.features) : plan.features) as string[] : [];
+  1294→  1294→            const isCurrent = currentPlan?.name === plan.name;
+  1295→  1295→            return (
+  1296→  1296→              <Card key={plan.id as string} className={`glass-card ${isCurrent ? 'border-primary/50 ring-1 ring-primary/20' : ''}`}>
+  1297→  1297→                <CardHeader className="pb-2">
+  1298→  1298→                  <CardTitle className="text-base">{plan.name as string}</CardTitle>
+  1299→  1299→                  <CardDescription className="text-xs">{plan.duration as number} jours</CardDescription>
+  1300→  1300→                </CardHeader>
+  1301→  1301→                <CardContent className="space-y-4">
+  1302→  1302→                  <div>
+  1303→  1303→                    <span className="text-2xl font-bold">{formatPrice(plan.price as number)}</span>
+  1304→  1304→                    <span className="text-xs text-muted-foreground"> / {plan.duration as number}j</span>
+  1305→  1305→                  </div>
+  1306→  1306→                  {features.length > 0 && (
+  1307→  1307→                    <ul className="space-y-1.5">
+  1308→  1308→                      {features.map((f, i) => (
+  1309→  1309→                        <li key={i} className="flex items-center gap-2 text-xs">
+  1310→  1310→                          <Check className="w-3 h-3 text-primary shrink-0" />
+  1311→  1311→                          <span>{f}</span>
+  1312→  1312→                        </li>
+  1313→  1313→                      ))}
+  1314→  1314→                    </ul>
+  1315→  1315→                  )}
+  1316→  1316→                  <Button
+  1317→  1317→                    className="w-full"
+  1318→  1318→                    variant={isCurrent ? 'outline' : 'default'}
+  1319→  1319→                    disabled={isCurrent}
+  1320→  1320→                    onClick={() => toast.success('Demande d\'abonnement envoyée')}
+  1321→  1321→                  >
+  1322→  1322→                    {isCurrent ? 'Plan actuel' : "S'abonner"}
+  1323→  1323→                  </Button>
+  1324→  1324→                </CardContent>
+  1325→  1325→              </Card>
+  1326→  1326→            );
+  1327→  1327→          })}
+  1328→  1328→        </div>
+  1329→  1329→      )}
+  1330→  1330→    </div>
+  1331→  1331→  );
+  1332→  1332→}
+  1333→  1333→
+  1334→  1334→// ─── 12. SUPPORT VIEW ────────────────────────────────────
+  1335→  1335→function SupportView({ userId }: { userId?: string }) {
+  1336→  1336→  const [subject, setSubject] = useState('');
+  1337→  1337→  const [message, setMessage] = useState('');
+  1338→  1338→  const [sending, setSending] = useState(false);
+  1339→  1339→
+  1340→  1340→  const handleSend = async (e: React.FormEvent) => {
+  1341→  1341→    e.preventDefault();
+  1342→  1342→    if (!subject || !message) return toast.error('Veuillez remplir tous les champs');
+  1343→  1343→    setSending(true);
+  1344→  1344→    try {
+  1345→  1345→      const res = await fetch('/api/support', {
+  1346→  1346→        method: 'POST',
+  1347→  1347→        headers: { 'Content-Type': 'application/json' },
+  1348→  1348→        body: JSON.stringify({ userId, subject, description: message }),
+  1349→  1349→      });
+  1350→  1350→      if (res.ok) {
+  1351→  1351→        toast.success('Message envoyé avec succès');
+  1352→  1352→        setSubject('');
+  1353→  1353→        setMessage('');
+  1354→  1354→      } else toast.error('Erreur lors de l\'envoi');
+  1355→  1355→    } catch { toast.error('Erreur serveur'); }
+  1356→  1356→    setSending(false);
+  1357→  1357→  };
+  1358→  1358→
+  1359→  1359→  return (
+  1360→  1360→    <div className="space-y-4 max-w-2xl">
+  1361→  1361→      <div>
+  1362→  1362→        <h1 className="text-2xl font-bold gradient-text">Support</h1>
+  1363→  1363→        <p className="text-sm text-muted-foreground mt-1">Besoin d&apos;aide ? Contactez notre équipe</p>
+  1364→  1364→      </div>
+  1365→  1365→
+  1366→  1366→      <Card className="glass-card">
+  1367→  1367→        <CardContent className="p-4 space-y-4">
+  1368→  1368→          <form onSubmit={handleSend} className="space-y-4">
+  1369→  1369→            <div>
+  1370→  1370→              <label className="text-sm font-medium mb-1 block">Sujet</label>
+  1371→  1371→              <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Décrivez brièvement votre problème" required />
+  1372→  1372→            </div>
+  1373→  1373→            <div>
+  1374→  1374→              <label className="text-sm font-medium mb-1 block">Message</label>
+  1375→  1375→              <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Décrivez votre problème en détail..." rows={5} required />
+  1376→  1376→            </div>
+  1377→  1377→            <Button type="submit" disabled={sending} className="w-full sm:w-auto">
+  1378→  1378→              {sending ? 'Envoi en cours...' : 'Envoyer le message'}
+  1379→  1379→            </Button>
+  1380→  1380→          </form>
+  1381→  1381→        </CardContent>
+  1382→  1382→      </Card>
+  1383→  1383→    </div>
+  1384→  1384→  );
+  1385→  1385→}
+  1386→  1386→
+  1387→  1387→// ─── 14. PROFILE VIEW ────────────────────────────────────
+  1388→  1388→function ProfileView() {
+  1389→  1389→  const { user, logout } = useAuthStore();
+  1390→  1390→
+  1391→  1391→  return (
+  1392→  1392→    <div className="space-y-4 max-w-md mx-auto">
+  1393→  1393→      <div>
+  1394→  1394→        <h1 className="text-2xl font-bold gradient-text">Profil</h1>
+  1395→  1395→      </div>
+  1396→  1396→
+  1397→  1397→      <Card className="glass-card">
+  1398→  1398→        <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
+  1399→  1399→          <Avatar className="w-20 h-20">
+  1400→  1400→            <AvatarFallback className="text-2xl bg-primary/10 text-primary">
+  1401→  1401→              {(user?.firstName?.[0] || 'M')}{(user?.lastName?.[0] || '')}
+  1402→  1402→            </AvatarFallback>
+  1403→  1403→          </Avatar>
+  1404→  1404→          <div>
+  1405→  1405→            <p className="font-semibold">{user?.firstName} {user?.lastName}</p>
+  1406→  1406→            <p className="text-sm text-muted-foreground">{user?.email}</p>
+  1407→  1407→          </div>
+  1408→  1408→          <Separator />
+  1409→  1409→          <div className="w-full space-y-2 text-sm">
+  1410→  1410→            <div className="flex items-center justify-between">
+  1411→  1411→              <span className="text-muted-foreground">Rôle</span>
+  1412→  1412→              <Badge>Marchand</Badge>
+  1413→  1413→            </div>
+  1414→  1414→            <div className="flex items-center justify-between">
+  1415→  1415→              <span className="text-muted-foreground">Statut</span>
+  1416→  1416→              <Badge variant={user?.isVerified ? 'default' : 'secondary'}>
+  1417→  1417→                {user?.isVerified ? 'Vérifié' : 'Non vérifié'}
+  1418→  1418→              </Badge>
+  1419→  1419→            </div>
+  1420→  1420→          </div>
+  1421→  1421→          <Separator />
+  1422→  1422→          <Button variant="outline" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={logout}>
+  1423→  1423→            Se déconnecter
+  1424→  1424→          </Button>
+  1425→  1425→        </CardContent>
+  1426→  1426→      </Card>
+  1427→  1427→    </div>
+  1428→  1428→  );
+  1429→  1429→}
