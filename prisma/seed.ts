@@ -1,127 +1,236 @@
-import { db } from '../src/lib/db';
+import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
-const SALT_ROUNDS = 10;
-
-async function hashPassword(password: string) {
-  return bcrypt.hash(password, SALT_ROUNDS);
-}
+const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding Rapigo Mali database (minimal)...');
+  console.log('🌱 Seeding Rapigo Mali V2.0...');
 
-  // Clean existing data
-  await db.auditLog.deleteMany();
-  await db.transaction.deleteMany();
-  await db.wallet.deleteMany();
-  await db.rating.deleteMany();
-  await db.message.deleteMany();
-  await db.chat.deleteMany();
-  await db.notification.deleteMany();
-  await db.driverLocation.deleteMany();
-  await db.delivery.deleteMany();
-  await db.payment.deleteMany();
-  await db.orderItem.deleteMany();
-  await db.order.deleteMany();
-  await db.couponUsage.deleteMany();
-  await db.coupon.deleteMany();
-  await db.referral.deleteMany();
-  await db.favorite.deleteMany();
-  await db.advertisement.deleteMany();
-  await db.subscription.deleteMany();
-  await db.product.deleteMany();
-  await db.business.deleteMany();
-  await db.category.deleteMany();
-  await db.plan.deleteMany();
-  await db.supportTicket.deleteMany();
-  await db.report.deleteMany();
-  await db.setting.deleteMany();
-  await db.driver.deleteMany();
-  await db.merchant.deleteMany();
-  await db.client.deleteMany();
-  await db.user.deleteMany();
+  // Clean all data (except we just created fresh DB, but be safe)
+  await prisma.auditLog.deleteMany();
+  await prisma.driverLocation.deleteMany();
+  await prisma.transaction.deleteMany();
+  await prisma.wallet.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.chat.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.rating.deleteMany();
+  await prisma.delivery.deleteMany();
+  await prisma.payment.deleteMany();
+  await prisma.orderItem.deleteMany();
+  await prisma.order.deleteMany();
+  await prisma.couponUsage.deleteMany();
+  await prisma.coupon.deleteMany();
+  await prisma.referral.deleteMany();
+  await prisma.favorite.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.deliveryZone.deleteMany();
+  await prisma.merchantPaymentConfig.deleteMany();
+  await prisma.subscription.deleteMany();
+  await prisma.advertisement.deleteMany();
+  await prisma.supportTicket.deleteMany();
+  await prisma.report.deleteMany();
+  await prisma.client.deleteMany();
+  await prisma.driver.deleteMany();
+  await prisma.merchant.deleteMany();
+  await prisma.category.deleteMany();
+  await prisma.plan.deleteMany();
+  await prisma.setting.deleteMany();
+  await prisma.user.deleteMany();
 
-  // === ADMIN USER (ONLY) ===
-  const adminPassword = await hashPassword('Admin@123');
-  await db.user.create({
+  // ============================================
+  // SUPER ADMINISTRATOR
+  // ============================================
+  const adminPassword = await bcrypt.hash('Rapigo@Admin2024!', 12);
+  const admin = await prisma.user.create({
     data: {
       email: 'admin@rapigo.ml',
       phone: '+22370000000',
       password: adminPassword,
-      firstName: 'Admin',
-      lastName: 'Rapigo',
+      firstName: 'Super',
+      lastName: 'Administrateur',
       role: 'ADMIN',
+      isSuperAdmin: true,
       isVerified: true,
       isActive: true,
     },
   });
-  console.log('  ✅ Admin user created (admin@rapigo.ml / Admin@123)');
+  console.log('✅ Super Admin created:', admin.email);
 
-  // === BASIC SETTINGS ===
-  const settings = [
-    { key: 'platform_name', value: 'Rapigo Mali', type: 'STRING', group: 'GENERAL' },
-    { key: 'platform_currency', value: 'XOF', type: 'STRING', group: 'GENERAL' },
-    { key: 'default_city', value: 'Bamako', type: 'STRING', group: 'GENERAL' },
-    { key: 'delivery_base_fee', value: '500', type: 'NUMBER', group: 'DELIVERY' },
-    { key: 'delivery_per_km_fee', value: '200', type: 'NUMBER', group: 'DELIVERY' },
-    { key: 'delivery_free_threshold', value: '10000', type: 'NUMBER', group: 'DELIVERY' },
-    { key: 'service_fee_rate', value: '0.05', type: 'NUMBER', group: 'PAYMENT' },
-    { key: 'min_order_amount', value: '1000', type: 'NUMBER', group: 'GENERAL' },
-    { key: 'max_delivery_radius', value: '15', type: 'NUMBER', group: 'DELIVERY' },
-    { key: 'loyalty_points_rate', value: '1', type: 'NUMBER', group: 'GENERAL' },
-    { key: 'referral_reward', value: '2000', type: 'NUMBER', group: 'GENERAL' },
-    { key: 'driver_commission_rate', value: '0.20', type: 'NUMBER', group: 'PAYMENT' },
-    { key: 'dark_mode_default', value: 'false', type: 'BOOLEAN', group: 'GENERAL' },
-    { key: 'maintenance_mode', value: 'false', type: 'BOOLEAN', group: 'SECURITY' },
-    { key: 'otp_expiry_seconds', value: '300', type: 'NUMBER', group: 'SECURITY' },
-  ];
-
-  for (const s of settings) {
-    await db.setting.create({ data: s });
-  }
-  console.log('  ✅ Settings created');
-
-  // === PLANS ===
+  // ============================================
+  // PLANS D'ABONNEMENT
+  // ============================================
   const plans = [
-    { name: 'Starter', slug: 'starter', price: 0, duration: 30, maxProducts: 20, priority: 0, features: JSON.stringify(['Profil boutique', '20 produits', 'Commandes basiques']) },
-    { name: 'Pro', slug: 'pro', price: 15000, duration: 30, maxProducts: 100, priority: 1, features: JSON.stringify(['Profil boutique premium', '100 produits', 'Statistiques avancées', 'Support prioritaire', 'Publicités']) },
-    { name: 'Business', slug: 'business', price: 35000, duration: 30, maxProducts: 500, priority: 2, features: JSON.stringify(['Tout Pro', '500 produits', 'API access', 'Gestionnaire dédié', 'Marketing avancé', 'Badge vérifié']) },
-    { name: 'Enterprise', slug: 'enterprise', price: 75000, duration: 30, maxProducts: 9999, priority: 3, features: JSON.stringify(['Tout Business', 'Produits illimités', 'Intégration complète', 'Account manager', 'Analytics premium', 'SLA garanti']) },
+    {
+      name: 'Starter',
+      slug: 'starter',
+      price: 0,
+      duration: 30,
+      features: JSON.stringify(['5 produits maximum', 'Commandes illimitées', 'Support email']),
+      maxProducts: 5,
+      maxOrders: null,
+      maxCoupons: 1,
+      priority: 0,
+    },
+    {
+      name: 'Pro',
+      slug: 'pro',
+      price: 15000,
+      duration: 30,
+      features: JSON.stringify(['50 produits maximum', 'Commandes illimitées', '5 coupons', 'Support prioritaire', 'Statistiques avancées']),
+      maxProducts: 50,
+      maxOrders: null,
+      maxCoupons: 5,
+      priority: 10,
+    },
+    {
+      name: 'Business',
+      slug: 'business',
+      price: 35000,
+      duration: 30,
+      features: JSON.stringify(['200 produits maximum', 'Commandes illimitées', 'Coupons illimités', 'Support dédié', 'Statistiques avancées', 'Publicités', 'Livraison multi-zones']),
+      maxProducts: 200,
+      maxOrders: null,
+      maxCoupons: null,
+      priority: 20,
+    },
+    {
+      name: 'Enterprise',
+      slug: 'enterprise',
+      price: 75000,
+      duration: 30,
+      features: JSON.stringify(['Produits illimités', 'Commandes illimitées', 'Coupons illimités', 'Support 24/7', 'Statistiques complètes', 'Publicités prioritaires', 'API access', 'Livraison multi-zones', 'Badge vérifié']),
+      maxProducts: null,
+      maxOrders: null,
+      maxCoupons: null,
+      priority: 30,
+    },
   ];
 
-  for (const p of plans) {
-    await db.plan.create({ data: p });
+  for (const plan of plans) {
+    await prisma.plan.create({ data: plan });
   }
-  console.log('  ✅ Plans created');
+  console.log(`✅ ${plans.length} plans created`);
 
-  // === CATEGORIES (empty structure, user will fill content) ===
+  // ============================================
+  // CATEGORIES
+  // ============================================
   const categories = [
-    { name: 'Restaurants', slug: 'restaurants', icon: '🍽️', sortOrder: 1 },
-    { name: 'Supermarchés', slug: 'supermarches', icon: '🛒', sortOrder: 2 },
-    { name: 'Pharmacies', slug: 'pharmacies', icon: '💊', sortOrder: 3 },
-    { name: 'Boutiques', slug: 'boutiques', icon: '🛍️', sortOrder: 4 },
-    { name: 'Colis', slug: 'colis', icon: '📦', sortOrder: 5 },
-    { name: 'Boissons', slug: 'boissons', icon: '🥤', sortOrder: 6 },
-    { name: 'Plats locaux', slug: 'plats-locaux', icon: '🍛', sortOrder: 7 },
-    { name: 'Fast Food', slug: 'fast-food', icon: '🍔', sortOrder: 8 },
-    { name: 'Pâtisserie', slug: 'patisserie', icon: '🧁', sortOrder: 9 },
-    { name: 'Épicerie', slug: 'epicerie', icon: '🛒', sortOrder: 10 },
-    { name: 'Produits de beauté', slug: 'produits-beaute', icon: '💄', sortOrder: 11 },
-    { name: 'Électronique', slug: 'electronique', icon: '📱', sortOrder: 12 },
+    { name: 'Restaurants', slug: 'restaurants', icon: 'UtensilsCrossed', sortOrder: 1 },
+    { name: 'Fast Food', slug: 'fast-food', icon: 'Burger', sortOrder: 2, parentId: undefined },
+    { name: 'Plats locaux', slug: 'plats-locaux', icon: 'Soup', sortOrder: 3 },
+    { name: 'Pâtisserie', slug: 'patisserie', icon: 'Cake', sortOrder: 4 },
+    { name: 'Boissons', slug: 'boissons', icon: 'Wine', sortOrder: 5 },
+    { name: 'Supermarchés', slug: 'supermarches', icon: 'ShoppingCart', sortOrder: 6 },
+    { name: 'Épicerie', slug: 'epicerie', icon: 'Store', sortOrder: 7 },
+    { name: 'Fruits & Légumes', slug: 'fruits-legumes', icon: 'Apple', sortOrder: 8 },
+    { name: 'Pharmacies', slug: 'pharmacies', icon: 'Pill', sortOrder: 9 },
+    { name: 'Boutiques', slug: 'boutiques', icon: 'ShoppingBag', sortOrder: 10 },
+    { name: 'Électronique', slug: 'electronique', icon: 'Smartphone', sortOrder: 11 },
+    { name: 'Mode & Vêtements', slug: 'mode-vetements', icon: 'Shirt', sortOrder: 12 },
+    { name: 'Beauté & Santé', slug: 'beaute-sante', icon: 'Sparkles', sortOrder: 13 },
+    { name: 'Colis & Envois', slug: 'colis-envois', icon: 'Package', sortOrder: 14 },
+    { name: 'Services', slug: 'services', icon: 'Wrench', sortOrder: 15 },
   ];
 
-  for (const c of categories) {
-    await db.category.create({ data: c });
+  for (const cat of categories) {
+    await prisma.category.create({
+      data: {
+        name: cat.name,
+        slug: cat.slug,
+        icon: cat.icon,
+        sortOrder: cat.sortOrder,
+        isActive: true,
+      },
+    });
   }
-  console.log('  ✅ Categories created (empty - no merchants, products, or users)');
+  console.log(`✅ ${categories.length} categories created`);
 
-  console.log('\n🎉 Seed completed successfully!');
-  console.log('\n--- Test Account ---');
-  console.log('Admin:   admin@rapigo.ml / Admin@123');
-  console.log('\n💡 Register new accounts via the app to add merchants, drivers, and clients.');
-  console.log('💡 The platform is empty - add your own data through the admin panel.');
+  // ============================================
+  // SYSTEM SETTINGS
+  // ============================================
+  const settings = [
+    // General
+    { key: 'app_name', value: 'Rapigo Mali', type: 'STRING', group: 'GENERAL' },
+    { key: 'app_currency', value: 'XOF', type: 'STRING', group: 'GENERAL' },
+    { key: 'app_country', value: 'Mali', type: 'STRING', group: 'GENERAL' },
+    { key: 'default_city', value: 'Bamako', type: 'STRING', group: 'GENERAL' },
+    { key: 'support_email', value: 'support@rapigo.ml', type: 'STRING', group: 'GENERAL' },
+    { key: 'support_phone', value: '+22370000001', type: 'STRING', group: 'GENERAL' },
+    
+    // Commission
+    { key: 'default_commission_rate', value: '10', type: 'NUMBER', group: 'COMMISSION' },
+    { key: 'min_commission', value: '0', type: 'NUMBER', group: 'COMMISSION' },
+    { key: 'driver_commission_rate', value: '15', type: 'NUMBER', group: 'COMMISSION' },
+    
+    // Delivery
+    { key: 'default_delivery_fee', value: '500', type: 'NUMBER', group: 'DELIVERY' },
+    { key: 'max_delivery_radius', value: '15', type: 'NUMBER', group: 'DELIVERY' },
+    { key: 'free_delivery_threshold', value: '5000', type: 'NUMBER', group: 'DELIVERY' },
+    
+    // Payment
+    { key: 'payment_methods_enabled', value: '["CASH","ORANGE_MONEY","MOOV_MONEY","WAVE","VISA","MASTERCARD","QR_CODE"]', type: 'JSON', group: 'PAYMENT' },
+    { key: 'cash_on_delivery_enabled', value: 'true', type: 'BOOLEAN', group: 'PAYMENT' },
+    { key: 'payment_proof_required', value: 'true', type: 'BOOLEAN', group: 'PAYMENT' },
+    
+    // Security
+    { key: 'max_login_attempts', value: '5', type: 'NUMBER', group: 'SECURITY' },
+    { key: 'session_duration_hours', value: '168', type: 'NUMBER', group: 'SECURITY' },
+    { key: 'otp_expiry_minutes', value: '10', type: 'NUMBER', group: 'SECURITY' },
+    
+    // Notification
+    { key: 'notification_email_enabled', value: 'false', type: 'BOOLEAN', group: 'NOTIFICATION' },
+    { key: 'notification_sms_enabled', value: 'false', type: 'BOOLEAN', group: 'NOTIFICATION' },
+    { key: 'notification_push_enabled', value: 'true', type: 'BOOLEAN', group: 'NOTIFICATION' },
+  ];
+
+  for (const setting of settings) {
+    await prisma.setting.create({ data: setting });
+  }
+  console.log(`✅ ${settings.length} settings created`);
+
+  // ============================================
+  // DEFAULT CITIES & QUARTIERS (in settings)
+  // ============================================
+  const cities = [
+    {
+      name: 'Bamako',
+      quartiers: JSON.stringify([
+        'Badalabougou', 'Baco Djicoroni', 'Banconi', 'Boulkassoumbougou',
+        'Daoudabougou', 'Djicoroni Para', 'Faladiè', 'Hamdallaye',
+        'Kalaban-Coura', 'Korofina', 'Lafiabougou', 'Mahamana',
+        'Missabougou', 'Niamakoro', 'Quinzambougou', 'Sabalibougou',
+        'Sekoro', 'Sotuba', 'Tokorou', 'Yirimadio'
+      ]),
+    },
+    {
+      name: 'Ségou',
+      quartiers: JSON.stringify(['Ségou ville', 'Sokolo', 'Markala', 'San']),
+    },
+  ];
+
+  for (const city of cities) {
+    await prisma.setting.create({
+      data: {
+        key: `city_${city.name.toLowerCase().replace(/\s/g, '_')}`,
+        value: JSON.stringify(city),
+        type: 'JSON',
+        group: 'GENERAL',
+      },
+    });
+  }
+  console.log(`✅ ${cities.length} cities configured`);
+
+  console.log('\n🎉 Rapigo Mali V2.0 seeded successfully!');
+  console.log('📧 Admin: admin@rapigo.ml');
+  console.log('🔑 All other data is empty — ready for real data entry.');
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1); })
-  .finally(async () => { await db.$disconnect(); });
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

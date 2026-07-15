@@ -1,79 +1,105 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
 } from 'recharts';
 import {
   LayoutDashboard,
   Users,
   Store,
-  Truck,
-  ShoppingCart,
+  Bike,
+  ShoppingBag,
   CreditCard,
-  Crown,
-  Megaphone,
   Grid3X3,
   Package,
-  Headphones,
-  BarChart3,
-  FileText,
+  Ticket,
+  Crown,
   Settings,
+  FileText,
+  LifeBuoy,
   Bell,
-  MapPin,
   Menu,
   Search,
-  TrendingUp,
-  TrendingDown,
-  ChevronLeft,
-  Star,
   Eye,
   CheckCircle,
   XCircle,
-  UserPlus,
-  Filter,
-  Download,
   RefreshCw,
-  Activity,
-  DollarSign,
-  Clock,
-  ArrowUpRight,
-  ShieldCheck,
   Plus,
   Pencil,
   Trash2,
   Ban,
-  Tag,
+  LogOut,
+  ChevronDown,
+  ChevronRight,
+  Download,
+  Upload,
+  AlertTriangle,
+  Loader2,
+  ShieldCheck,
+  ShieldX,
+  UserCog,
+  Mail,
+  Phone,
+  MapPin,
+  Star,
+  CircleDot,
 } from 'lucide-react';
 
-import { useAuthStore, useAdminNav, formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/lib/store';
+import {
+  useAuthStore,
+  useAdminNav,
+  apiFetch,
+  formatPrice,
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_COLORS,
+  PAYMENT_STATUS_LABELS,
+  BUSINESS_TYPES,
+  PAYMENT_METHODS,
+} from '@/lib/store';
 import type { AdminView } from '@/lib/store';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -94,8 +120,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
 import {
   Sheet,
   SheetTrigger,
@@ -107,7 +133,7 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CHART_COLORS = ['#059669', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4'];
+const CHART_COLORS = ['#059669', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#ef4444', '#8b5cf6', '#14b8a6'];
 
 interface MenuItem {
   id: AdminView;
@@ -118,19 +144,53 @@ interface MenuItem {
 const MENU_ITEMS: MenuItem[] = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { id: 'users', label: 'Utilisateurs', icon: Users },
-  { id: 'merchants', label: 'Commerçants', icon: Store },
-  { id: 'drivers', label: 'Livreurs', icon: Truck },
-  { id: 'orders', label: 'Commandes', icon: ShoppingCart },
+  { id: 'merchants', label: 'Marchands', icon: Store },
+  { id: 'drivers', label: 'Livreurs', icon: Bike },
+  { id: 'orders', label: 'Commandes', icon: ShoppingBag },
   { id: 'payments', label: 'Paiements', icon: CreditCard },
-  { id: 'subscriptions', label: 'Abonnements', icon: Crown },
-  { id: 'advertisements', label: 'Publicités', icon: Megaphone },
   { id: 'categories', label: 'Catégories', icon: Grid3X3 },
   { id: 'products', label: 'Produits', icon: Package },
-  { id: 'support', label: 'Support', icon: Headphones },
-  { id: 'reports', label: 'Rapports', icon: BarChart3 },
-  { id: 'audit-logs', label: "Logs d'audit", icon: FileText },
+  { id: 'coupons', label: 'Coupons', icon: Ticket },
+  { id: 'subscriptions', label: 'Abonnements', icon: Crown },
   { id: 'settings', label: 'Paramètres', icon: Settings },
+  { id: 'audit-logs', label: "Journaux d'audit", icon: FileText },
+  { id: 'support', label: 'Support', icon: LifeBuoy },
 ];
+
+const ROLE_LABELS: Record<string, string> = {
+  CLIENT: 'Client',
+  MERCHANT: 'Marchand',
+  DRIVER: 'Livreur',
+  ADMIN: 'Admin',
+};
+
+const SUPPORT_STATUS_COLORS: Record<string, string> = {
+  OPEN: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  IN_PROGRESS: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  RESOLVED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  CLOSED: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+};
+
+const SUPPORT_STATUS_LABELS: Record<string, string> = {
+  OPEN: 'Ouvert',
+  IN_PROGRESS: 'En cours',
+  RESOLVED: 'Résolu',
+  CLOSED: 'Fermé',
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+  LOW: 'Bas',
+  MEDIUM: 'Moyen',
+  HIGH: 'Haut',
+  URGENT: 'Urgent',
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  LOW: 'bg-gray-100 text-gray-800',
+  MEDIUM: 'bg-blue-100 text-blue-800',
+  HIGH: 'bg-orange-100 text-orange-800',
+  URGENT: 'bg-red-100 text-red-800',
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -140,57 +200,44 @@ interface DashboardStats {
   totalDrivers: number;
   totalOrders: number;
   totalRevenue: number;
-  activeOrders: number;
   pendingMerchants: number;
-  totalProducts: number;
-  totalDeliveriesToday: number;
-  avgRating: number;
+  pendingDrivers: number;
   ordersByStatus: { name: string; value: number }[];
   recentOrders: any[];
-  topMerchants: any[];
-  revenueChart?: { month: string; revenue: number; orders: number }[];
 }
 
 // ─── Reusable hooks ────────────────────────────────────────────────────────────
 
-function useFetch<T>(url: string, fallback: T): { data: T; loading: boolean; refetch: () => void } {
+function useApiFetch<T>(url: string, fallback: T) {
   const [data, setData] = useState<T>(fallback);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch(url)
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) {
-          setData(d);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
+  const fetch_ = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const res = await apiFetch<T>(url);
+    if (res.error) {
+      setError(res.error);
+    } else if (res.data) {
+      setData(res.data);
+    }
+    setLoading(false);
   }, [url]);
 
-  const refetch = useCallback(() => {
-    fetch(url)
-      .then((r) => r.json())
-      .then((d) => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch(() => {
-        setLoading(false);
-      });
-  }, [url]);
+  useEffect(() => { fetch_(); }, [fetch_]);
 
-  return { data, loading, refetch };
+  return { data, loading, error, refetch: fetch_ };
 }
 
 // ─── Reusable components ──────────────────────────────────────────────────────
 
-function PageShell({ title, description, children, actions }: { title: string; description?: string; children: React.ReactNode; actions?: React.ReactNode }) {
+function PageShell({ title, description, children, actions }: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -199,10 +246,12 @@ function PageShell({ title, description, children, actions }: { title: string; d
       transition={{ duration: 0.2 }}
       className="space-y-6"
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+          {description && (
+            <p className="text-muted-foreground text-sm">{description}</p>
+          )}
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
@@ -211,454 +260,323 @@ function PageShell({ title, description, children, actions }: { title: string; d
   );
 }
 
-function EmptyState({ message, icon: Icon }: { message: string; icon?: React.ElementType }) {
-  const Ic = Icon || Package;
+function LoadingCards({ count = 4 }: { count?: number }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-      <Ic className="mb-4 h-12 w-12 opacity-30" />
-      <p>{message}</p>
-    </div>
-  );
-}
-
-function DataTableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4">
-          {Array.from({ length: cols }).map((_, j) => (
-            <Skeleton key={j} className="h-8 flex-1" />
-          ))}
-        </div>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <Card key={i}>
+          <CardContent className="p-6">
+            <Skeleton className="mb-2 h-4 w-24" />
+            <Skeleton className="h-8 w-32" />
+          </CardContent>
+        </Card>
       ))}
     </div>
   );
 }
 
-function StatCard({ title, value, icon: Icon, trend, trendValue, color, bg }: {
-  title: string;
-  value: string;
-  icon: React.ElementType;
-  trend?: 'up' | 'down';
-  trendValue?: string;
-  color: string;
-  bg: string;
-}) {
+function EmptyState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <Card className="relative overflow-hidden">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold tracking-tight">{value}</p>
-          </div>
-          <div className={`rounded-xl p-2.5 ${bg}`}>
-            <Icon className={`h-5 w-5 ${color}`} />
-          </div>
-        </div>
-        {trend && trendValue && (
-          <div className="mt-3 flex items-center gap-1.5">
-            {trend === 'up' ? (
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-            ) : (
-              <TrendingDown className="h-3.5 w-3.5 text-red-500" />
-            )}
-            <span className={`text-xs font-medium ${trend === 'up' ? 'text-emerald-600' : 'text-red-600'}`}>
-              {trendValue}
-            </span>
-            <span className="text-xs text-muted-foreground">vs semaine dernière</span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+      <div className="text-muted-foreground">
+        <FileText className="mx-auto h-12 w-12 opacity-30" />
+      </div>
+      <p className="text-muted-foreground text-sm">{message}</p>
+      {onRetry && (
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <RefreshCw className="h-4 w-4" />
+          Réessayer
+        </Button>
+      )}
+    </div>
   );
 }
 
-const tooltipStyle = {
-  borderRadius: '8px',
-  border: '1px solid hsl(var(--border))',
-  backgroundColor: 'hsl(var(--card))',
-  color: 'hsl(var(--card-foreground))',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-};
+function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+      <AlertTriangle className="h-12 w-12 text-destructive" />
+      <p className="text-sm text-destructive">{message}</p>
+      {onRetry && (
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <RefreshCw className="h-4 w-4" />
+          Réessayer
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function Spinner({ className = '' }: { className?: string }) {
+  return <Loader2 className={`h-4 w-4 animate-spin ${className}`} />;
+}
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function SidebarContent({
-  collapsed,
-  onNavigate,
-  currentView,
-}: {
-  collapsed: boolean;
-  onNavigate: (view: AdminView) => void;
-  currentView: AdminView;
-}) {
+function SidebarNav({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const { view, navigate } = useAdminNav();
+
+  const handleNav = (id: AdminView) => {
+    navigate(id);
+    onNavigate?.();
+  };
+
   return (
-    <div className="flex h-full flex-col">
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b px-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <ShieldCheck className="h-5 w-5" />
+    <nav className="flex flex-col gap-1 px-3">
+      {MENU_ITEMS.map((item) => {
+        const Icon = item.icon;
+        const active = view === item.id;
+        return (
+          <button
+            key={item.id}
+            onClick={() => handleNav(item.id)}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              active
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : ''}`} />
+            {!collapsed && <span>{item.label}</span>}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ─── Top Bar ──────────────────────────────────────────────────────────────────
+
+function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
+  const { user, logout } = useAuthStore();
+  const { navigate } = useAdminNav();
+
+  return (
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
+          <Menu className="h-5 w-5" />
+        </Button>
+        <div className="hidden items-center gap-2 lg:flex">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-sm font-bold text-white">
+            R
+          </div>
+          <span className="text-sm font-semibold">Rapigo Admin</span>
         </div>
-        {!collapsed && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <h2 className="font-bold text-lg tracking-tight">Rapigo Admin</h2>
-            <p className="text-[11px] text-muted-foreground -mt-1">Panneau de gestion</p>
-          </motion.div>
-        )}
       </div>
 
-      {/* Nav */}
-      <ScrollArea className="flex-1 px-3 py-4">
-        <nav className="space-y-1">
-          {MENU_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onNavigate(item.id)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150
-                  ${isActive
-                    ? 'bg-primary/10 text-primary shadow-sm'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }
-                  ${collapsed ? 'justify-center' : ''}
-                `}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon className={`h-4.5 w-4.5 shrink-0 ${isActive ? 'text-primary' : ''}`} />
-                {!collapsed && <span>{item.label}</span>}
-                {isActive && !collapsed && (
-                  <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-      </ScrollArea>
-
-      {/* User section at bottom */}
-      <div className="border-t p-3">
-        <button
-          onClick={() => onNavigate('profile')}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted ${collapsed ? 'justify-center' : ''}`}
-        >
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('support' as AdminView)}>
+          <Bell className="h-4 w-4" />
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
+            3
+          </span>
+        </Button>
+        <Separator orientation="vertical" className="mx-1 h-6" />
+        <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">AD</AvatarFallback>
+            <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs dark:bg-emerald-900/40 dark:text-emerald-400">
+              {user?.firstName?.[0]}{user?.lastName?.[0]}
+            </AvatarFallback>
           </Avatar>
-          {!collapsed && (
-            <div className="min-w-0 flex-1 text-left">
-              <p className="truncate text-sm font-medium">Admin</p>
-              <p className="truncate text-xs text-muted-foreground">admin@rapigo.ml</p>
-            </div>
-          )}
-        </button>
+          <div className="hidden sm:block">
+            <p className="text-sm font-medium leading-none">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="text-muted-foreground text-xs">{user?.email}</p>
+          </div>
+        </div>
+        <Button variant="ghost" size="icon" onClick={() => { logout(); navigate('dashboard'); }}>
+          <LogOut className="h-4 w-4" />
+        </Button>
       </div>
-    </div>
+    </header>
   );
 }
 
 // ─── Dashboard View ───────────────────────────────────────────────────────────
 
 function DashboardView() {
-  const { data: stats, loading, refetch } = useFetch<DashboardStats>('/api/stats', {
+  const { data, loading, error, refetch } = useApiFetch<DashboardStats>('/api/stats', {
     totalUsers: 0,
     totalMerchants: 0,
     totalDrivers: 0,
     totalOrders: 0,
     totalRevenue: 0,
-    activeOrders: 0,
     pendingMerchants: 0,
-    totalProducts: 0,
-    totalDeliveriesToday: 0,
-    avgRating: 0,
+    pendingDrivers: 0,
     ordersByStatus: [],
     recentOrders: [],
-    topMerchants: [],
   });
 
-  const revenueChart = stats.revenueChart?.length
-    ? stats.revenueChart
-    : [
-        { month: 'Lun', revenue: 1850000, orders: 245 },
-        { month: 'Mar', revenue: 2100000, orders: 278 },
-        { month: 'Mer', revenue: 1930000, orders: 256 },
-        { month: 'Jeu', revenue: 2350000, orders: 312 },
-        { month: 'Ven', revenue: 2780000, orders: 367 },
-        { month: 'Sam', revenue: 3100000, orders: 410 },
-        { month: 'Dim', revenue: 2450000, orders: 325 },
-      ];
+  if (error) return <ErrorState message={error} onRetry={refetch} />;
 
-  const pieData = stats.ordersByStatus?.length
-    ? stats.ordersByStatus
-    : [
-        { name: 'Livrées', value: 1245 },
-        { name: 'En cours', value: 89 },
-        { name: 'En attente', value: 45 },
-        { name: 'Annulées', value: 32 },
-        { name: 'En préparation', value: 67 },
-      ];
-
-  if (loading) {
-    return (
-      <PageShell title="Tableau de bord" description="Vue d'ensemble de la plateforme">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-36 rounded-xl" />
-          ))}
-        </div>
-        <Skeleton className="h-80 rounded-xl" />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Skeleton className="h-80 rounded-xl" />
-          <Skeleton className="h-80 rounded-xl" />
-        </div>
-      </PageShell>
-    );
-  }
+  const statCards = [
+    { label: 'Utilisateurs', value: data.totalUsers, icon: Users, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' },
+    { label: 'Marchands', value: data.totalMerchants, icon: Store, color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30' },
+    { label: 'Livreurs', value: data.totalDrivers, icon: Bike, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
+    { label: 'Commandes', value: data.totalOrders, icon: ShoppingBag, color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' },
+    { label: 'Revenus', value: formatPrice(data.totalRevenue), icon: CreditCard, color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30' },
+  ];
 
   return (
-    <PageShell
-      title="Tableau de bord"
-      description="Vue d'ensemble de la plateforme"
-      actions={
-        <Button variant="outline" size="sm" onClick={refetch}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Actualiser
-        </Button>
-      }
-    >
-      {/* Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Utilisateurs"
-          value={stats.totalUsers > 1000 ? `${(stats.totalUsers / 1000).toFixed(1)}K+` : stats.totalUsers.toLocaleString('fr-FR')}
-          icon={Users}
-          trend="up"
-          trendValue="+12.5%"
-          color="text-emerald-600"
-          bg="bg-emerald-50 dark:bg-emerald-950/40"
-        />
-        <StatCard
-          title="Revenus"
-          value={formatPrice(stats.totalRevenue || 15000000)}
-          icon={DollarSign}
-          trend="up"
-          trendValue="+8.2%"
-          color="text-amber-600"
-          bg="bg-amber-50 dark:bg-amber-950/40"
-        />
-        <StatCard
-          title="Commandes"
-          value={stats.totalOrders > 1000 ? `${(stats.totalOrders / 1000).toFixed(1)}K+` : stats.totalOrders.toLocaleString('fr-FR')}
-          icon={ShoppingCart}
-          trend="up"
-          trendValue="+15.3%"
-          color="text-violet-600"
-          bg="bg-violet-50 dark:bg-violet-950/40"
-        />
-        <StatCard
-          title="Livreurs actifs"
-          value={stats.totalDrivers > 0 ? stats.totalDrivers.toLocaleString('fr-FR') : '200+'}
-          icon={Truck}
-          trend="up"
-          trendValue="+5.1%"
-          color="text-cyan-600"
-          bg="bg-cyan-50 dark:bg-cyan-950/40"
-        />
-      </div>
+    <PageShell title="Tableau de bord" description="Vue d'ensemble de la plateforme Rapigo">
+      {loading ? (
+        <LoadingCards count={5} />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {statCards.map((s) => (
+            <Card key={s.label}>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${s.color}`}>
+                  <s.icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs">{s.label}</p>
+                  <p className="text-lg font-bold">{s.value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      {/* Revenue Chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base">Revenus sur 7 jours</CardTitle>
-              <CardDescription>Évolution des revenus et commandes</CardDescription>
-            </div>
-            <Badge variant="secondary" className="font-normal">
-              7 derniers jours
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={revenueChart} barGap={8}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                <YAxis
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`}
-                  className="text-muted-foreground"
-                />
-                <Tooltip
-                  formatter={(value: number) => [formatPrice(value), 'Revenus']}
-                  contentStyle={tooltipStyle}
-                />
-                <Bar dataKey="revenue" fill="#059669" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Orders by Status Pie Chart */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Orders by Status Chart */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Commandes par statut</CardTitle>
-            <CardDescription>Répartition des commandes</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {pieData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => [value, 'Commandes']}
-                    contentStyle={tooltipStyle}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-2 flex flex-wrap justify-center gap-3">
-                {pieData.map((entry, index) => (
-                  <div key={`pie-${index}-${entry.name}`} className="flex items-center gap-1.5">
-                    <div
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
-                    />
-                    <span className="text-xs text-muted-foreground">{entry.name} ({entry.value})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Merchants */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Meilleurs commerçants</CardTitle>
-            <CardDescription>Classés par note et chiffre d'affaires</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {stats.topMerchants.length > 0 ? (
-              <ScrollArea className="h-64">
-                <div className="space-y-3">
-                  {stats.topMerchants.map((merchant: any, i: number) => (
-                    <div key={merchant.id || i} className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-bold">
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{merchant.businessName || merchant.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {merchant.orders || 0} commandes · {formatPrice(merchant.revenue || 0)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 text-amber-500">
-                        <Star className="h-3.5 w-3.5 fill-current" />
-                        <span className="text-xs font-medium">{(merchant.rating || 0).toFixed(1)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+            {loading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : data.ordersByStatus.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">Aucune donnée</p>
             ) : (
-              <div className="space-y-3">
-                {[
-                  { name: 'Le Relais Bamako', orders: 342, revenue: 4250000, rating: 4.8 },
-                  { name: 'Supermarché Azalaï', orders: 289, revenue: 3680000, rating: 4.7 },
-                  { name: 'Pharmacie du Fleuve', orders: 215, revenue: 2100000, rating: 4.6 },
-                  { name: 'Boutique Sahel Mode', orders: 178, revenue: 1920000, rating: 4.5 },
-                  { name: 'Restaurant Djenné', orders: 156, revenue: 1750000, rating: 4.4 },
-                ].map((m, i) => (
-                  <div key={i} className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-bold">
-                      {i + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{m.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {m.orders} commandes · {formatPrice(m.revenue)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 text-amber-500">
-                      <Star className="h-3.5 w-3.5 fill-current" />
-                      <span className="text-xs font-medium">{m.rating}</span>
-                    </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={data.ordersByStatus}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={90}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {data.ordersByStatus.map((_, index) => (
+                        <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {data.ordersByStatus.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {data.ordersByStatus.map((item, i) => (
+                  <div key={item.name} className="flex items-center gap-1.5 text-xs">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <span className="text-muted-foreground">{item.name}</span>
+                    <span className="font-medium">({item.value})</span>
                   </div>
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Pending Approvals */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">En attente d'approbation</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : (
+              <>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                      <Store className="h-4 w-4 text-yellow-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Marchands en attente</p>
+                      <p className="text-xs text-muted-foreground">Nécessitent une vérification</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" variant="secondary">
+                    {data.pendingMerchants}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                      <Bike className="h-4 w-4 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Livreurs en attente</p>
+                      <p className="text-xs text-muted-foreground">Documents à vérifier</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" variant="secondary">
+                    {data.pendingDrivers}
+                  </Badge>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Recent Orders Table */}
+      {/* Recent Orders */}
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base">Commandes récentes</CardTitle>
-              <CardDescription>Dernières commandes passées sur la plateforme</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" onClick={() => {}}>
-              Voir tout <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          </div>
+          <CardTitle className="text-base">Commandes récentes</CardTitle>
         </CardHeader>
         <CardContent>
-          {stats.recentOrders.length > 0 ? (
-            <div className="overflow-x-auto -mx-6 px-6">
+          {loading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+          ) : !data.recentOrders || data.recentOrders.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Aucune commande récente</p>
+          ) : (
+            <div className="max-h-96 overflow-y-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>N°</TableHead>
                     <TableHead>Client</TableHead>
-                    <TableHead className="hidden md:table-cell">Commerçant</TableHead>
-                    <TableHead>Total</TableHead>
+                    <TableHead>Marchand</TableHead>
+                    <TableHead>Montant</TableHead>
                     <TableHead>Statut</TableHead>
-                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+                    <TableHead>Date</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {stats.recentOrders.slice(0, 8).map((order: any, i: number) => (
-                    <TableRow key={order.id || i} className="cursor-pointer hover:bg-muted/50">
-                      <TableCell className="font-mono text-xs">#{(order.id || order.orderNumber || '').slice(-6).toUpperCase()}</TableCell>
-                      <TableCell className="text-sm">{order.customerName || order.userName || '—'}</TableCell>
-                      <TableCell className="hidden text-sm md:table-cell">{order.merchant?.businessName || order.merchantName || '—'}</TableCell>
-                      <TableCell className="text-sm font-medium">{formatPrice(order.total || order.amount || 0)}</TableCell>
+                  {data.recentOrders.slice(0, 10).map((order: any) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-mono text-xs">{order.orderNumber}</TableCell>
+                      <TableCell className="text-sm">{order.clientName || '-'}</TableCell>
+                      <TableCell className="text-sm">{order.merchantName || '-'}</TableCell>
+                      <TableCell className="text-sm font-medium">{formatPrice(order.total)}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className={ORDER_STATUS_COLORS[order.status] || 'bg-muted'}>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ORDER_STATUS_COLORS[order.status] || ''}`}>
                           {ORDER_STATUS_LABELS[order.status] || order.status}
-                        </Badge>
+                        </span>
                       </TableCell>
-                      <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">
-                        {order.createdAt
-                          ? new Date(order.createdAt).toLocaleDateString('fr-FR')
-                          : '—'}
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(order.createdAt).toLocaleDateString('fr-FR')}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
-          ) : (
-            <EmptyState message="Aucune commande récente" />
           )}
         </CardContent>
       </Card>
@@ -670,223 +588,163 @@ function DashboardView() {
 
 function UsersView() {
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const { data: users, loading, refetch } = useFetch<any[]>(
-    roleFilter !== 'all' ? `/api/users?role=${roleFilter}` : '/api/users',
-    []
-  );
+  const [roleFilter, setRoleFilter] = useState('');
+  const [offset, setOffset] = useState(0);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const limit = 20;
 
-  const filteredUsers = (users || []).filter(
-    (u: any) =>
-      !search ||
-      u.firstName?.toLowerCase().includes(search.toLowerCase()) ||
-      u.lastName?.toLowerCase().includes(search.toLowerCase()) ||
-      u.email?.toLowerCase().includes(search.toLowerCase()) ||
-      u.phone?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const roleLabel = (role: string) => {
-    switch (role) {
-      case 'CLIENT': return 'Client';
-      case 'MERCHANT': return 'Commerçant';
-      case 'DRIVER': return 'Livreur';
-      case 'ADMIN': return 'Admin';
-      default: return role || '—';
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (roleFilter) params.set('role', roleFilter);
+    if (search) params.set('search', search);
+    const res = await apiFetch<any>(`/api/users?${params}`);
+    if (res.data) {
+      setUsers(Array.isArray(res.data) ? res.data : res.data.users || []);
+      setTotal(res.data.total || res.data.length || 0);
     }
+    setLoading(false);
+  }, [search, roleFilter, offset]);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const handleBlock = async (userId: string, action: 'block' | 'unblock') => {
+    const res = await apiFetch(`/api/users/${userId}/block`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    });
+    if (res.error) { toast.error(res.error); return; }
+    toast.success(action === 'block' ? 'Utilisateur bloqué' : 'Utilisateur débloqué');
+    fetchUsers();
+  };
+
+  const handleSuspend = async (userId: string, action: 'suspend' | 'reactivate') => {
+    const res = await apiFetch(`/api/users/${userId}/suspend`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    });
+    if (res.error) { toast.error(res.error); return; }
+    toast.success(action === 'suspend' ? 'Utilisateur suspendu' : 'Utilisateur réactivé');
+    fetchUsers();
   };
 
   return (
-    <PageShell
-      title="Utilisateurs"
-      description={`${(users || []).length} utilisateurs inscrits`}
-      actions={
-        <>
-          <Button variant="outline" size="sm" onClick={refetch}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Actualiser
-          </Button>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Ajouter
-          </Button>
-        </>
-      }
-    >
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher par nom, email, téléphone..."
-                className="pl-9"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="Filtrer par rôle" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les rôles</SelectItem>
-                <SelectItem value="CLIENT">Clients</SelectItem>
-                <SelectItem value="MERCHANT">Commerçants</SelectItem>
-                <SelectItem value="DRIVER">Livreurs</SelectItem>
-                <SelectItem value="ADMIN">Admins</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+    <PageShell title="Utilisateurs" description="Gérer tous les utilisateurs de la plateforme">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher par nom, email, téléphone..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
+            className="pl-9"
+          />
+        </div>
+        <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v === 'all' ? '' : v); setOffset(0); }}>
+          <SelectTrigger className="w-full sm:w-40">
+            <SelectValue placeholder="Tous les rôles" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les rôles</SelectItem>
+            <SelectItem value="CLIENT">Clients</SelectItem>
+            <SelectItem value="MERCHANT">Marchands</SelectItem>
+            <SelectItem value="DRIVER">Livreurs</SelectItem>
+            <SelectItem value="ADMIN">Admins</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={6} cols={6} /></div>
-          ) : filteredUsers.length > 0 ? (
-            <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[640px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nom</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Téléphone</TableHead>
-                      <TableHead>Rôle</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Créé le</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user: any, i: number) => (
-                      <TableRow key={user.id || i} className="hover:bg-muted/50">
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : users.length === 0 ? (
+            <EmptyState message="Aucun utilisateur trouvé" onRetry={fetchUsers} />
+          ) : (
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nom</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead className="hidden md:table-cell">Téléphone</TableHead>
+                    <TableHead>Rôle</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((u: any) => {
+                    const isSuper = u.isSuperAdmin;
+                    return (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.firstName} {u.lastName}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
+                        <TableCell className="hidden text-sm md:table-cell">{u.phone}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={user.avatar} />
-                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                {((user.firstName?.[0] || '') + (user.lastName?.[0] || '')).toUpperCase() || 'U'}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm font-medium">
-                              {user.firstName} {user.lastName}
-                            </span>
-                          </div>
+                          <Badge variant="outline">{ROLE_LABELS[u.role] || u.role}</Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{user.email || '—'}</TableCell>
-                        <TableCell className="text-sm">{user.phone || '—'}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {roleLabel(user.role)}
+                          <Badge variant={u.isActive ? 'default' : 'destructive'} className={u.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
+                            {u.isActive ? 'Actif' : 'Inactif'}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          {!user.isActive ? (
-                            <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                              Bloqué
-                            </Badge>
-                          ) : user.isVerified ? (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                              Vérifié
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                              Non vérifié
-                            </Badge>
-                          )}
+                        <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+                          {new Date(u.createdAt).toLocaleDateString('fr-FR')}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString('fr-FR') : '—'}
-                        </TableCell>
-                        <TableCell>
-                          {user.role === 'ADMIN' ? (
-                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                              <ShieldCheck className="mr-1 h-3 w-3" />Compte Admin Protégé
-                            </Badge>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={user.isActive ? 'text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'}
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch('/api/users/block', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ userId: user.id, block: user.isActive }),
-                                  });
-                                  if (res.ok) {
-                                    refetch();
-                                    toast.success(user.isActive ? 'Utilisateur bloqué' : 'Utilisateur débloqué');
-                                  } else {
-                                    toast.error('Erreur');
-                                  }
-                                } catch {
-                                  toast.error('Erreur');
-                                }
-                              }}
-                            >
-                              {user.isActive ? (
-                                <><Ban className="mr-1.5 h-4 w-4" />Bloquer</>
-                              ) : (
-                                <><CheckCircle className="mr-1.5 h-4 w-4" />Débloquer</>
-                              )}
-                            </Button>
-                          )}
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {!isSuper && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleBlock(u.id, u.isActive ? 'block' : 'unblock')}
+                                  disabled={!u.isActive && u.role === 'ADMIN'}
+                                >
+                                  {u.isActive ? <Ban className="h-3.5 w-3.5 text-red-500" /> : <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleSuspend(u.id, u.isActive ? 'suspend' : 'reactivate')}
+                                  disabled={!u.isActive && u.role === 'ADMIN'}
+                                >
+                                  {u.isActive ? <ShieldX className="h-3.5 w-3.5 text-orange-500" /> : <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />}
+                                </Button>
+                              </>
+                            )}
+                            {isSuper && (
+                              <span className="text-xs text-muted-foreground">Super Admin</span>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
-          ) : (
-            <EmptyState message="Aucun utilisateur trouvé" />
           )}
         </CardContent>
       </Card>
 
-      {/* Add User Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ajouter un utilisateur</DialogTitle>
-            <DialogDescription>Créer un nouveau compte administrateur</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Prénom</label>
-                <Input placeholder="Prénom" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nom</label>
-                <Input placeholder="Nom" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
-              <Input type="email" placeholder="email@rapigo.ml" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Rôle</label>
-              <Select defaultValue="CLIENT">
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CLIENT">Client</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button className="w-full" onClick={() => { setDialogOpen(false); toast.success('Utilisateur ajouté avec succès'); }}>
-              Créer l&apos;utilisateur
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{total} utilisateur(s) au total</p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset((p) => Math.max(0, p - limit))}>
+            Précédent
+          </Button>
+          <Button variant="outline" size="sm" disabled={offset + limit >= total} onClick={() => setOffset((p) => p + limit)}>
+            Suivant
+          </Button>
+        </div>
+      </div>
     </PageShell>
   );
 }
@@ -895,189 +753,205 @@ function UsersView() {
 
 function MerchantsView() {
   const [search, setSearch] = useState('');
-  const { data: merchants, loading, refetch } = useFetch<any[]>('/api/merchants?all=true', []);
+  const [typeFilter, setTypeFilter] = useState('');
+  const [approvalFilter, setApprovalFilter] = useState('');
+  const [merchants, setMerchants] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedMerchant, setSelectedMerchant] = useState<any>(null);
 
-  const filtered = (merchants || []).filter(
-    (m: any) =>
-      !search ||
-      m.businessName?.toLowerCase().includes(search.toLowerCase()) ||
-      m.user?.firstName?.toLowerCase().includes(search.toLowerCase()) ||
-      m.user?.lastName?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const handleApprove = async (merchant: any) => {
-    try {
-      const res = await fetch('/api/merchants/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ merchantId: merchant.id, approve: true }),
-      });
-      if (res.ok) {
-        refetch();
-        toast.success('Commerçant approuvé');
-      } else {
-        toast.error('Erreur');
-      }
-    } catch {
-      toast.error('Erreur');
+  const fetchMerchants = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ all: 'true' });
+    if (search) params.set('search', search);
+    if (typeFilter) params.set('type', typeFilter);
+    if (approvalFilter) params.set('approved', approvalFilter);
+    const res = await apiFetch<any>(`/api/merchants?${params}`);
+    if (res.data) {
+      setMerchants(Array.isArray(res.data) ? res.data : res.data.merchants || []);
     }
+    setLoading(false);
+  }, [search, typeFilter, approvalFilter]);
+
+  useEffect(() => { fetchMerchants(); }, [fetchMerchants]);
+
+  const handleApprove = async (id: string, action: 'approve' | 'reject') => {
+    const res = await apiFetch(`/api/merchants/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    });
+    if (res.error) { toast.error(res.error); return; }
+    toast.success(action === 'approve' ? 'Marchand approuvé' : 'Marchand refusé');
+    fetchMerchants();
   };
 
-  const handleReject = async (merchant: any) => {
-    try {
-      const res = await fetch('/api/merchants/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ merchantId: merchant.id, approve: false }),
-      });
-      if (res.ok) {
-        refetch();
-        toast.success('Commerçant rejeté');
-      } else {
-        toast.error('Erreur');
-      }
-    } catch {
-      toast.error('Erreur');
-    }
-  };
-
-  const handleSuspend = async (merchant: any) => {
-    try {
-      const res = await fetch('/api/merchants/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ merchantId: merchant.id, approve: false }),
-      });
-      if (res.ok) {
-        refetch();
-        toast.success('Commerçant suspendu');
-      } else {
-        toast.error('Erreur');
-      }
-    } catch {
-      toast.error('Erreur');
-    }
+  const handleBlock = async (id: string) => {
+    const res = await apiFetch(`/api/users/${id}/block`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'block' }),
+    });
+    if (res.error) { toast.error(res.error); return; }
+    toast.success('Marchand bloqué');
+    fetchMerchants();
   };
 
   return (
-    <PageShell
-      title="Commerçants"
-      description={`${(merchants || []).length} commerçants enregistrés`}
-      actions={
-        <Button variant="outline" size="sm" onClick={refetch}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Actualiser
-        </Button>
-      }
-    >
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un commerçant..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+    <PageShell title="Marchands" description="Gérer les marchands de la plateforme">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un marchand..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue placeholder="Type de commerce" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les types</SelectItem>
+            {Object.entries(BUSINESS_TYPES).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={approvalFilter} onValueChange={(v) => setApprovalFilter(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-full sm:w-36">
+            <SelectValue placeholder="Approbation" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous</SelectItem>
+            <SelectItem value="true">Approuvés</SelectItem>
+            <SelectItem value="false">En attente</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={5} cols={7} /></div>
-          ) : filtered.length > 0 ? (
-            <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[800px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Entreprise</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Note</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Produits</TableHead>
-                      <TableHead>Revenus</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((m: any, i: number) => {
-                      const isApproved = m.status === 'APPROVED' || m.isApproved;
-                      const isPending = !isApproved;
-                      return (
-                        <TableRow key={m.id || i} className={`hover:bg-muted/50 ${isPending ? 'border-l-4 border-l-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10' : ''}`}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={m.user?.avatar} />
-                                <AvatarFallback className="bg-amber-100 text-amber-700 text-xs">
-                                  {(m.businessName || 'C')[0].toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="text-sm font-medium">{m.businessName || `${m.user?.firstName || ''} ${m.user?.lastName || ''}`}</p>
-                                <p className="text-xs text-muted-foreground">{m.user?.email || '—'}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm">{m.businessType || m.type || 'Restaurant'}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                              <span className="text-sm font-medium">{(m.rating || 0).toFixed(1)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {isPending ? (
-                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                                En attente
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                Actif
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm">{m.products?.length || m.productCount || 0}</TableCell>
-                          <TableCell className="text-sm font-medium">{formatPrice(m.revenue || m.totalRevenue || 0)}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              {isPending ? (
-                                <>
-                                  <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleApprove(m)}>
-                                    <CheckCircle className="mr-1.5 h-4 w-4" />Approuver
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => handleReject(m)}>
-                                    <XCircle className="mr-1.5 h-4 w-4" />Rejeter
-                                  </Button>
-                                </>
-                              ) : (
-                                <>
-                                  <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20" onClick={() => handleSuspend(m)}>
-                                    <Ban className="mr-1.5 h-4 w-4" />Suspendre
-                                  </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Voir">
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
+          ) : merchants.length === 0 ? (
+            <EmptyState message="Aucun marchand trouvé" onRetry={fetchMerchants} />
           ) : (
-            <EmptyState message="Aucun commerçant trouvé" />
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Entreprise</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="hidden md:table-cell">Téléphone</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="hidden lg:table-cell">Note</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {merchants.map((m: any) => (
+                    <TableRow key={m.id} className={!m.isApproved ? 'bg-yellow-50/50 dark:bg-yellow-950/10' : ''}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                            {m.businessName?.[0]}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{m.businessName}</p>
+                            <p className="text-xs text-muted-foreground">{m.city}{m.quartier ? ` - ${m.quartier}` : ''}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{BUSINESS_TYPES[m.businessType] || m.businessType}</Badge>
+                      </TableCell>
+                      <TableCell className="hidden text-sm md:table-cell">{m.phone}</TableCell>
+                      <TableCell>
+                        {!m.isApproved ? (
+                          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" variant="secondary">
+                            En attente
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" variant="secondary">
+                            Approuvé
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          <span className="text-sm">{m.rating?.toFixed(1) || '0.0'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => { setSelectedMerchant(m); setDetailOpen(true); }}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          {!m.isApproved && (
+                            <>
+                              <Button variant="ghost" size="sm" onClick={() => handleApprove(m.id, 'approve')}>
+                                <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleApprove(m.id, 'reject')}>
+                                <XCircle className="h-3.5 w-3.5 text-red-500" />
+                              </Button>
+                            </>
+                          )}
+                          {m.isApproved && (
+                            <Button variant="ghost" size="sm" onClick={() => handleBlock(m.userId)}>
+                              <Ban className="h-3.5 w-3.5 text-red-500" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Merchant Detail Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{selectedMerchant?.businessName}</DialogTitle>
+            <DialogDescription>Détails du marchand</DialogDescription>
+          </DialogHeader>
+          {selectedMerchant && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div><span className="text-muted-foreground">Type:</span> <span className="ml-1 font-medium">{BUSINESS_TYPES[selectedMerchant.businessType]}</span></div>
+                <div><span className="text-muted-foreground">Ville:</span> <span className="ml-1 font-medium">{selectedMerchant.city}</span></div>
+                <div><span className="text-muted-foreground">Téléphone:</span> <span className="ml-1 font-medium">{selectedMerchant.phone}</span></div>
+                <div><span className="text-muted-foreground">Email:</span> <span className="ml-1 font-medium">{selectedMerchant.email || '-'}</span></div>
+                <div><span className="text-muted-foreground">Commission:</span> <span className="ml-1 font-medium">{selectedMerchant.commissionRate}%</span></div>
+                <div><span className="text-muted-foreground">Note:</span> <span className="ml-1 font-medium">{selectedMerchant.rating?.toFixed(1)}/5</span></div>
+              </div>
+              {selectedMerchant.description && (
+                <div>
+                  <span className="text-muted-foreground">Description:</span>
+                  <p className="mt-1">{selectedMerchant.description}</p>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">Adresse:</span>
+                <p className="mt-1">{selectedMerchant.address}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Horaires:</span>
+                <p className="mt-1">{selectedMerchant.operatingHours}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
@@ -1086,818 +960,495 @@ function MerchantsView() {
 
 function DriversView() {
   const [search, setSearch] = useState('');
-  const { data: drivers, loading, refetch } = useFetch<any[]>('/api/drivers', []);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<any>(null);
 
-  const filtered = (drivers || []).filter(
-    (d: any) =>
-      !search ||
-      d.user?.firstName?.toLowerCase().includes(search.toLowerCase()) ||
-      d.user?.lastName?.toLowerCase().includes(search.toLowerCase()) ||
-      d.vehicleType?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const handleVerify = async (driver: any) => {
-    try {
-      const res = await fetch('/api/drivers/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driverId: driver.id, approve: true }),
-      });
-      if (res.ok) {
-        refetch();
-        toast.success('Livreur vérifié avec succès');
-      } else {
-        toast.error('Erreur');
-      }
-    } catch {
-      toast.error('Erreur');
+  const fetchDrivers = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    const res = await apiFetch<any>(`/api/drivers?${params}`);
+    if (res.data) {
+      setDrivers(Array.isArray(res.data) ? res.data : res.data.drivers || []);
     }
+    setLoading(false);
+  }, [search]);
+
+  useEffect(() => { fetchDrivers(); }, [fetchDrivers]);
+
+  const handleApprove = async (id: string, action: 'approve' | 'reject') => {
+    const res = await apiFetch(`/api/drivers/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    });
+    if (res.error) { toast.error(res.error); return; }
+    toast.success(action === 'approve' ? 'Livreur approuvé' : 'Livreur refusé');
+    fetchDrivers();
   };
 
-  const handleRejectDriver = async (driver: any) => {
-    try {
-      const res = await fetch('/api/drivers/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driverId: driver.id, approve: false }),
-      });
-      if (res.ok) {
-        refetch();
-        toast.success('Livreur rejeté');
-      } else {
-        toast.error('Erreur');
-      }
-    } catch {
-      toast.error('Erreur');
-    }
-  };
-
-  const handleSuspendDriver = async (driver: any) => {
-    try {
-      const res = await fetch('/api/drivers/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driverId: driver.id, approve: false }),
-      });
-      if (res.ok) {
-        refetch();
-        toast.success('Livreur suspendu');
-      } else {
-        toast.error('Erreur');
-      }
-    } catch {
-      toast.error('Erreur');
-    }
-  };
+  const vehicleLabel: Record<string, string> = { MOTO: 'Moto', VELO: 'Vélo', VOITURE: 'Voiture' };
 
   return (
-    <PageShell
-      title="Livreurs"
-      description={`${(drivers || []).length} livreurs inscrits`}
-      actions={
-        <Button variant="outline" size="sm" onClick={refetch}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Actualiser
-        </Button>
-      }
-    >
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un livreur..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+    <PageShell title="Livreurs" description="Gérer les livreurs de la plateforme">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Rechercher un livreur..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9 max-w-md"
+        />
+      </div>
 
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={5} cols={7} /></div>
-          ) : filtered.length > 0 ? (
-            <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[820px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nom</TableHead>
-                      <TableHead>Véhicule</TableHead>
-                      <TableHead>Note</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Courses</TableHead>
-                      <TableHead>Revenus</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((d: any, i: number) => {
-                      const isVerified = d.isVerified;
-                      const firstName = d.user?.firstName || d.firstName || '';
-                      const lastName = d.user?.lastName || d.lastName || '';
-                      return (
-                        <TableRow key={d.id || i} className={`hover:bg-muted/50 ${!isVerified ? 'border-l-4 border-l-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10' : ''}`}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={d.user?.avatar} />
-                                <AvatarFallback className="bg-cyan-50 text-cyan-700 text-xs">
-                                  {(firstName[0] || '') + (lastName[0] || '')}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="text-sm font-medium">{firstName} {lastName}</p>
-                                <p className="text-xs text-muted-foreground">{d.user?.phone || d.phone || '—'}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            <div className="flex items-center gap-2">
-                              <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-                              {d.vehicleType || d.vehicle || 'Moto'}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                              <span className="text-sm font-medium">{(d.rating || 0).toFixed(1)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {isVerified ? (
-                              <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                Vérifié
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                                Non vérifié
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm">{d.totalDeliveries || d.deliveries || 0}</TableCell>
-                          <TableCell className="text-sm font-medium">{formatPrice(d.earnings || d.totalEarnings || 0)}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              {isVerified ? (
-                                <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20" onClick={() => handleSuspendDriver(d)}>
-                                  <Ban className="mr-1.5 h-4 w-4" />Suspendre
-                                </Button>
-                              ) : (
-                                <>
-                                  <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleVerify(d)}>
-                                    <CheckCircle className="mr-1.5 h-4 w-4" />Vérifier
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => handleRejectDriver(d)}>
-                                    <XCircle className="mr-1.5 h-4 w-4" />Rejeter
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
+          ) : drivers.length === 0 ? (
+            <EmptyState message="Aucun livreur trouvé" onRetry={fetchDrivers} />
           ) : (
-            <EmptyState message="Aucun livreur trouvé" icon={Truck} />
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Livreur</TableHead>
+                    <TableHead>Véhicule</TableHead>
+                    <TableHead className="hidden md:table-cell">Documents</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="hidden lg:table-cell">Livraisons</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {drivers.map((d: any) => {
+                    const hasAllDocs = d.idCardImage && d.licenseImage && d.vehicleImage && d.selfieImage;
+                    return (
+                      <TableRow key={d.id} className={!d.isApproved ? 'bg-yellow-50/50 dark:bg-yellow-950/10' : ''}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-xs font-bold text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                              {d.user?.firstName?.[0]}{d.user?.lastName?.[0]}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{d.user?.firstName} {d.user?.lastName}</p>
+                              <p className="text-xs text-muted-foreground">{d.user?.phone}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{vehicleLabel[d.vehicleType] || d.vehicleType}</Badge>
+                          {d.vehiclePlate && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">{d.vehiclePlate}</p>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <div className="flex items-center gap-1">
+                            {hasAllDocs ? (
+                              <CheckCircle className="h-4 w-4 text-emerald-500" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-red-400" />
+                            )}
+                            <span className="text-xs">{hasAllDocs ? 'Complets' : 'Incomplets'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {!d.isApproved ? (
+                            <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" variant="secondary">
+                              En attente
+                            </Badge>
+                          ) : d.isOnline ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" variant="secondary">
+                              En ligne
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Hors ligne</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden text-sm lg:table-cell">{d.totalDeliveries}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => { setSelectedDriver(d); setDetailOpen(true); }}>
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            {!d.isApproved && (
+                              <>
+                                <Button variant="ghost" size="sm" onClick={() => handleApprove(d.id, 'approve')}>
+                                  <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleApprove(d.id, 'reject')}>
+                                  <XCircle className="h-3.5 w-3.5 text-red-500" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Driver Detail Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{selectedDriver?.user?.firstName} {selectedDriver?.user?.lastName}</DialogTitle>
+            <DialogDescription>Détails du livreur</DialogDescription>
+          </DialogHeader>
+          {selectedDriver && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div><span className="text-muted-foreground">Véhicule:</span> <span className="ml-1 font-medium">{vehicleLabel[selectedDriver.vehicleType]}</span></div>
+                <div><span className="text-muted-foreground">Plaque:</span> <span className="ml-1 font-medium">{selectedDriver.vehiclePlate || '-'}</span></div>
+                <div><span className="text-muted-foreground">Marque:</span> <span className="ml-1 font-medium">{selectedDriver.vehicleBrand || '-'}</span></div>
+                <div><span className="text-muted-foreground">Couleur:</span> <span className="ml-1 font-medium">{selectedDriver.vehicleColor || '-'}</span></div>
+                <div><span className="text-muted-foreground">N° permis:</span> <span className="ml-1 font-medium">{selectedDriver.licenseNumber || '-'}</span></div>
+                <div><span className="text-muted-foreground">N° carte:</span> <span className="ml-1 font-medium">{selectedDriver.idCardNumber || '-'}</span></div>
+                <div><span className="text-muted-foreground">Livraisons:</span> <span className="ml-1 font-medium">{selectedDriver.totalDeliveries}</span></div>
+                <div><span className="text-muted-foreground">Gains:</span> <span className="ml-1 font-medium">{formatPrice(selectedDriver.totalEarnings)}</span></div>
+                <div><span className="text-muted-foreground">Note:</span> <span className="ml-1 font-medium">{selectedDriver.rating?.toFixed(1)}/5</span></div>
+              </div>
+              <Separator />
+              <div>
+                <p className="mb-2 font-medium">Documents</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-1">{selectedDriver.idCardImage ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : <XCircle className="h-3 w-3 text-red-400" />} Carte d'identité</div>
+                  <div className="flex items-center gap-1">{selectedDriver.licenseImage ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : <XCircle className="h-3 w-3 text-red-400" />} Permis de conduire</div>
+                  <div className="flex items-center gap-1">{selectedDriver.vehicleImage ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : <XCircle className="h-3 w-3 text-red-400" />} Photo du véhicule</div>
+                  <div className="flex items-center gap-1">{selectedDriver.selfieImage ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : <XCircle className="h-3 w-3 text-red-400" />} Selfie</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
 
 // ─── Orders View ──────────────────────────────────────────────────────────────
 
-const ORDER_TABS = [
-  { value: 'all', label: 'Toutes' },
-  { value: 'PENDING', label: 'En attente' },
-  { value: 'CONFIRMED', label: 'Confirmées' },
-  { value: 'PREPARING', label: 'En préparation' },
-  { value: 'IN_TRANSIT', label: 'En livraison' },
-  { value: 'DELIVERED', label: 'Livrées' },
-  { value: 'CANCELLED', label: 'Annulées' },
-];
-
 function OrdersView() {
   const [search, setSearch] = useState('');
-  const [statusTab, setStatusTab] = useState('all');
-  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
-  const { data: orders, loading, refetch } = useFetch<any[]>('/api/orders', []);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const filtered = (orders || []).filter((o: any) => {
-    const matchSearch = !search ||
-      o.id?.toLowerCase().includes(search.toLowerCase()) ||
-      o.orderNumber?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusTab === 'all' || o.status === statusTab;
-    return matchSearch && matchStatus;
-  });
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ limit: '100' });
+    if (search) params.set('search', search);
+    if (statusFilter) params.set('status', statusFilter);
+    const res = await apiFetch<any>(`/api/orders?${params}`);
+    if (res.data) {
+      setOrders(Array.isArray(res.data) ? res.data : res.data.orders || []);
+    }
+    setLoading(false);
+  }, [search, statusFilter]);
+
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  const viewDetail = (order: any) => {
+    setSelectedOrder(order);
+    setDetailOpen(true);
+  };
 
   return (
-    <PageShell
-      title="Commandes"
-      description={`${(orders || []).length} commandes au total`}
-      actions={
-        <Button variant="outline" size="sm" onClick={refetch}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Actualiser
+    <PageShell title="Commandes" description="Gérer toutes les commandes de la plateforme">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher par N° de commande..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue placeholder="Tous les statuts" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" onClick={fetchOrders}>
+          <RefreshCw className="h-4 w-4" />
         </Button>
-      }
-    >
-      {/* Search */}
+      </div>
+
       <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher par N°, client, commerçant..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : orders.length === 0 ? (
+            <EmptyState message="Aucune commande trouvée" onRetry={fetchOrders} />
+          ) : (
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>N°</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead className="hidden md:table-cell">Marchand</TableHead>
+                    <TableHead>Montant</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="hidden lg:table-cell">Paiement</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.map((o: any) => (
+                    <React.Fragment key={o.id}>
+                      <TableRow
+                        className="cursor-pointer"
+                        onClick={() => setExpandedRow(expandedRow === o.id ? null : o.id)}
+                      >
+                        <TableCell className="font-mono text-xs">{o.orderNumber}</TableCell>
+                        <TableCell className="text-sm">{o.client?.user?.firstName || '-'}</TableCell>
+                        <TableCell className="hidden text-sm md:table-cell">{o.merchant?.businessName || '-'}</TableCell>
+                        <TableCell className="text-sm font-medium">{formatPrice(o.total)}</TableCell>
+                        <TableCell>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ORDER_STATUS_COLORS[o.status] || ''}`}>
+                            {ORDER_STATUS_LABELS[o.status] || o.status}
+                          </span>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <span className="text-xs text-muted-foreground">
+                            {PAYMENT_STATUS_LABELS[o.paymentStatus] || o.paymentStatus}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); viewDetail(o); }}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {expandedRow === o.id && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="bg-muted/30">
+                            <div className="p-2 text-sm">
+                              <div className="grid gap-2 sm:grid-cols-3">
+                                <div><span className="text-muted-foreground">Sous-total:</span> <span className="ml-1">{formatPrice(o.subtotal)}</span></div>
+                                <div><span className="text-muted-foreground">Livraison:</span> <span className="ml-1">{formatPrice(o.deliveryFee)}</span></div>
+                                <div><span className="text-muted-foreground">Remise:</span> <span className="ml-1">{formatPrice(o.discount)}</span></div>
+                                <div><span className="text-muted-foreground">Méthode:</span> <span className="ml-1">{PAYMENT_METHODS[o.paymentMethod] || o.paymentMethod}</span></div>
+                                <div><span className="text-muted-foreground">Adresse:</span> <span className="ml-1">{o.deliveryAddress}</span></div>
+                                <div><span className="text-muted-foreground">Date:</span> <span className="ml-1">{new Date(o.createdAt).toLocaleString('fr-FR')}</span></div>
+                              </div>
+                              {o.items && o.items.length > 0 && (
+                                <div className="mt-2">
+                                  <p className="mb-1 font-medium">Articles:</p>
+                                  {o.items.map((item: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between py-0.5 text-xs">
+                                      <span>{item.productName} x{item.quantity}</span>
+                                      <span>{formatPrice(item.totalPrice)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Status Tabs */}
-      <Tabs value={statusTab} onValueChange={setStatusTab}>
-        <div className="overflow-x-auto -mx-6 px-6">
-          <TabsList className="w-full justify-start">
-            {ORDER_TABS.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="text-sm">
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-
-        <TabsContent value={statusTab} className="mt-4">
-          <Card>
-            <CardContent className="p-0">
-              {loading ? (
-                <div className="p-6"><DataTableSkeleton rows={6} cols={6} /></div>
-              ) : filtered.length > 0 ? (
-                <div className="max-h-[520px] overflow-auto">
-                  <div className="min-w-[700px]">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>N°</TableHead>
-                          <TableHead>Client</TableHead>
-                          <TableHead>Commerçant</TableHead>
-                          <TableHead>Total</TableHead>
-                          <TableHead>Statut</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filtered.map((order: any, i: number) => {
-                          const orderId = order.id || order.orderNumber || String(i);
-                          const isExpanded = expandedOrder === orderId;
-                          return (
-                            <React.Fragment key={orderId}>
-                              <TableRow
-                                className="cursor-pointer hover:bg-muted/50"
-                                onClick={() => setExpandedOrder(isExpanded ? null : orderId)}
-                              >
-                                <TableCell className="font-mono text-xs">#{String(orderId).slice(-6).toUpperCase()}</TableCell>
-                                <TableCell className="text-sm">{order.customerName || '—'}</TableCell>
-                                <TableCell className="text-sm">{order.merchant?.businessName || order.merchantName || '—'}</TableCell>
-                                <TableCell className="text-sm font-medium">{formatPrice(order.total || order.amount || 0)}</TableCell>
-                                <TableCell>
-                                  <Badge variant="secondary" className={ORDER_STATUS_COLORS[order.status] || 'bg-muted'}>
-                                    {ORDER_STATUS_LABELS[order.status] || order.status}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString('fr-FR') : '—'}
-                                </TableCell>
-                                <TableCell>
-                                  <ChevronLeft className={`h-4 w-4 transition-transform text-muted-foreground ${isExpanded ? 'rotate-90' : '-rotate-90'}`} />
-                                </TableCell>
-                              </TableRow>
-                              {isExpanded && (
-                                <TableRow>
-                                  <TableCell colSpan={7} className="bg-muted/30 px-8 py-4">
-                                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                                      <div>
-                                        <p className="text-xs font-medium text-muted-foreground">Adresse de livraison</p>
-                                        <p className="text-sm mt-0.5">{order.deliveryAddress || '—'}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-medium text-muted-foreground">Livreur</p>
-                                        <p className="text-sm mt-0.5">{order.driver?.user ? `${order.driver.user.firstName} ${order.driver.user.lastName}` : order.driverName || 'Non assigné'}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-medium text-muted-foreground">Frais de livraison</p>
-                                        <p className="text-sm mt-0.5">{formatPrice(order.deliveryFee || 0)}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-medium text-muted-foreground">Notes</p>
-                                        <p className="text-sm mt-0.5">{order.notes || '—'}</p>
-                                      </div>
-                                    </div>
-                                    {order.items && order.items.length > 0 && (
-                                      <div className="mt-4">
-                                        <p className="mb-2 text-xs font-medium text-muted-foreground">Articles</p>
-                                        <div className="space-y-1">
-                                          {order.items.map((item: any, j: number) => (
-                                            <div key={j} className="flex justify-between text-sm">
-                                              <span>{item.name} ×{item.quantity}</span>
-                                              <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                            </React.Fragment>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+      {/* Order Detail Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Commande {selectedOrder?.orderNumber}</DialogTitle>
+            <DialogDescription>Détails complets de la commande</DialogDescription>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-4 text-sm">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border p-3 space-y-1">
+                  <p className="font-medium">Client</p>
+                  <p>{selectedOrder.client?.user?.firstName} {selectedOrder.client?.user?.lastName}</p>
+                  <p className="text-xs text-muted-foreground">{selectedOrder.client?.user?.phone}</p>
+                </div>
+                <div className="rounded-lg border p-3 space-y-1">
+                  <p className="font-medium">Marchand</p>
+                  <p>{selectedOrder.merchant?.businessName}</p>
+                  <p className="text-xs text-muted-foreground">{selectedOrder.merchant?.phone}</p>
+                </div>
+                <div className="rounded-lg border p-3 space-y-1">
+                  <p className="font-medium">Livraison</p>
+                  <p>{selectedOrder.deliveryAddress}</p>
+                  <p className="text-xs text-muted-foreground">{selectedOrder.deliveryCity} - {selectedOrder.deliveryQuartier || '-'}</p>
+                </div>
+                <div className="rounded-lg border p-3 space-y-1">
+                  <p className="font-medium">Livreur</p>
+                  <p>{selectedOrder.driver?.user?.firstName ? `${selectedOrder.driver.user.firstName} ${selectedOrder.driver.user.lastName}` : 'Non assigné'}</p>
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3 text-xs">
+                <div><span className="text-muted-foreground">Sous-total:</span> <span className="ml-1 font-medium">{formatPrice(selectedOrder.subtotal)}</span></div>
+                <div><span className="text-muted-foreground">Frais de livraison:</span> <span className="ml-1 font-medium">{formatPrice(selectedOrder.deliveryFee)}</span></div>
+                <div><span className="text-muted-foreground">Frais de service:</span> <span className="ml-1 font-medium">{formatPrice(selectedOrder.serviceFee)}</span></div>
+                <div><span className="text-muted-foreground">Remise:</span> <span className="ml-1 font-medium">{formatPrice(selectedOrder.discount)}</span></div>
+                <div><span className="text-muted-foreground">Total:</span> <span className="ml-1 text-base font-bold text-emerald-600">{formatPrice(selectedOrder.total)}</span></div>
+                <div><span className="text-muted-foreground">Méthode:</span> <span className="ml-1">{PAYMENT_METHODS[selectedOrder.paymentMethod]}</span></div>
+              </div>
+              {selectedOrder.items && selectedOrder.items.length > 0 && (
+                <div>
+                  <p className="mb-2 font-medium">Articles ({selectedOrder.items.length})</p>
+                  <div className="space-y-1">
+                    {selectedOrder.items.map((item: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between rounded border p-2 text-xs">
+                        <div>
+                          <p className="font-medium">{item.productName}</p>
+                          <p className="text-muted-foreground">{formatPrice(item.unitPrice)} x {item.quantity}</p>
+                        </div>
+                        <p className="font-medium">{formatPrice(item.totalPrice)}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <EmptyState message="Aucune commande trouvée" icon={ShoppingCart} />
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
 
 // ─── Payments View ────────────────────────────────────────────────────────────
 
-const MOCK_PAYMENTS = [
-  { id: 'pay-001', orderId: 'ord-823451', userName: 'Amadou Diallo', amount: 12500, method: 'Orange Money', status: 'SUCCESS', createdAt: '2025-01-15T10:30:00' },
-  { id: 'pay-002', orderId: 'ord-823452', userName: 'Fatoumata Traoré', amount: 8750, method: 'Moov Money', status: 'SUCCESS', createdAt: '2025-01-15T11:15:00' },
-  { id: 'pay-003', orderId: 'ord-823453', userName: 'Ibrahim Keita', amount: 23000, method: 'Espèces', status: 'PENDING', createdAt: '2025-01-15T12:00:00' },
-  { id: 'pay-004', orderId: 'ord-823454', userName: 'Mariam Coulibaly', amount: 5600, method: 'Orange Money', status: 'SUCCESS', createdAt: '2025-01-15T13:20:00' },
-  { id: 'pay-005', orderId: 'ord-823455', userName: 'Oumar Sidibé', amount: 15800, method: 'Wallet', status: 'FAILED', createdAt: '2025-01-15T14:45:00' },
-  { id: 'pay-006', orderId: 'ord-823456', userName: 'Awa Sangaré', amount: 9200, method: 'Moov Money', status: 'SUCCESS', createdAt: '2025-01-15T15:30:00' },
-  { id: 'pay-007', orderId: 'ord-823457', userName: 'Moussa Dembélé', amount: 31200, method: 'Orange Money', status: 'SUCCESS', createdAt: '2025-01-15T16:10:00' },
-  { id: 'pay-008', orderId: 'ord-823458', userName: 'Kadiatou Ba', amount: 7400, method: 'Espèces', status: 'PENDING', createdAt: '2025-01-15T17:00:00' },
-];
-
 function PaymentsView() {
-  const [search, setSearch] = useState('');
-  const { data: payments, loading } = useFetch<any[]>('/api/payments', MOCK_PAYMENTS);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = (payments || []).filter(
-    (p: any) =>
-      !search ||
-      p.id?.toLowerCase().includes(search.toLowerCase()) ||
-      p.orderId?.toLowerCase().includes(search.toLowerCase()) ||
-      p.userName?.toLowerCase().includes(search.toLowerCase())
-  );
+  const fetchPayments = useCallback(async () => {
+    setLoading(true);
+    const res = await apiFetch<any>('/api/orders?limit=100');
+    if (res.data) {
+      setOrders(Array.isArray(res.data) ? res.data : res.data.orders || []);
+    }
+    setLoading(false);
+  }, []);
 
-  const totalAmount = (payments || []).reduce((s: number, p: any) => s + (p.amount || 0), 0);
+  useEffect(() => { fetchPayments(); }, [fetchPayments]);
+
+  const filteredOrders = statusFilter
+    ? orders.filter((o: any) => o.paymentStatus === statusFilter)
+    : orders;
+
+  const totalAmount = filteredOrders.reduce((sum: number, o: any) => sum + (o.total || 0), 0);
 
   return (
-    <PageShell
-      title="Paiements"
-      description={`Total : ${formatPrice(totalAmount)}`}
-      actions={
-        <Button variant="outline" size="sm">
-          <Download className="mr-2 h-4 w-4" />
-          Exporter
+    <PageShell title="Paiements" description="Suivi de tous les paiements">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="Tous les statuts" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            {Object.entries(PAYMENT_STATUS_LABELS).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" onClick={fetchPayments}>
+          <RefreshCw className="h-4 w-4" />
         </Button>
-      }
-    >
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un paiement..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-muted-foreground text-xs">Total transactions</p>
+            <p className="text-lg font-bold">{filteredOrders.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-muted-foreground text-xs">Montant total</p>
+            <p className="text-lg font-bold text-emerald-600">{formatPrice(totalAmount)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-muted-foreground text-xs">Paiements acceptés</p>
+            <p className="text-lg font-bold">
+              {filteredOrders.filter((o: any) => o.paymentStatus === 'ACCEPTED' || o.paymentStatus === 'COMPLETED').length}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={5} cols={6} /></div>
-          ) : filtered.length > 0 ? (
-            <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[780px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Commande</TableHead>
-                      <TableHead>Utilisateur</TableHead>
-                      <TableHead>Montant</TableHead>
-                      <TableHead>Méthode</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((p: any, i: number) => (
-                      <TableRow key={p.id || i} className="hover:bg-muted/50">
-                        <TableCell className="font-mono text-xs">#{(p.id || '').slice(-6).toUpperCase()}</TableCell>
-                        <TableCell className="font-mono text-xs">#{(p.orderId || '').slice(-6).toUpperCase()}</TableCell>
-                        <TableCell className="text-sm">{p.userName || '—'}</TableCell>
-                        <TableCell className="text-sm font-medium">{formatPrice(p.amount || 0)}</TableCell>
-                        <TableCell className="text-sm">{p.method || 'Mobile Money'}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className={
-                            p.status === 'COMPLETED' || p.status === 'SUCCESS'
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
-                              : p.status === 'PENDING'
-                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                          }>
-                            {p.status === 'COMPLETED' || p.status === 'SUCCESS' ? 'Complété' : p.status === 'PENDING' ? 'En attente' : 'Échoué'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {p.createdAt ? new Date(p.createdAt).toLocaleDateString('fr-FR') : '—'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
+          ) : filteredOrders.length === 0 ? (
+            <EmptyState message="Aucun paiement trouvé" onRetry={fetchPayments} />
           ) : (
-            <EmptyState message="Aucun paiement trouvé" icon={CreditCard} />
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>N° Commande</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead className="hidden md:table-cell">Méthode</TableHead>
+                    <TableHead>Montant</TableHead>
+                    <TableHead>Statut paiement</TableHead>
+                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOrders.map((o: any) => (
+                    <TableRow key={o.id}>
+                      <TableCell className="font-mono text-xs">{o.orderNumber}</TableCell>
+                      <TableCell className="text-sm">{o.client?.user?.firstName || '-'}</TableCell>
+                      <TableCell className="hidden text-sm md:table-cell">{PAYMENT_METHODS[o.paymentMethod] || o.paymentMethod}</TableCell>
+                      <TableCell className="text-sm font-medium">{formatPrice(o.total)}</TableCell>
+                      <TableCell>
+                        <Badge variant={o.paymentStatus === 'ACCEPTED' || o.paymentStatus === 'COMPLETED' ? 'default' : o.paymentStatus === 'FAILED' || o.paymentStatus === 'REJECTED' ? 'destructive' : 'secondary'}>
+                          {PAYMENT_STATUS_LABELS[o.paymentStatus] || o.paymentStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+                        {new Date(o.createdAt).toLocaleDateString('fr-FR')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
-    </PageShell>
-  );
-}
-
-// ─── Subscriptions View ───────────────────────────────────────────────────────
-
-const MOCK_SUBSCRIPTIONS = [
-  { id: '1', planName: 'Starter', price: 0, activeCount: 45, description: 'Gratuit, commission 15%' },
-  { id: '2', planName: 'Pro', price: 15000, activeCount: 28, description: 'Commission 10%, visibilité boostée' },
-  { id: '3', planName: 'Premium', price: 35000, activeCount: 12, description: 'Commission 5%, publicités incluses' },
-];
-
-function SubscriptionsView() {
-  const { data: subs } = useFetch<any[]>('/api/subscriptions', MOCK_SUBSCRIPTIONS);
-
-  return (
-    <PageShell
-      title="Abonnements"
-      description="Plans et abonnements marchands"
-      actions={
-        <Button size="sm">
-          <Plus className="mr-2 h-4 w-4" />
-          Nouveau plan
-        </Button>
-      }
-    >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {(subs || MOCK_SUBSCRIPTIONS).map((sub: any, i: number) => (
-          <Card key={sub.id || i} className="relative overflow-hidden">
-            {sub.price === 0 && (
-              <div className="absolute right-3 top-3">
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">Populaire</Badge>
-              </div>
-            )}
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-semibold">{sub.planName || sub.name || 'Plan'}</p>
-                  <p className="text-2xl font-bold text-primary mt-1">
-                    {sub.price > 0 ? formatPrice(sub.price) : 'Gratuit'}
-                    {sub.price > 0 && <span className="text-sm font-normal text-muted-foreground">/mois</span>}
-                  </p>
-                </div>
-                <Crown className="h-6 w-6 text-amber-500" />
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">{sub.description || ''}</p>
-              <Separator className="my-4" />
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Abonnés actifs</span>
-                  <span className="font-medium">{sub.activeCount || 0}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Revenus mensuels</span>
-                  <span className="font-medium">{formatPrice((sub.activeCount || 0) * (sub.price || 0))}</span>
-                </div>
-                <Progress value={(sub.activeCount || 0) * 2} className="h-1.5 mt-2" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </PageShell>
-  );
-}
-
-// ─── Advertisements View ─────────────────────────────────────────────────────
-
-const MOCK_ADS = [
-  { id: '1', title: 'Promo Ramadan 2025', type: 'Bannière', status: 'ACTIVE', impressions: 45200, clicks: 3200, endDate: '2025-03-30' },
-  { id: '2', title: 'Livraison gratuite weekend', type: 'Pop-up', status: 'ACTIVE', impressions: 28900, clicks: 1800, endDate: '2025-02-28' },
-  { id: '3', title: 'Nouveaux restaurants', type: 'Carrousel', status: 'INACTIVE', impressions: 15600, clicks: 920, endDate: '2025-01-31' },
-  { id: '4', title: 'Parrainage - Gagnez 2000 FCFA', type: 'Bannière', status: 'ACTIVE', impressions: 52100, clicks: 4100, endDate: '2025-04-15' },
-];
-
-function AdvertisementsView() {
-  const [search, setSearch] = useState('');
-  const [couponDialogOpen, setCouponDialogOpen] = useState(false);
-  const [couponForm, setCouponForm] = useState({
-    code: '',
-    type: 'PERCENTAGE',
-    value: '',
-    minOrder: '',
-    maxUses: '',
-    startDate: '',
-    endDate: '',
-  });
-  const { data: ads, loading } = useFetch<any[]>('/api/advertisements', MOCK_ADS);
-  const { data: coupons, loading: couponsLoading, refetch: refetchCoupons } = useFetch<any[]>('/api/coupons', []);
-
-  const filtered = (ads || MOCK_ADS).filter(
-    (ad: any) =>
-      !search ||
-      ad.title?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const handleCreateCoupon = async () => {
-    try {
-      const res = await fetch('/api/coupons', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: couponForm.code.toUpperCase(),
-          type: couponForm.type,
-          value: Number(couponForm.value),
-          minOrder: Number(couponForm.minOrder) || 0,
-          maxUses: Number(couponForm.maxUses) || null,
-          startDate: couponForm.startDate || null,
-          endDate: couponForm.endDate || null,
-        }),
-      });
-      if (res.ok) {
-        toast.success('Coupon créé avec succès');
-        setCouponDialogOpen(false);
-        setCouponForm({ code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', startDate: '', endDate: '' });
-        refetchCoupons();
-      } else {
-        toast.error('Erreur');
-      }
-    } catch {
-      toast.error('Erreur');
-    }
-  };
-
-  const couponTypeLabel = (type: string) => {
-    switch (type) {
-      case 'PERCENTAGE': return 'Pourcentage';
-      case 'FIXED': return 'Montant fixe';
-      case 'FREE_DELIVERY': return 'Livraison gratuite';
-      default: return type;
-    }
-  };
-
-  return (
-    <PageShell
-      title="Marketing"
-      description="Gérer les publicités et les coupons promotionnels"
-      actions={
-        <Button size="sm" onClick={() => setCouponDialogOpen(true)}>
-          <Tag className="mr-2 h-4 w-4" />
-          Créer un coupon
-        </Button>
-      }
-    >
-      <Tabs defaultValue="advertisements">
-        <TabsList>
-          <TabsTrigger value="advertisements">Publicités</TabsTrigger>
-          <TabsTrigger value="coupons">Coupons</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="advertisements" className="mt-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher une publicité..."
-                  className="pl-9"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-0">
-              {loading ? (
-                <div className="p-6"><DataTableSkeleton rows={4} cols={6} /></div>
-              ) : filtered.length > 0 ? (
-                <div className="max-h-[520px] overflow-auto">
-                  <div className="min-w-[780px]">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Titre</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Statut</TableHead>
-                          <TableHead>Impressions</TableHead>
-                          <TableHead>Clics</TableHead>
-                          <TableHead>CTR</TableHead>
-                          <TableHead>Date de fin</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filtered.map((ad: any, i: number) => (
-                          <TableRow key={ad.id || i} className="hover:bg-muted/50">
-                            <TableCell className="text-sm font-medium">{ad.title || '—'}</TableCell>
-                            <TableCell className="text-sm">{ad.type || 'Bannière'}</TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className={
-                                ad.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
-                              }>
-                                {ad.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm">{(ad.impressions || 0).toLocaleString('fr-FR')}</TableCell>
-                            <TableCell className="text-sm">{(ad.clicks || 0).toLocaleString('fr-FR')}</TableCell>
-                            <TableCell className="text-sm font-medium">
-                              {ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : 0}%
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {ad.endDate ? new Date(ad.endDate).toLocaleDateString('fr-FR') : '—'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              ) : (
-                <EmptyState message="Aucune publicité" icon={Megaphone} />
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="coupons" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Codes promotionnels</CardTitle>
-              <CardDescription>{(coupons || []).length} coupons au total</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {couponsLoading ? (
-                <div className="p-6"><DataTableSkeleton rows={4} cols={6} /></div>
-              ) : (coupons || []).length > 0 ? (
-                <div className="max-h-[520px] overflow-auto">
-                  <div className="min-w-[700px]">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Code</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Valeur</TableHead>
-                          <TableHead>Commande min.</TableHead>
-                          <TableHead>Utilisations max</TableHead>
-                          <TableHead>Date de fin</TableHead>
-                          <TableHead>Statut</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(coupons || []).map((coupon: any, i: number) => {
-                          const isActive = !coupon.endDate || new Date(coupon.endDate) >= new Date();
-                          return (
-                            <TableRow key={coupon.id || i} className="hover:bg-muted/50">
-                              <TableCell className="font-mono text-sm font-semibold">{coupon.code || '—'}</TableCell>
-                              <TableCell className="text-sm">{couponTypeLabel(coupon.type)}</TableCell>
-                              <TableCell className="text-sm font-medium">
-                                {coupon.type === 'FREE_DELIVERY' ? 'Gratuite' : coupon.type === 'PERCENTAGE' ? `${coupon.value}%` : formatPrice(coupon.value || 0)}
-                              </TableCell>
-                              <TableCell className="text-sm">{formatPrice(coupon.minOrder || 0)}</TableCell>
-                              <TableCell className="text-sm">{coupon.maxUses || '∞'}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                {coupon.endDate ? new Date(coupon.endDate).toLocaleDateString('fr-FR') : '—'}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="secondary" className={isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'}>
-                                  {isActive ? 'Actif' : 'Expiré'}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              ) : (
-                <EmptyState message="Aucun coupon" icon={Tag} />
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Create Coupon Dialog */}
-      <Dialog open={couponDialogOpen} onOpenChange={setCouponDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Créer un coupon</DialogTitle>
-            <DialogDescription>Ajouter un nouveau code promotionnel</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Code</label>
-              <Input
-                placeholder="PROMO2025"
-                className="uppercase"
-                value={couponForm.code}
-                onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Type</label>
-              <Select value={couponForm.type} onValueChange={(v) => setCouponForm({ ...couponForm, type: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PERCENTAGE">Pourcentage</SelectItem>
-                  <SelectItem value="FIXED">Montant fixe</SelectItem>
-                  <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {couponForm.type !== 'FREE_DELIVERY' && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Valeur</label>
-                <Input
-                  type="number"
-                  placeholder={couponForm.type === 'PERCENTAGE' ? '10' : '5000'}
-                  value={couponForm.value}
-                  onChange={(e) => setCouponForm({ ...couponForm, value: e.target.value })}
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Commande minimum (FCFA)</label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={couponForm.minOrder}
-                onChange={(e) => setCouponForm({ ...couponForm, minOrder: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Utilisations max</label>
-              <Input
-                type="number"
-                placeholder="Illimité"
-                value={couponForm.maxUses}
-                onChange={(e) => setCouponForm({ ...couponForm, maxUses: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Date de début</label>
-              <Input
-                type="date"
-                value={couponForm.startDate}
-                onChange={(e) => setCouponForm({ ...couponForm, startDate: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Date de fin</label>
-              <Input
-                type="date"
-                value={couponForm.endDate}
-                onChange={(e) => setCouponForm({ ...couponForm, endDate: e.target.value })}
-              />
-            </div>
-            <Button className="w-full" onClick={handleCreateCoupon} disabled={!couponForm.code}>
-              Créer le coupon
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </PageShell>
   );
 }
@@ -1905,81 +1456,179 @@ function AdvertisementsView() {
 // ─── Categories View ──────────────────────────────────────────────────────────
 
 function CategoriesView() {
-  const { data: categories, loading, refetch } = useFetch<any[]>('/api/categories', []);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState({ name: '', icon: '', sortOrder: 0, isActive: true });
+  const [saving, setSaving] = useState(false);
+
+  const fetchCategories = useCallback(async () => {
+    setLoading(true);
+    const res = await apiFetch<any>('/api/categories');
+    if (res.data) {
+      setCategories(Array.isArray(res.data) ? res.data : res.data.categories || []);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+
+  const openNew = () => {
+    setEditing(null);
+    setForm({ name: '', icon: '', sortOrder: 0, isActive: true });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (cat: any) => {
+    setEditing(cat);
+    setForm({ name: cat.name, icon: cat.icon || '', sortOrder: cat.sortOrder, isActive: cat.isActive });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const slug = form.name.toLowerCase().replace(/[^a-z0-9àâçéèêëîïôùûüÿñæœ\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
+    const body = { ...form, slug };
+
+    let res;
+    if (editing) {
+      res = await apiFetch(`/api/categories/${editing.id}`, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      res = await apiFetch('/api/categories', { method: 'POST', body: JSON.stringify(body) });
+    }
+
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
+    toast.success(editing ? 'Catégorie modifiée' : 'Catégorie créée');
+    setDialogOpen(false);
+    setSaving(false);
+    fetchCategories();
+  };
+
+  const handleDelete = async (id: string) => {
+    const res = await apiFetch(`/api/categories/${id}`, { method: 'DELETE' });
+    if (res.error) { toast.error(res.error); return; }
+    toast.success('Catégorie supprimée');
+    fetchCategories();
+  };
 
   return (
     <PageShell
       title="Catégories"
-      description={`${(categories || []).length} catégories`}
+      description="Gérer les catégories de produits"
       actions={
-        <Button size="sm">
-          <Plus className="mr-2 h-4 w-4" />
-          Ajouter
+        <Button onClick={openNew} className="bg-emerald-600 hover:bg-emerald-700">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Ajouter</span>
         </Button>
       }
     >
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={5} cols={4} /></div>
-          ) : (categories || []).length > 0 ? (
-            <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[600px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Catégorie</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Produits</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(categories || []).map((cat: any, i: number) => (
-                      <TableRow key={cat.id || i} className="hover:bg-muted/50">
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            {cat.image ? (
-                              <div className="h-8 w-8 rounded-lg bg-muted shrink-0" style={{ backgroundImage: `url(${cat.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-                            ) : (
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                                <Grid3X3 className="h-4 w-4 text-primary" />
-                              </div>
-                            )}
-                            <span className="text-sm font-medium">{cat.name || '—'}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                          {cat.description || '—'}
-                        </TableCell>
-                        <TableCell className="text-sm">{cat.productCount || 0}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className={cat.isActive !== false ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'}>
-                            {cat.isActive !== false ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Modifier" onClick={() => toast.info('Modification de la catégorie')}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Supprimer" onClick={() => toast.error('Catégorie supprimée')}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
+          ) : categories.length === 0 ? (
+            <EmptyState message="Aucune catégorie trouvée" onRetry={fetchCategories} />
           ) : (
-            <EmptyState message="Aucune catégorie" icon={Grid3X3} />
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nom</TableHead>
+                    <TableHead>Slug</TableHead>
+                    <TableHead>Icône</TableHead>
+                    <TableHead>Ordre</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {categories.sort((a: any, b: any) => a.sortOrder - b.sortOrder).map((cat: any) => (
+                    <TableRow key={cat.id}>
+                      <TableCell className="font-medium">{cat.name}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{cat.slug}</TableCell>
+                      <TableCell className="text-lg">{cat.icon || '-'}</TableCell>
+                      <TableCell className="text-sm">{cat.sortOrder}</TableCell>
+                      <TableCell>
+                        <Badge variant={cat.isActive ? 'default' : 'secondary'} className={cat.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
+                          {cat.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(cat)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(cat.id)}>
+                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</DialogTitle>
+            <DialogDescription>
+              {editing ? 'Modifiez les informations de la catégorie' : 'Remplissez les informations pour créer une catégorie'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cat-name">Nom</Label>
+              <Input
+                id="cat-name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Ex: Restaurants"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cat-icon">Icône (emoji)</Label>
+              <Input
+                id="cat-icon"
+                value={form.icon}
+                onChange={(e) => setForm({ ...form, icon: e.target.value })}
+                placeholder="Ex: 🍽️"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cat-order">Ordre de tri</Label>
+              <Input
+                id="cat-order"
+                type="number"
+                value={form.sortOrder}
+                onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.isActive}
+                onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
+              />
+              <Label>Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+            <Button onClick={handleSave} disabled={saving || !form.name} className="bg-emerald-600 hover:bg-emerald-700">
+              {saving && <Spinner />}
+              {editing ? 'Enregistrer' : 'Créer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
@@ -1988,94 +1637,901 @@ function CategoriesView() {
 
 function ProductsView() {
   const [search, setSearch] = useState('');
-  const { data: products, loading, refetch } = useFetch<any[]>('/api/products', []);
+  const [merchantFilter, setMerchantFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = (products || []).filter(
-    (p: any) =>
-      !search ||
-      p.name?.toLowerCase().includes(search.toLowerCase()) ||
-      p.merchantName?.toLowerCase().includes(search.toLowerCase())
-  );
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ limit: '100' });
+    if (search) params.set('search', search);
+    if (merchantFilter) params.set('merchantId', merchantFilter);
+    if (categoryFilter) params.set('categoryId', categoryFilter);
+    const res = await apiFetch<any>(`/api/products?${params}`);
+    if (res.data) {
+      setProducts(Array.isArray(res.data) ? res.data : res.data.products || []);
+    }
+    setLoading(false);
+  }, [search, merchantFilter, categoryFilter]);
+
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   return (
-    <PageShell
-      title="Produits"
-      description={`${(products || []).length} produits au total`}
-      actions={
-        <>
-          <Button variant="outline" size="sm" onClick={refetch}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Actualiser
-          </Button>
-          <Button size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Ajouter
-          </Button>
-        </>
-      }
-    >
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un produit..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+    <PageShell title="Produits" description="Catalogue de produits de la plateforme">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un produit..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button variant="outline" size="sm" onClick={fetchProducts}>
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
 
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={6} cols={5} /></div>
-          ) : filtered.length > 0 ? (
-            <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[700px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Produit</TableHead>
-                      <TableHead>Commerçant</TableHead>
-                      <TableHead>Prix</TableHead>
-                      <TableHead>Catégorie</TableHead>
-                      <TableHead>Statut</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((p: any, i: number) => (
-                      <TableRow key={p.id || i} className="hover:bg-muted/50">
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            {p.image ? (
-                              <div className="h-9 w-9 rounded-lg bg-muted shrink-0" style={{ backgroundImage: `url(${p.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-                            ) : (
-                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                                <Package className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                            )}
-                            <span className="text-sm font-medium">{p.name || '—'}</span>
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : products.length === 0 ? (
+            <EmptyState message="Aucun produit trouvé" onRetry={fetchProducts} />
+          ) : (
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Produit</TableHead>
+                    <TableHead className="hidden md:table-cell">Marchand</TableHead>
+                    <TableHead className="hidden lg:table-cell">Catégorie</TableHead>
+                    <TableHead>Prix</TableHead>
+                    <TableHead>Stock</TableHead>
+                    <TableHead className="hidden lg:table-cell">Ventes</TableHead>
+                    <TableHead>Statut</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {products.map((p: any) => (
+                    <TableRow key={p.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {p.image ? (
+                            <img src={p.image} alt="" className="h-8 w-8 rounded object-cover" />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded bg-muted text-xs">?</div>
+                          )}
+                          <div>
+                            <p className="text-sm font-medium">{p.name}</p>
+                            <p className="text-xs text-muted-foreground">{p.slug}</p>
                           </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{p.merchantName || '—'}</TableCell>
-                        <TableCell className="text-sm font-medium">{formatPrice(p.price || 0)}</TableCell>
-                        <TableCell className="text-sm">{p.categoryName || (typeof p.category === 'object' && p.category?.name) || (typeof p.category === 'string' ? p.category : '—')}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className={p.isAvailable !== false ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'}>
-                            {p.isAvailable !== false ? 'Disponible' : 'Indisponible'}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden text-sm md:table-cell">{p.merchant?.businessName || '-'}</TableCell>
+                      <TableCell className="hidden text-sm lg:table-cell">{p.category?.name || '-'}</TableCell>
+                      <TableCell className="text-sm font-medium">{formatPrice(p.price)}</TableCell>
+                      <TableCell>
+                        <Badge variant={p.stock > 0 ? 'secondary' : 'destructive'}>
+                          {p.stock}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden text-sm lg:table-cell">{p.totalSold || 0}</TableCell>
+                      <TableCell>
+                        <Badge variant={p.isAvailable ? 'default' : 'secondary'} className={p.isAvailable ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
+                          {p.isAvailable ? 'Disponible' : 'Indisponible'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </PageShell>
+  );
+}
+
+// ─── Coupons View ─────────────────────────────────────────────────────────────
+
+function CouponsView() {
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState({
+    code: '',
+    type: 'PERCENTAGE' as string,
+    value: 0,
+    minOrder: 0,
+    maxUses: 0,
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const fetchCoupons = useCallback(async () => {
+    setLoading(true);
+    const res = await apiFetch<any>('/api/coupons');
+    if (res.data) {
+      setCoupons(Array.isArray(res.data) ? res.data : res.data.coupons || []);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchCoupons(); }, [fetchCoupons]);
+
+  const openNew = () => {
+    setEditing(null);
+    setForm({
+      code: '',
+      type: 'PERCENTAGE',
+      value: 0,
+      minOrder: 0,
+      maxUses: 0,
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: '',
+    });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (coupon: any) => {
+    setEditing(coupon);
+    setForm({
+      code: coupon.code,
+      type: coupon.type,
+      value: coupon.value,
+      minOrder: coupon.minOrder || 0,
+      maxUses: coupon.maxUses || 0,
+      startDate: new Date(coupon.startDate).toISOString().split('T')[0],
+      endDate: coupon.endDate ? new Date(coupon.endDate).toISOString().split('T')[0] : '',
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const body = {
+      ...form,
+      maxUses: form.maxUses > 0 ? form.maxUses : null,
+      endDate: form.endDate ? new Date(form.endDate).toISOString() : null,
+    };
+
+    let res;
+    if (editing) {
+      res = await apiFetch(`/api/coupons/${editing.id}`, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      res = await apiFetch('/api/coupons', { method: 'POST', body: JSON.stringify(body) });
+    }
+
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
+    toast.success(editing ? 'Coupon modifié' : 'Coupon créé');
+    setDialogOpen(false);
+    setSaving(false);
+    fetchCoupons();
+  };
+
+  const handleDelete = async (id: string) => {
+    const res = await apiFetch(`/api/coupons/${id}`, { method: 'DELETE' });
+    if (res.error) { toast.error(res.error); return; }
+    toast.success('Coupon supprimé');
+    fetchCoupons();
+  };
+
+  const typeLabels: Record<string, string> = {
+    PERCENTAGE: 'Pourcentage',
+    FIXED: 'Montant fixe',
+    FREE_DELIVERY: 'Livraison gratuite',
+  };
+
+  return (
+    <PageShell
+      title="Coupons"
+      description="Gérer les codes promo et réductions"
+      actions={
+        <Button onClick={openNew} className="bg-emerald-600 hover:bg-emerald-700">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Nouveau coupon</span>
+        </Button>
+      }
+    >
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : coupons.length === 0 ? (
+            <EmptyState message="Aucun coupon trouvé" onRetry={fetchCoupons} />
+          ) : (
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Valeur</TableHead>
+                    <TableHead className="hidden md:table-cell">Min. commande</TableHead>
+                    <TableHead>Utilisations</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="hidden lg:table-cell">Expiration</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {coupons.map((c: any) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-mono text-sm font-bold">{c.code}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{typeLabels[c.type] || c.type}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {c.type === 'FREE_DELIVERY' ? 'Gratuit' : c.type === 'PERCENTAGE' ? `${c.value}%` : formatPrice(c.value)}
+                      </TableCell>
+                      <TableCell className="hidden text-sm md:table-cell">{formatPrice(c.minOrder || 0)}</TableCell>
+                      <TableCell className="text-sm">
+                        {c.usedCount}/{c.maxUses || '∞'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={c.isActive ? 'default' : 'secondary'} className={c.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
+                          {c.isActive ? 'Actif' : 'Inactif'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+                        {c.endDate ? new Date(c.endDate).toLocaleDateString('fr-FR') : '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>
+                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Modifier le coupon' : 'Nouveau coupon'}</DialogTitle>
+            <DialogDescription>
+              {editing ? 'Modifiez les détails du coupon' : 'Créez un nouveau code promo'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="coupon-code">Code</Label>
+              <Input
+                id="coupon-code"
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                placeholder="PROMO2024"
+                disabled={!!editing}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PERCENTAGE">Pourcentage</SelectItem>
+                    <SelectItem value="FIXED">Montant fixe</SelectItem>
+                    <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="coupon-value">Valeur</Label>
+                <Input
+                  id="coupon-value"
+                  type="number"
+                  value={form.value}
+                  onChange={(e) => setForm({ ...form, value: parseFloat(e.target.value) || 0 })}
+                />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="coupon-min">Min. commande (FCFA)</Label>
+                <Input
+                  id="coupon-min"
+                  type="number"
+                  value={form.minOrder}
+                  onChange={(e) => setForm({ ...form, minOrder: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="coupon-max">Max. utilisations</Label>
+                <Input
+                  id="coupon-max"
+                  type="number"
+                  value={form.maxUses}
+                  onChange={(e) => setForm({ ...form, maxUses: parseInt(e.target.value) || 0 })}
+                  placeholder="0 = illimité"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="coupon-start">Date début</Label>
+                <Input
+                  id="coupon-start"
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="coupon-end">Date fin</Label>
+                <Input
+                  id="coupon-end"
+                  type="date"
+                  value={form.endDate}
+                  onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+            <Button onClick={handleSave} disabled={saving || !form.code} className="bg-emerald-600 hover:bg-emerald-700">
+              {saving && <Spinner />}
+              {editing ? 'Enregistrer' : 'Créer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageShell>
+  );
+}
+
+// ─── Subscriptions View ───────────────────────────────────────────────────────
+
+function SubscriptionsView() {
+  const [plans, setPlans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchPlans = useCallback(async () => {
+    setLoading(true);
+    const res = await apiFetch<any>('/api/plans');
+    if (res.data) {
+      setPlans(Array.isArray(res.data) ? res.data : res.data.plans || []);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchPlans(); }, [fetchPlans]);
+
+  return (
+    <PageShell title="Abonnements" description="Plans d'abonnement pour les marchands">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <Skeleton className="mb-2 h-5 w-24" />
+                <Skeleton className="mb-2 h-8 w-20" />
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
+          ))
+        ) : plans.length === 0 ? (
+          <Card className="sm:col-span-2 lg:col-span-4">
+            <CardContent>
+              <EmptyState message="Aucun plan d'abonnement trouvé" onRetry={fetchPlans} />
+            </CardContent>
+          </Card>
+        ) : (
+          plans.sort((a: any, b: any) => a.priority - b.priority).map((plan: any) => {
+            let features: string[] = [];
+            try { features = typeof plan.features === 'string' ? JSON.parse(plan.features) : plan.features || []; } catch { /* empty */ }
+            return (
+              <Card key={plan.id} className={!plan.isActive ? 'opacity-60' : ''}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">{plan.name}</CardTitle>
+                    <Badge variant={plan.isActive ? 'default' : 'secondary'} className={plan.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
+                      {plan.isActive ? 'Actif' : 'Inactif'}
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    <span className="text-2xl font-bold text-foreground">{formatPrice(plan.price)}</span>
+                    <span className="text-muted-foreground"> / {plan.duration} jours</span>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {features.map((f: string, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      <span>{f}</span>
+                    </div>
+                  ))}
+                  <Separator />
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div>Max produits: {plan.maxProducts || '∞'}</div>
+                    <div>Max commandes: {plan.maxOrders || '∞'}</div>
+                    <div>Max coupons: {plan.maxCoupons || '∞'}</div>
+                    <div>Slug: <span className="font-mono">{plan.slug}</span></div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
+      </div>
+    </PageShell>
+  );
+}
+
+// ─── Settings View ────────────────────────────────────────────────────────────
+
+function SettingsView() {
+  const [settings, setSettings] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    const res = await apiFetch<Record<string, any>>('/api/settings');
+    if (res.data) {
+      const map: Record<string, any> = {};
+      const arr = Array.isArray(res.data) ? res.data : [];
+      arr.forEach((s: any) => {
+        let val = s.value;
+        if (s.type === 'NUMBER') val = parseFloat(val);
+        if (s.type === 'BOOLEAN') val = val === 'true' || val === true;
+        try { if (s.type === 'JSON') val = JSON.parse(val); } catch { /* keep string */ }
+        map[s.key] = val;
+      });
+      setSettings(map);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+  const updateSetting = (key: string, value: any) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const res = await apiFetch('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
+    toast.success('Paramètres sauvegardés');
+    setSaving(false);
+  };
+
+  const handleExport = () => {
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rapigo-settings.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Configuration exportée');
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const imported = JSON.parse(text);
+        setSettings(imported);
+        toast.success('Configuration importée (non sauvegardée)');
+      } catch {
+        toast.error('Fichier invalide');
+      }
+    };
+    input.click();
+  };
+
+  const handleResetData = async () => {
+    const res = await apiFetch('/api/settings/reset-data', { method: 'POST' });
+    if (res.error) { toast.error(res.error); return; }
+    toast.success('Données réinitialisées avec succès');
+    setResetOpen(false);
+    fetchSettings();
+  };
+
+  const S = (key: string, fallback: any = '') => settings[key] ?? fallback;
+
+  if (loading) {
+    return (
+      <PageShell title="Paramètres" description="Configuration de la plateforme">
+        <LoadingCards count={3} />
+      </PageShell>
+    );
+  }
+
+  return (
+    <PageShell
+      title="Paramètres"
+      description="Configuration de la plateforme Rapigo"
+      actions={
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Exporter</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleImport}>
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">Importer</span>
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setResetOpen(true)}
+          >
+            <AlertTriangle className="h-4 w-4" />
+            <span className="hidden sm:inline">Réinitialiser</span>
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            {saving && <Spinner />}
+            Sauvegarder
+          </Button>
+        </div>
+      }
+    >
+      <Tabs defaultValue="general" className="space-y-6">
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="general">Général</TabsTrigger>
+          <TabsTrigger value="commissions">Commissions</TabsTrigger>
+          <TabsTrigger value="delivery">Livraison</TabsTrigger>
+          <TabsTrigger value="payment">Paiement</TabsTrigger>
+          <TabsTrigger value="security">Sécurité</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+        </TabsList>
+
+        {/* Général */}
+        <TabsContent value="general">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Paramètres généraux</CardTitle>
+              <CardDescription>Informations de base de la plateforme</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Nom de l'application</Label>
+                <Input value={S('app_name', 'Rapigo Mali')} onChange={(e) => updateSetting('app_name', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Pays</Label>
+                <Input value={S('country', 'Mali')} onChange={(e) => updateSetting('country', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Email de support</Label>
+                <Input value={S('support_email', '')} onChange={(e) => updateSetting('support_email', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Téléphone de support</Label>
+                <Input value={S('support_phone', '')} onChange={(e) => updateSetting('support_phone', e.target.value)} />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Commissions */}
+        <TabsContent value="commissions">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Taux de commissions</CardTitle>
+              <CardDescription>Configurer les commissions prélevées sur les transactions</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Taux par défaut (%)</Label>
+                <Input
+                  type="number"
+                  value={S('default_commission_rate', 10)}
+                  onChange={(e) => updateSetting('default_commission_rate', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Commission minimum (FCFA)</Label>
+                <Input
+                  type="number"
+                  value={S('min_commission', 0)}
+                  onChange={(e) => updateSetting('min_commission', parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Taux livreur (%)</Label>
+                <Input
+                  type="number"
+                  value={S('driver_commission_rate', 15)}
+                  onChange={(e) => updateSetting('driver_commission_rate', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Livraison */}
+        <TabsContent value="delivery">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Paramètres de livraison</CardTitle>
+              <CardDescription>Frais et zones de livraison</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Frais par défaut (FCFA)</Label>
+                <Input
+                  type="number"
+                  value={S('default_delivery_fee', 500)}
+                  onChange={(e) => updateSetting('default_delivery_fee', parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Rayon max (km)</Label>
+                <Input
+                  type="number"
+                  value={S('max_delivery_radius', 15)}
+                  onChange={(e) => updateSetting('max_delivery_radius', parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Seuil livraison gratuite (FCFA)</Label>
+                <Input
+                  type="number"
+                  value={S('free_delivery_threshold', 5000)}
+                  onChange={(e) => updateSetting('free_delivery_threshold', parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Paiement */}
+        <TabsContent value="payment">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Méthodes de paiement</CardTitle>
+              <CardDescription>Activer ou désactiver les méthodes de paiement</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                { key: 'payment_cash', label: 'Cash', icon: '💵' },
+                { key: 'payment_orange_money', label: 'Orange Money', icon: '🟠' },
+                { key: 'payment_moov_money', label: 'Moov Money', icon: '🔵' },
+                { key: 'payment_wave', label: 'Wave', icon: '🌊' },
+                { key: 'payment_visa', label: 'Visa', icon: '💳' },
+                { key: 'payment_mastercard', label: 'Mastercard', icon: '💳' },
+                { key: 'payment_qr_code', label: 'QR Code', icon: '📱' },
+                { key: 'payment_wallet', label: 'Portefeuille', icon: '👛' },
+              ].map((method) => (
+                <div key={method.key} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{method.icon}</span>
+                    <span className="text-sm font-medium">{method.label}</span>
+                  </div>
+                  <Switch
+                    checked={S(method.key, method.key === 'payment_cash')}
+                    onCheckedChange={(checked) => updateSetting(method.key, checked)}
+                  />
+                </div>
+              ))}
+              <Separator />
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">Exiger une preuve de paiement</p>
+                  <p className="text-xs text-muted-foreground">Les clients doivent envoyer une capture d'écran</p>
+                </div>
+                <Switch
+                  checked={S('require_payment_proof', true)}
+                  onCheckedChange={(checked) => updateSetting('require_payment_proof', checked)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Sécurité */}
+        <TabsContent value="security">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Paramètres de sécurité</CardTitle>
+              <CardDescription>Configuration de l'authentification et des sessions</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Tentatives max de connexion</Label>
+                <Input
+                  type="number"
+                  value={S('max_login_attempts', 5)}
+                  onChange={(e) => updateSetting('max_login_attempts', parseInt(e.target.value) || 5)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Durée de session (heures)</Label>
+                <Input
+                  type="number"
+                  value={S('session_duration', 24)}
+                  onChange={(e) => updateSetting('session_duration', parseInt(e.target.value) || 24)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Expiration OTP (secondes)</Label>
+                <Input
+                  type="number"
+                  value={S('otp_expiry', 300)}
+                  onChange={(e) => updateSetting('otp_expiry', parseInt(e.target.value) || 300)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Notifications */}
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Canaux de notification</CardTitle>
+              <CardDescription>Gérer les canaux d'envoi de notifications</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                { key: 'notifications_email', label: 'Notifications par email', icon: Mail, desc: 'Envoyer des emails pour les commandes et mises à jour' },
+                { key: 'notifications_sms', label: 'Notifications par SMS', icon: Phone, desc: 'Envoyer des SMS pour les vérifications et alertes' },
+                { key: 'notifications_push', label: 'Notifications push', icon: Bell, desc: 'Notifications en temps réel sur l\'appareil' },
+              ].map((channel) => {
+                const Icon = channel.icon;
+                return (
+                  <div key={channel.key} className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                        <Icon className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{channel.label}</p>
+                        <p className="text-xs text-muted-foreground">{channel.desc}</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={S(channel.key, true)}
+                      onCheckedChange={(checked) => updateSetting(channel.key, checked)}
+                    />
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Reset Confirmation Dialog */}
+      <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Réinitialiser les données</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Toutes les données de la plateforme (commandes, utilisateurs, produits, etc.)
+              seront supprimées et les données par défaut seront restaurées. Êtes-vous sûr ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleResetData}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <AlertTriangle className="mr-1 h-4 w-4" />
+              Réinitialiser
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </PageShell>
+  );
+}
+
+// ─── Audit Logs View ──────────────────────────────────────────────────────────
+
+function AuditLogsView() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    const res = await apiFetch<any>('/api/audit-logs');
+    if (res.data) {
+      setLogs(Array.isArray(res.data) ? res.data : res.data.logs || []);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+  return (
+    <PageShell
+      title="Journaux d'audit"
+      description="Historique des actions sur la plateforme"
+      actions={
+        <Button variant="outline" size="sm" onClick={fetchLogs}>
+          <RefreshCw className="h-4 w-4" />
+          Actualiser
+        </Button>
+      }
+    >
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+          ) : logs.length === 0 ? (
+            <EmptyState message="Aucun journal d'audit trouvé" onRetry={fetchLogs} />
           ) : (
-            <EmptyState message="Aucun produit trouvé" icon={Package} />
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Utilisateur</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Entité</TableHead>
+                    <TableHead className="hidden md:table-cell">Détails</TableHead>
+                    <TableHead className="hidden lg:table-cell">IP</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {logs.map((log: any) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-sm">
+                        {log.user?.firstName || '-'} {log.user?.lastName || ''}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-xs">{log.action}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{log.entity}</TableCell>
+                      <TableCell className="hidden max-w-48 truncate text-xs text-muted-foreground md:table-cell">
+                        {log.details || '-'}
+                      </TableCell>
+                      <TableCell className="hidden font-mono text-xs text-muted-foreground lg:table-cell">
+                        {log.ipAddress || '-'}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(log.createdAt).toLocaleString('fr-FR')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -2085,802 +2541,250 @@ function ProductsView() {
 
 // ─── Support View ─────────────────────────────────────────────────────────────
 
-const MOCK_TICKETS = [
-  { id: '1', subject: 'Problème de livraison en retard', userName: 'Amadou Diallo', priority: 'HAUTE', status: 'OUVERT', createdAt: '2025-01-15T09:00:00', description: 'Ma commande n\'a pas été livrée après 2h' },
-  { id: '2', subject: 'Remboursement non reçu', userName: 'Fatoumata Traoré', priority: 'HAUTE', status: 'EN_COURS', createdAt: '2025-01-15T10:30:00', description: 'J\'ai annulé mais pas de remboursement' },
-  { id: '3', subject: 'Produit manquant dans la commande', userName: 'Ibrahim Keita', priority: 'MOYENNE', status: 'OUVERT', createdAt: '2025-01-15T11:00:00', description: 'Il manque un plat dans ma commande' },
-  { id: '4', subject: 'Inscription commerçant bloquée', userName: 'Restaurant Le Mandé', priority: 'MOYENNE', status: 'RÉSOLU', createdAt: '2025-01-14T16:00:00', description: 'Documents refusés sans raison' },
-  { id: '5', subject: 'Application qui crash', userName: 'Mariam Coulibaly', priority: 'BASSE', status: 'RÉSOLU', createdAt: '2025-01-14T14:00:00', description: 'App se ferme quand je cherche un produit' },
-  { id: '6', subject: 'Facture incorrecte', userName: 'Oumar Sidibé', priority: 'MOYENNE', status: 'OUVERT', createdAt: '2025-01-15T12:00:00', description: 'Montant facturé différent du panier' },
-];
-
 function SupportView() {
-  const [search, setSearch] = useState('');
-  const { data: tickets, loading } = useFetch<any[]>('/api/support', MOCK_TICKETS);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
 
-  const filtered = (tickets || MOCK_TICKETS).filter(
-    (t: any) =>
-      !search ||
-      t.subject?.toLowerCase().includes(search.toLowerCase()) ||
-      t.userName?.toLowerCase().includes(search.toLowerCase())
-  );
+  const fetchTickets = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (statusFilter) params.set('status', statusFilter);
+    const res = await apiFetch<any>(`/api/support?${params}`);
+    if (res.data) {
+      setTickets(Array.isArray(res.data) ? res.data : res.data.tickets || []);
+    }
+    setLoading(false);
+  }, [statusFilter]);
 
-  const priorityLabel = (p: string) => p === 'HAUTE' ? 'Haute' : p === 'MOYENNE' ? 'Moyenne' : 'Basse';
-  const statusLabel = (s: string) => s === 'OUVERT' ? 'Ouvert' : s === 'RÉSOLU' ? 'Résolu' : 'En cours';
+  useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
   return (
     <PageShell
       title="Support"
-      description={`${(tickets || MOCK_TICKETS).filter((t: any) => t.status === 'OUVERT').length} tickets ouverts`}
+      description="Gérer les tickets de support"
       actions={
-        <Button variant="outline" size="sm">
-          <Download className="mr-2 h-4 w-4" />
-          Exporter
+        <Button variant="outline" size="sm" onClick={fetchTickets}>
+          <RefreshCw className="h-4 w-4" />
+          Actualiser
         </Button>
       }
     >
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un ticket..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={5} cols={5} /></div>
-          ) : filtered.length > 0 ? (
-            <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[700px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Sujet</TableHead>
-                      <TableHead>Utilisateur</TableHead>
-                      <TableHead>Priorité</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((t: any, i: number) => (
-                      <TableRow key={t.id || i} className="cursor-pointer hover:bg-muted/50">
-                        <TableCell>
-                          <p className="text-sm font-medium">{t.subject || '—'}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-1">{t.description || ''}</p>
-                        </TableCell>
-                        <TableCell className="text-sm">{t.userName || '—'}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={
-                            t.priority === 'HAUTE'
-                              ? 'border-red-300 text-red-700 dark:border-red-800 dark:text-red-400'
-                              : t.priority === 'MOYENNE'
-                              ? 'border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-400'
-                              : 'border-gray-300 text-gray-600'
-                          }>
-                            {priorityLabel(t.priority)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className={
-                            t.status === 'OUVERT' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                            : t.status === 'RÉSOLU' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
-                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                          }>
-                            {statusLabel(t.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {t.createdAt ? new Date(t.createdAt).toLocaleDateString('fr-FR') : '—'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          ) : (
-            <EmptyState message="Aucun ticket de support" icon={Headphones} />
-          )}
-        </CardContent>
-      </Card>
-    </PageShell>
-  );
-}
-
-// ─── Reports View ─────────────────────────────────────────────────────────────
-
-const REPORT_CHART_DATA = [
-  { month: 'Lun', revenue: 1850000, orders: 245, users: 12 },
-  { month: 'Mar', revenue: 2100000, orders: 278, users: 8 },
-  { month: 'Mer', revenue: 1930000, orders: 256, users: 15 },
-  { month: 'Jeu', revenue: 2350000, orders: 312, users: 18 },
-  { month: 'Ven', revenue: 2780000, orders: 367, users: 22 },
-  { month: 'Sam', revenue: 3100000, orders: 410, users: 30 },
-  { month: 'Dim', revenue: 2450000, orders: 325, users: 10 },
-];
-
-function ReportsView() {
-  const [tab, setTab] = useState('revenue');
-
-  return (
-    <PageShell
-      title="Rapports"
-      description="Analyses et statistiques de la plateforme"
-      actions={
-        <Button variant="outline" size="sm">
-          <Download className="mr-2 h-4 w-4" />
-          Exporter PDF
-        </Button>
-      }
-    >
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="revenue">Revenus</TabsTrigger>
-          <TabsTrigger value="orders">Commandes</TabsTrigger>
-          <TabsTrigger value="growth">Croissance</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="revenue" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Revenus sur 7 jours</CardTitle>
-              <CardDescription>Évolution des revenus quotidiens</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={REPORT_CHART_DATA}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
-                    <Tooltip
-                      formatter={(value: number) => [formatPrice(value), 'Revenus']}
-                      contentStyle={tooltipStyle}
-                    />
-                    <Bar dataKey="revenue" fill="#059669" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="orders" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Commandes sur 7 jours</CardTitle>
-              <CardDescription>Nombre de commandes quotidiennes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={REPORT_CHART_DATA}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      formatter={(value: number) => [value, 'Commandes']}
-                      contentStyle={tooltipStyle}
-                    />
-                    <Line type="monotone" dataKey="orders" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b' }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="growth" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Nouveaux utilisateurs</CardTitle>
-              <CardDescription>Inscriptions quotidiennes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={REPORT_CHART_DATA}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      formatter={(value: number) => [value, 'Utilisateurs']}
-                      contentStyle={tooltipStyle}
-                    />
-                    <Bar dataKey="users" fill="#6366f1" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </PageShell>
-  );
-}
-
-// ─── Audit Logs View ──────────────────────────────────────────────────────────
-
-const MOCK_LOGS = [
-  { id: '1', userName: 'Admin Principal', action: 'MISE À JOUR', details: 'Modification des frais de livraison', ip: '41.82.156.12', createdAt: '2025-01-15T16:30:00' },
-  { id: '2', userName: 'Admin Principal', action: 'APPROBATION', details: 'Approbation du commerçant Le Relais', ip: '41.82.156.12', createdAt: '2025-01-15T15:20:00' },
-  { id: '3', userName: 'Système', action: 'CRÉATION', details: 'Nouveau livreur inscrit: Moussa D.', ip: '—', createdAt: '2025-01-15T14:10:00' },
-  { id: '4', userName: 'Admin Principal', action: 'SUPPRESSION', details: 'Suppression de la publicité "Promo Noël"', ip: '41.82.156.12', createdAt: '2025-01-15T12:00:00' },
-  { id: '5', userName: 'Système', action: 'ALERT', details: 'Tentative de connexion échouée pour user@email.com', ip: '102.156.78.90', createdAt: '2025-01-15T11:45:00' },
-  { id: '6', userName: 'Admin Principal', action: 'PARAMÈTRE', details: 'Activation du mode maintenance', ip: '41.82.156.12', createdAt: '2025-01-15T10:30:00' },
-  { id: '7', userName: 'Système', action: 'PAIEMENT', details: 'Paiement échoué #pay-005 - solde insuffisant', ip: '—', createdAt: '2025-01-15T09:15:00' },
-  { id: '8', userName: 'Admin Principal', action: 'EXPORT', details: 'Export du rapport mensuel (PDF)', ip: '41.82.156.12', createdAt: '2025-01-15T08:00:00' },
-];
-
-function AuditLogsView() {
-  const [search, setSearch] = useState('');
-  const { data: logs, loading } = useFetch<any[]>('/api/audit-logs', MOCK_LOGS);
-
-  const filtered = (logs || MOCK_LOGS).filter(
-    (l: any) =>
-      !search ||
-      l.action?.toLowerCase().includes(search.toLowerCase()) ||
-      l.userName?.toLowerCase().includes(search.toLowerCase()) ||
-      l.details?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const actionColor = (action: string) => {
-    switch (action) {
-      case 'APPROBATION': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400';
-      case 'SUPPRESSION': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      case 'ALERT': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      case 'MISE À JOUR': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'CRÉATION': return 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400';
-      case 'PAIEMENT': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
-      default: return 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400';
-    }
-  };
-
-  return (
-    <PageShell
-      title="Logs d'audit"
-      description="Historique des actions sur la plateforme"
-      actions={
-        <Button variant="outline" size="sm">
-          <Download className="mr-2 h-4 w-4" />
-          Exporter
-        </Button>
-      }
-    >
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher dans les logs..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-6"><DataTableSkeleton rows={8} cols={5} /></div>
-          ) : filtered.length > 0 ? (
-            <div className="max-h-[520px] overflow-auto">
-              <div className="min-w-[700px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Utilisateur</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Détails</TableHead>
-                      <TableHead>IP</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.slice(0, 50).map((log: any, i: number) => (
-                      <TableRow key={log.id || i} className="hover:bg-muted/50">
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                          {log.createdAt ? new Date(log.createdAt).toLocaleString('fr-FR') : '—'}
-                        </TableCell>
-                        <TableCell className="text-sm font-medium">{log.userName || 'Système'}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className={actionColor(log.action)}>
-                            {log.action || '—'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                          {log.details || '—'}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {log.ip || '—'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          ) : (
-            <EmptyState message="Aucun log d'audit" icon={FileText} />
-          )}
-        </CardContent>
-      </Card>
-    </PageShell>
-  );
-}
-
-// ─── Settings View ────────────────────────────────────────────────────────────
-
-function SettingsView() {
-  // Général
-  const [platformName, setPlatformName] = useState('Rapigo Mali');
-  const [defaultCity, setDefaultCity] = useState('Bamako');
-  // Livraison
-  const [baseFee, setBaseFee] = useState('500');
-  const [perKmFee, setPerKmFee] = useState('200');
-  const [freeThreshold, setFreeThreshold] = useState('10000');
-  // Paiement
-  const [serviceFeeRate, setServiceFeeRate] = useState('5');
-  const [driverCommission, setDriverCommission] = useState('20');
-  // Sécurité
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [autoApprove, setAutoApprove] = useState(false);
-  // Support
-  const [supportPhone, setSupportPhone] = useState('+223 70 00 00 00');
-  const [supportEmail, setSupportEmail] = useState('support@rapigo.ml');
-
-  const handleSave = () => {
-    toast.success('Paramètres enregistrés avec succès');
-  };
-
-  return (
-    <PageShell
-      title="Paramètres"
-      description="Configuration de la plateforme"
-      actions={
-        <Button size="sm" onClick={handleSave}>
-          <CheckCircle className="mr-2 h-4 w-4" />
-          Enregistrer
-        </Button>
-      }
-    >
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Général */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Settings className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Général</CardTitle>
-            </div>
-            <CardDescription>Paramètres généraux de la plateforme</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Nom de la plateforme</label>
-              <Input value={platformName} onChange={(e) => setPlatformName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Ville par défaut</label>
-              <Input value={defaultCity} onChange={(e) => setDefaultCity(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email de support</label>
-              <Input type="email" value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Téléphone de support</label>
-              <Input value={supportPhone} onChange={(e) => setSupportPhone(e.target.value)} />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Livraison */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Truck className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Livraison</CardTitle>
-            </div>
-            <CardDescription>Tarification de la livraison</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Frais de base (FCFA)</label>
-              <Input type="number" value={baseFee} onChange={(e) => setBaseFee(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Frais fixe par course</p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Frais au kilomètre (FCFA)</label>
-              <Input type="number" value={perKmFee} onChange={(e) => setPerKmFee(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Coût supplémentaire par km parcouru</p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Seuil livraison gratuite (FCFA)</label>
-              <Input type="number" value={freeThreshold} onChange={(e) => setFreeThreshold(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Montant minimum de commande pour livraison gratuite</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Paiement */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Paiement</CardTitle>
-            </div>
-            <CardDescription>Commissions et frais de service</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Frais de service (%)</label>
-              <Input type="number" value={serviceFeeRate} onChange={(e) => setServiceFeeRate(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Prélevé sur chaque commande client</p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Commission livreur (%)</label>
-              <Input type="number" value={driverCommission} onChange={(e) => setDriverCommission(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Part du livreur sur les frais de livraison</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Sécurité */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Sécurité</CardTitle>
-            </div>
-            <CardDescription>Paramètres de sécurité et maintenance</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Mode maintenance</p>
-                <p className="text-xs text-muted-foreground">Désactive l&apos;accès client à la plateforme</p>
-              </div>
-              <Switch checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Approbation automatique</p>
-                <p className="text-xs text-muted-foreground">Approuver les nouveaux commerçants automatiquement</p>
-              </div>
-              <Switch checked={autoApprove} onCheckedChange={setAutoApprove} />
-            </div>
-            {maintenanceMode && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30"
-              >
-                <p className="text-sm font-medium text-amber-800 dark:text-amber-400">⚠️ Mode maintenance actif</p>
-                <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">Les clients ne peuvent pas accéder à l&apos;application.</p>
-              </motion.div>
-            )}
-          </CardContent>
-        </Card>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="Tous les statuts" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            {Object.entries(SUPPORT_STATUS_LABELS).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-    </PageShell>
-  );
-}
 
-// ─── Notifications View ───────────────────────────────────────────────────────
-
-const MOCK_NOTIFICATIONS = [
-  { id: '1', title: 'Nouveau commerçant inscrit', message: 'Restaurant Le Sahel a soumis une demande d\'inscription.', isRead: false, createdAt: '2025-01-15T16:30:00', type: 'warning' },
-  { id: '2', title: 'Paiement échoué', message: 'Le paiement #pay-005 a échoué pour cause de solde insuffisant.', isRead: false, createdAt: '2025-01-15T15:00:00', type: 'error' },
-  { id: '3', title: 'Objectif hebdomadaire atteint', message: 'La plateforme a dépassé 300 commandes cette semaine !', isRead: false, createdAt: '2025-01-15T12:00:00', type: 'success' },
-  { id: '4', title: 'Nouveau livreur vérifié', message: 'Moussa Dembélé a été vérifié et est maintenant en ligne.', isRead: true, createdAt: '2025-01-15T10:00:00', type: 'info' },
-  { id: '5', title: 'Rapport mensuel disponible', message: 'Le rapport de décembre 2024 est prêt à être consulté.', isRead: true, createdAt: '2025-01-14T09:00:00', type: 'info' },
-  { id: '6', title: 'Alerte sécurité', message: '3 tentatives de connexion échouées détectées.', isRead: true, createdAt: '2025-01-14T08:30:00', type: 'error' },
-];
-
-function NotificationsView() {
-  return (
-    <PageShell
-      title="Notifications"
-      description="Centre de notifications"
-    >
-      <EmptyState message="Aucune notification" icon={Bell} />
-    </PageShell>
-  );
-}
-
-// ─── Cities View ──────────────────────────────────────────────────────────────
-
-const MOCK_CITIES = [
-  { id: '1', name: 'Bamako', region: 'District de Bamako', merchantCount: 145, driverCount: 89, isActive: true },
-  { id: '2', name: 'Ségou', region: 'Région de Ségou', merchantCount: 32, driverCount: 18, isActive: true },
-  { id: '3', name: 'Mopti', region: 'Région de Mopti', merchantCount: 21, driverCount: 12, isActive: true },
-  { id: '4', name: 'Kayes', region: 'Région de Kayes', merchantCount: 15, driverCount: 8, isActive: true },
-  { id: '5', name: 'Sikasso', region: 'Région de Sikasso', merchantCount: 18, driverCount: 10, isActive: false },
-  { id: '6', name: 'Koulikoro', region: 'Région de Koulikoro', merchantCount: 12, driverCount: 7, isActive: true },
-  { id: '7', name: 'Gao', region: 'Région de Gao', merchantCount: 8, driverCount: 4, isActive: false },
-  { id: '8', name: 'Tombouctou', region: 'Région de Tombouctou', merchantCount: 5, driverCount: 3, isActive: false },
-];
-
-function CitiesView() {
-  const [search, setSearch] = useState('');
-  const { data: cities } = useFetch<any[]>('/api/cities', MOCK_CITIES);
-
-  const filtered = (cities || MOCK_CITIES).filter(
-    (c: any) =>
-      !search ||
-      c.name?.toLowerCase().includes(search.toLowerCase()) ||
-      c.region?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <PageShell
-      title="Villes"
-      description={`${(cities || MOCK_CITIES).filter((c: any) => c.isActive).length} villes actives`}
-      actions={
-        <Button size="sm">
-          <Plus className="mr-2 h-4 w-4" />
-          Ajouter
-        </Button>
-      }
-    >
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher une ville..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-4">
+        {[
+          { label: 'Ouverts', count: tickets.filter((t: any) => t.status === 'OPEN').length, color: 'text-blue-600' },
+          { label: 'En cours', count: tickets.filter((t: any) => t.status === 'IN_PROGRESS').length, color: 'text-yellow-600' },
+          { label: 'Résolus', count: tickets.filter((t: any) => t.status === 'RESOLVED').length, color: 'text-emerald-600' },
+          { label: 'Fermés', count: tickets.filter((t: any) => t.status === 'CLOSED').length, color: 'text-gray-600' },
+        ].map((s) => (
+          <Card key={s.label}>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div>
+                <p className="text-muted-foreground text-xs">{s.label}</p>
+                <p className={`text-xl font-bold ${s.color}`}>{s.count}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       <Card>
         <CardContent className="p-0">
-          <div className="max-h-[520px] overflow-auto">
-            <div className="min-w-[600px]">
+          {loading ? (
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : tickets.length === 0 ? (
+            <EmptyState message="Aucun ticket de support trouvé" onRetry={fetchTickets} />
+          ) : (
+            <div className="max-h-[500px] overflow-y-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Ville</TableHead>
-                    <TableHead>Région</TableHead>
-                    <TableHead>Commerçants</TableHead>
-                    <TableHead>Livreurs</TableHead>
+                    <TableHead>Sujet</TableHead>
+                    <TableHead>Utilisateur</TableHead>
+                    <TableHead>Priorité</TableHead>
                     <TableHead>Statut</TableHead>
+                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((c: any, i: number) => (
-                    <TableRow key={c.id || i} className="hover:bg-muted/50">
+                  {tickets.map((t: any) => (
+                    <TableRow key={t.id}>
                       <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                            <MapPin className="h-4 w-4 text-primary" />
-                          </div>
-                          <span className="text-sm font-medium">{c.name || '—'}</span>
-                        </div>
+                        <p className="text-sm font-medium">{t.subject}</p>
+                        <p className="max-w-48 truncate text-xs text-muted-foreground">{t.description}</p>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{c.region || '—'}</TableCell>
-                      <TableCell className="text-sm">{c.merchantCount || 0}</TableCell>
-                      <TableCell className="text-sm">{c.driverCount || 0}</TableCell>
+                      <TableCell className="text-sm">
+                        {t.user?.firstName} {t.user?.lastName}
+                      </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className={c.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'}>
-                          {c.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PRIORITY_COLORS[t.priority] || ''}`}>
+                          {PRIORITY_LABELS[t.priority] || t.priority}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SUPPORT_STATUS_COLORS[t.status] || ''}`}>
+                          {SUPPORT_STATUS_LABELS[t.status] || t.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+                        {new Date(t.createdAt).toLocaleDateString('fr-FR')}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => { setSelectedTicket(t); setDetailOpen(true); }}>
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
-    </PageShell>
-  );
-}
 
-// ─── Profile View ─────────────────────────────────────────────────────────────
-
-function ProfileView() {
-  const user = useAuthStore((s) => s.user);
-
-  return (
-    <PageShell title="Profil" description="Informations de votre compte administrateur">
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardContent className="flex flex-col items-center p-6 text-center">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={user?.avatar} />
-              <AvatarFallback className="bg-primary text-2xl text-primary-foreground">
-                {user ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() : 'AD'}
-              </AvatarFallback>
-            </Avatar>
-            <h3 className="mt-4 text-lg font-semibold">
-              {user ? `${user.firstName} ${user.lastName}` : 'Administrateur'}
-            </h3>
-            <Badge className="mt-2 bg-primary/10 text-primary hover:bg-primary/15">Admin</Badge>
-            <p className="mt-1 text-sm text-muted-foreground">{user?.email || 'admin@rapigo.ml'}</p>
-            <Separator className="my-4 w-full" />
-            <div className="grid w-full grid-cols-2 gap-4 text-center">
+      {/* Ticket Detail Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{selectedTicket?.subject}</DialogTitle>
+            <DialogDescription>Ticket de support</DialogDescription>
+          </DialogHeader>
+          {selectedTicket && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-muted-foreground">Utilisateur:</span>
+                  <p className="font-medium">{selectedTicket.user?.firstName} {selectedTicket.user?.lastName}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Email:</span>
+                  <p className="font-medium">{selectedTicket.user?.email}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Priorité:</span>
+                  <p><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PRIORITY_COLORS[selectedTicket.priority]}`}>
+                    {PRIORITY_LABELS[selectedTicket.priority]}
+                  </span></p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Statut:</span>
+                  <p><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SUPPORT_STATUS_COLORS[selectedTicket.status]}`}>
+                    {SUPPORT_STATUS_LABELS[selectedTicket.status]}
+                  </span></p>
+                </div>
+              </div>
+              <Separator />
               <div>
-                <p className="text-lg font-bold text-primary">147</p>
-                <p className="text-xs text-muted-foreground">Actions ce mois</p>
+                <p className="mb-1 font-medium">Description</p>
+                <p className="text-muted-foreground whitespace-pre-wrap">{selectedTicket.description}</p>
               </div>
-              <div>
-                <p className="text-lg font-bold text-amber-600">98%</p>
-                <p className="text-xs text-muted-foreground">Temps en ligne</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Informations du compte</CardTitle>
-            <CardDescription>Compte administrateur protégé — lecture seule</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Prénom</label>
-                <div className="flex h-10 w-full rounded-md border bg-muted/50 px-3 py-2 text-sm">
-                  {user?.firstName || 'Admin'}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Nom</label>
-                <div className="flex h-10 w-full rounded-md border bg-muted/50 px-3 py-2 text-sm">
-                  {user?.lastName || 'Principal'}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Email</label>
-                <div className="flex h-10 w-full rounded-md border bg-muted/50 px-3 py-2 text-sm">
-                  {user?.email || 'admin@rapigo.ml'}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Téléphone</label>
-                <div className="flex h-10 w-full rounded-md border bg-muted/50 px-3 py-2 text-sm">
-                  {user?.phone || '+223 70 00 00 00'}
-                </div>
+              <div className="text-xs text-muted-foreground">
+                Créé le {new Date(selectedTicket.createdAt).toLocaleString('fr-FR')}
+                {selectedTicket.resolvedAt && ` · Résolu le ${new Date(selectedTicket.resolvedAt).toLocaleString('fr-FR')}`}
               </div>
             </div>
-            <Separator />
-            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
-              <ShieldCheck className="h-4 w-4 text-amber-600" />
-              <span className="text-sm text-amber-800 dark:text-amber-300">Ce compte est protégé. Les modifications ne sont pas autorisées.</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
 
 // ─── View Router ──────────────────────────────────────────────────────────────
 
-function ViewRouter({ view }: { view: AdminView }) {
+function ViewRouter() {
+  const { view } = useAdminNav();
+
   switch (view) {
-    case 'dashboard':
-      return <DashboardView />;
-    case 'users':
-      return <UsersView />;
-    case 'merchants':
-      return <MerchantsView />;
-    case 'drivers':
-      return <DriversView />;
-    case 'orders':
-      return <OrdersView />;
-    case 'payments':
-      return <PaymentsView />;
-    case 'subscriptions':
-      return <SubscriptionsView />;
-    case 'advertisements':
-      return <AdvertisementsView />;
-    case 'categories':
-      return <CategoriesView />;
-    case 'products':
-      return <ProductsView />;
-    case 'support':
-      return <SupportView />;
-    case 'reports':
-      return <ReportsView />;
-    case 'audit-logs':
-      return <AuditLogsView />;
-    case 'settings':
-      return <SettingsView />;
-    case 'notifications':
-      return <NotificationsView />;
-    case 'cities':
-      return <CitiesView />;
-    case 'profile':
-      return <ProfileView />;
-    default:
-      return <DashboardView />;
+    case 'dashboard': return <DashboardView />;
+    case 'users': return <UsersView />;
+    case 'merchants': return <MerchantsView />;
+    case 'drivers': return <DriversView />;
+    case 'orders': return <OrdersView />;
+    case 'payments': return <PaymentsView />;
+    case 'categories': return <CategoriesView />;
+    case 'products': return <ProductsView />;
+    case 'coupons': return <CouponsView />;
+    case 'subscriptions': return <SubscriptionsView />;
+    case 'settings': return <SettingsView />;
+    case 'audit-logs': return <AuditLogsView />;
+    case 'support': return <SupportView />;
+    default: return <DashboardView />;
   }
 }
 
-// ─── Main AdminApp ────────────────────────────────────────────────────────────
+// ─── Main Admin App ───────────────────────────────────────────────────────────
 
 export default function AdminApp() {
-  const { view, navigate } = useAdminNav();
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const handleNavigate = (target: AdminView) => {
-    navigate(target);
-    setMobileOpen(false);
-  };
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
-    <div className="flex h-full bg-background overflow-hidden">
+    <div className="flex h-screen bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 flex-col border-r bg-sidebar shrink-0">
-        <SidebarContent collapsed={false} onNavigate={handleNavigate} currentView={view} />
+      <aside className="hidden w-64 shrink-0 border-r bg-card lg:block">
+        <div className="flex h-14 items-center gap-2 border-b px-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-sm font-bold text-white">
+            R
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Rapigo Admin</p>
+            <p className="text-[10px] text-muted-foreground">V2.0 Enterprise</p>
+          </div>
+        </div>
+        <ScrollArea className="h-[calc(100vh-3.5rem)]">
+          <div className="py-4">
+            <SidebarNav collapsed={false} onNavigate={() => {}} />
+          </div>
+        </ScrollArea>
       </aside>
 
       {/* Mobile Sidebar (Sheet) */}
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-[280px] p-0">
-          <SheetHeader className="sr-only">
-            <SheetTitle>Menu de navigation</SheetTitle>
-            <SheetDescription>Navigation de l&apos;administration</SheetDescription>
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="left" className="w-72 p-0">
+          <SheetHeader className="border-b px-4 py-4">
+            <SheetTitle className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-sm font-bold text-white">
+                R
+              </div>
+              <span>Rapigo Admin</span>
+            </SheetTitle>
+            <SheetDescription>V2.0 Enterprise</SheetDescription>
           </SheetHeader>
-          <SidebarContent collapsed={false} onNavigate={handleNavigate} currentView={view} />
+          <ScrollArea className="h-[calc(100vh-5rem)]">
+            <div className="py-4">
+              <SidebarNav collapsed={false} onNavigate={() => setSheetOpen(false)} />
+            </div>
+          </ScrollArea>
         </SheetContent>
       </Sheet>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Bar */}
-        <header className="flex h-14 items-center gap-4 border-b px-4 lg:px-6 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden"
-            onClick={() => setMobileOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-            <span className="sr-only">Ouvrir le menu</span>
-          </Button>
-
-          <div className="flex-1" />
-
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('notifications')}
-            >
-              <Bell className="h-4.5 w-4.5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => navigate('profile')}>
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">AD</AvatarFallback>
-              </Avatar>
-            </Button>
-          </div>
-        </header>
-
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <TopBar onMenuClick={() => setSheetOpen(true)} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <AnimatePresence mode="wait">
-            <ViewRouter key={view} view={view} />
+            <ViewRouter />
           </AnimatePresence>
         </main>
       </div>

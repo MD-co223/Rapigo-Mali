@@ -1,99 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const merchantId = searchParams.get('merchantId');
-
-    if (!merchantId) {
-      return NextResponse.json({ error: 'merchantId requis' }, { status: 400 });
+    const auth = await getAuthUser(request);
+    if (!auth) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    if (auth.role !== 'MERCHANT') {
+      return NextResponse.json({ error: 'Accès réservé aux marchands' }, { status: 403 });
+    }
+
+    const merchant = await db.merchant.findUnique({ where: { userId: auth.userId } });
+    if (!merchant) {
+      return NextResponse.json({ error: 'Profil marchand non trouvé' }, { status: 404 });
+    }
 
     const [
       totalOrders,
-      todayOrders,
-      todayRevenue,
-      pendingOrders,
-      avgRating,
+      totalProducts,
       totalRevenue,
-      ordersByStatus,
+      pendingOrders,
       recentOrders,
-      topProducts,
-      weeklyRevenue,
+      ordersByStatus,
     ] = await Promise.all([
-      db.order.count({ where: { merchantId } }),
-      db.order.count({ where: { merchantId, createdAt: { gte: todayStart } } }),
+      db.order.count({ where: { merchantId: merchant.id } }),
+      db.product.count({ where: { merchantId: merchant.id } }),
       db.order.aggregate({
-        where: { merchantId, createdAt: { gte: todayStart }, status: 'DELIVERED' },
+        where: { merchantId: merchant.id, status: 'DELIVERED' },
         _sum: { total: true },
       }),
-      db.order.count({ where: { merchantId, status: 'PENDING' } }),
-      db.merchant.findUnique({ where: { id: merchantId }, select: { rating: true } }),
-      db.order.aggregate({
-        where: { merchantId, status: 'DELIVERED' },
-        _sum: { total: true },
+      db.order.count({ where: { merchantId: merchant.id, status: 'PENDING' } }),
+      db.order.findMany({
+        where: { merchantId: merchant.id },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
       }),
       db.order.groupBy({
         by: ['status'],
-        where: { merchantId },
-        _count: { status: true },
+        where: { merchantId: merchant.id },
+        _count: true,
       }),
-      db.order.findMany({
-        where: { merchantId },
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-        include: { items: true },
-      }),
-      db.orderItem.groupBy({
-        by: ['productId', 'productName'],
-        where: { order: { merchantId } },
-        _sum: { quantity: true, totalPrice: true },
-        orderBy: { _sum: { totalPrice: 'desc' } },
-        take: 5,
-      }),
-      // Get last 7 days revenue
-      Promise.all(
-        Array.from({ length: 7 }, (_, i) => {
-          const date = new Date();
-          date.setDate(date.getDate() - (6 - i));
-          date.setHours(0, 0, 0, 0);
-          const nextDate = new Date(date);
-          nextDate.setDate(nextDate.getDate() + 1);
-          return db.order.aggregate({
-            where: {
-              merchantId,
-              status: 'DELIVERED',
-              createdAt: { gte: date, lt: nextDate },
-            },
-            _sum: { total: true },
-          }).then((r) => ({
-            day: date.toLocaleDateString('fr-FR', { weekday: 'short' }),
-            revenue: r._sum.total || 0,
-          }));
-        })
-      ),
     ]);
-
-    const productCount = await db.product.count({ where: { merchantId } });
 
     return NextResponse.json({
       totalOrders,
-      todayOrders,
-      todayRevenue: todayRevenue._sum.total || 0,
-      pendingOrders,
-      avgRating: avgRating?.rating || 0,
+      totalProducts,
       totalRevenue: totalRevenue._sum.total || 0,
-      productCount,
-      ordersByStatus: ordersByStatus.map((o) => ({ status: o.status, count: o._count.status })),
+      pendingOrders,
+      rating: merchant.rating,
+      totalRatings: merchant.totalRatings,
       recentOrders,
-      topProducts,
-      weeklyRevenue,
+      ordersByStatus,
     });
-  } catch {
+  } catch (error) {
+    console.error('Merchant stats error:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

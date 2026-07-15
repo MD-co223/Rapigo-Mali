@@ -1,1557 +1,1950 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useAuthStore, useDriverNav, formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '@/lib/store';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Radio, Navigation, Clock, Wallet, User, Bell, LogOut, Phone,
+  MapPin, Package, Star, ChevronRight, ChevronLeft, Upload, Check,
+  X, AlertCircle, Loader2, Plus, MessageSquare, FileText, Camera,
+  Send, Shield, TrendingUp, CreditCard, CircleDot, ArrowRight,
+  Store, UserCircle, CheckCircle2, XCircle, Eye, RefreshCw,
+  Menu, ChevronDown, ChevronUp, Heart, Zap
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Progress } from '@/components/ui/progress';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Home, Package, Clock, User, MapPin, Navigation, Phone, Star, Wallet, FileText,
-  Headphones, Bell, MessageCircle, ChevronRight, CheckCircle2, Circle, Truck,
-  TrendingUp, Award, ArrowLeft, Upload, ShieldCheck, AlertCircle, Plus, Minus,
-  Send, LogOut, CreditCard, ArrowUpRight, ArrowDownLeft, Route, Timer, CircleDot,
-} from 'lucide-react';
+  useDriverNav, useAuthStore, apiFetch, formatPrice,
+  ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type DriverView
+} from '@/lib/store';
 
-// ─── Types ──────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-interface OrderData {
-  id?: string;
-  orderNumber?: string;
-  status?: string;
-  deliveryAddress?: string;
-  deliveryCity?: string;
-  deliveryQuartier?: string;
-  paymentMethod?: string;
-  deliveryFee?: number;
-  total?: number;
-  merchantId?: string;
-  clientId?: string;
-  driverId?: string;
-  estimatedTime?: number;
-  createdAt?: string;
-  updatedAt?: string;
-  merchant?: MerchantInfo;
-  driver?: { user?: { firstName?: string; lastName?: string; phone?: string }; [key: string]: any };
-  items?: any[];
-  [key: string]: any;
+interface DriverProfile {
+  id: string;
+  userId: string;
+  vehicleType: string;
+  vehiclePlate: string | null;
+  vehicleBrand: string | null;
+  vehicleColor: string | null;
+  idCardNumber: string | null;
+  licenseNumber: string | null;
+  idCardImage: string | null;
+  licenseImage: string | null;
+  vehicleImage: string | null;
+  selfieImage: string | null;
+  isApproved: boolean;
+  isOnline: boolean;
+  isAvailable: boolean;
+  rating: number;
+  totalRatings: number;
+  totalDeliveries: number;
+  totalEarnings: number;
+  user: {
+    firstName: string;
+    lastName: string;
+    avatar: string | null;
+    phone: string;
+    email: string;
+    isActive: boolean;
+  };
 }
 
-interface MerchantInfo {
-  businessName?: string;
-  phone?: string;
-  address?: string;
-  [key: string]: any;
+interface OrderItem {
+  id: string;
+  productName: string;
+  productImage: string | null;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
 }
 
-// ─── Nav Items ──────────────────────────────────────────────────────────────
+interface Order {
+  id: string;
+  orderNumber: string;
+  status: string;
+  subtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  total: number;
+  paymentMethod: string;
+  deliveryAddress: string;
+  deliveryCity: string;
+  deliveryQuartier: string | null;
+  notes: string | null;
+  estimatedTime: number | null;
+  createdAt: string;
+  items: OrderItem[];
+  client?: { user: { firstName: string; lastName: string; phone: string; avatar: string | null } };
+  merchant?: { id: string; businessName: string; logo: string | null; address: string; phone?: string; user?: { firstName: string; lastName: string; phone: string } };
+  driver?: { user: { firstName: string; lastName: string; phone: string; avatar: string | null } };
+  delivery?: { id: string; status: string; pickupAddress: string | null; dropoffAddress: string | null };
+}
 
-const NAV_ITEMS = [
-  { id: 'home' as const, label: 'Accueil', icon: Home },
-  { id: 'history' as const, label: 'Historique', icon: Clock },
-  { id: 'earnings' as const, label: 'Revenus', icon: Wallet },
-  { id: 'ratings' as const, label: 'Évaluations', icon: Star },
-  { id: 'ride' as const, label: 'Course active', icon: Truck },
-  { id: 'navigation' as const, label: 'Navigation', icon: Navigation },
-  { id: 'wallet' as const, label: 'Portefeuille', icon: CreditCard },
-  { id: 'documents' as const, label: 'Documents', icon: FileText },
-  { id: 'support' as const, label: 'Support', icon: Headphones },
-  { id: 'profile' as const, label: 'Profil', icon: User },
-  { id: 'notifications' as const, label: 'Notifications', icon: Bell },
-  { id: 'chat' as const, label: 'Messages', icon: MessageCircle },
-];
+interface WalletData {
+  id: string;
+  balance: number;
+  currency: string;
+  transactions: Transaction[];
+}
 
-const MOBILE_TABS = [
-  { id: 'home' as const, label: 'Accueil', icon: Home },
-  { id: 'history' as const, label: 'Historique', icon: Clock },
-  { id: 'earnings' as const, label: 'Revenus', icon: Wallet },
-  { id: 'profile' as const, label: 'Profil', icon: User },
-];
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  description: string;
+  createdAt: string;
+}
 
-// ─── Empty State Component ──────────────────────────────────────────────────
-
-function EmptyState({ icon: Icon, title, description, action }: {
-  icon: React.ElementType;
+interface Notification {
+  id: string;
   title: string;
-  description?: string;
-  action?: { label: string; onClick: () => void };
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 px-4">
-      <div className="rounded-full bg-muted p-4 mb-4">
-        <Icon className="h-8 w-8 text-muted-foreground" />
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+  data: string | null;
+}
+
+interface SupportTicket {
+  id: string;
+  subject: string;
+  description: string;
+  status: string;
+  priority: string;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
+
+export default function DriverApp() {
+  const { view, navigate, goBack } = useDriverNav();
+  const { user, logout: authLogout } = useAuthStore();
+
+  // Driver state
+  const [driver, setDriver] = useState<DriverProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
+
+  // Notification count
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchDriver = useCallback(async () => {
+    const { data, error } = await apiFetch<DriverProfile[]>('/api/drivers');
+    if (data && data.length > 0) {
+      setDriver(data[0]);
+      setIsOnline(data[0].isOnline);
+    } else {
+      setDriver(null);
+    }
+    setLoading(false);
+  }, []);
+
+  const fetchUnreadCount = useCallback(async () => {
+    const { data } = await apiFetch<{ unreadCount: number }>('/api/notifications?limit=1');
+    if (data) setUnreadCount(data.unreadCount || 0);
+  }, []);
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: driverData } = await apiFetch<DriverProfile[]>('/api/drivers');
+      if (driverData && driverData.length > 0) {
+        setDriver(driverData[0]);
+        setIsOnline(driverData[0].isOnline);
+      } else {
+        setDriver(null);
+      }
+      setLoading(false);
+      const { data: notifData } = await apiFetch<{ unreadCount: number }>('/api/notifications?limit=1');
+      if (notifData) setUnreadCount(notifData.unreadCount || 0);
+    };
+    init();
+  }, []);
+
+  // ─── Loading ────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="size-8 animate-spin text-emerald-600" />
+          <p className="text-sm text-muted-foreground">Chargement...</p>
+        </div>
       </div>
-      <p className="text-lg font-semibold text-muted-foreground">{title}</p>
-      {description && <p className="mt-1 text-sm text-muted-foreground text-center max-w-xs">{description}</p>}
-      {action && (
-        <Button onClick={action.onClick} className="mt-4 bg-emerald-600 hover:bg-emerald-700">
-          {action.label}
+    );
+  }
+
+  // ─── Not Approved Screen ────────────────────────────────────────────────
+  if (driver && !driver.isApproved) {
+    return <NotApprovedScreen driver={driver} onRefresh={fetchDriver} />;
+  }
+
+  // ─── No Driver Profile ──────────────────────────────────────────────────
+  if (!driver) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardContent className="pt-6">
+            <AlertCircle className="size-12 mx-auto text-amber-500 mb-4" />
+            <h2 className="text-lg font-semibold mb-2">Profil non trouvé</h2>
+            <p className="text-sm text-muted-foreground">Aucun profil chauffeur associé à votre compte.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const driverName = `${driver.user.firstName} ${driver.user.lastName}`;
+
+  // ─── Logout handler ─────────────────────────────────────────────────────
+  const handleLogout = () => {
+    authLogout();
+  };
+
+  // ─── Render ─────────────────────────────────────────────────────────────
+  return (
+    <div className="flex flex-col h-screen bg-background max-w-lg mx-auto relative">
+      {/* Top Bar */}
+      <header className="flex items-center justify-between px-4 py-3 bg-white border-b sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          {view !== 'home' && (
+            <Button variant="ghost" size="icon" onClick={goBack} className="shrink-0">
+              <ChevronLeft className="size-5" />
+            </Button>
+          )}
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate">{driverName}</p>
+            <p className="text-xs text-muted-foreground">{driver.vehicleType === 'MOTO' ? 'Moto' : driver.vehicleType === 'VELO' ? 'Vélo' : 'Voiture'}{driver.vehiclePlate ? ` • ${driver.vehiclePlate}` : ''}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mr-1">
+            <span className={`text-xs font-medium ${isOnline ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+              {isOnline ? 'En ligne' : 'Hors ligne'}
+            </span>
+            <Switch
+              checked={isOnline}
+              onCheckedChange={(checked) => {
+                setIsOnline(checked);
+                setDriver(prev => prev ? { ...prev, isOnline: checked, isAvailable: checked } : null);
+                apiFetch('/api/drivers', {
+                  method: 'POST',
+                  body: JSON.stringify({ isOnline: checked, isAvailable: checked }),
+                }).catch(() => {});
+              }}
+              className="data-[state=checked]:bg-emerald-600"
+            />
+          </div>
+          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('notifications')}>
+            <Bell className="size-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={handleLogout}>
+            <LogOut className="size-5 text-red-500" />
+          </Button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto pb-20">
+        {view === 'home' && <HomeView driver={driver} onAccept={() => navigate('ride')} />}
+        {view === 'ride' && <RideView driver={driver} />}
+        {view === 'history' && <HistoryView />}
+        {view === 'earnings' && <EarningsView driver={driver} />}
+        {view === 'ratings' && <RatingsView driver={driver} />}
+        {view === 'wallet' && <WalletView />}
+        {view === 'profile' && <ProfileView driver={driver} onRefresh={fetchDriver} />}
+        {view === 'documents' && <DocumentsView driver={driver} onRefresh={fetchDriver} />}
+        {view === 'notifications' && <NotificationsView onBack={() => { goBack(); fetchUnreadCount(); }} />}
+        {view === 'support' && <SupportView />}
+        {view === 'navigation' && <NavigationPlaceholder />}
+        {view === 'chat' && <ChatPlaceholder />}
+      </main>
+
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white border-t z-50 safe-area-bottom">
+        <div className="flex items-center justify-around h-16">
+          <NavItem icon={Radio} label="Disponible" active={view === 'home'} onClick={() => navigate('home')} />
+          <NavItem icon={Navigation} label="Commandes" active={view === 'ride'} onClick={() => navigate('ride')} />
+          <NavItem icon={Clock} label="Historique" active={view === 'history'} onClick={() => navigate('history')} />
+          <NavItem icon={Wallet} label="Gains" active={['earnings', 'wallet', 'ratings'].includes(view)} onClick={() => navigate('earnings')} />
+          <NavItem icon={User} label="Profil" active={['profile', 'documents', 'support', 'notifications'].includes(view)} onClick={() => navigate('profile')} />
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+// ─── Nav Item ─────────────────────────────────────────────────────────────────
+
+function NavItem({ icon: Icon, label, active, onClick }: { icon: React.ElementType; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
+        active ? 'text-emerald-600' : 'text-muted-foreground hover:text-foreground'
+      }`}
+    >
+      <Icon className="size-5" />
+      <span className="text-[10px] font-medium">{label}</span>
+    </button>
+  );
+}
+
+// ─── Not Approved Screen ──────────────────────────────────────────────────────
+
+function NotApprovedScreen({ driver, onRefresh }: { driver: DriverProfile; onRefresh: () => void }) {
+  const docsStatus = [
+    { label: "Pièce d'identité", uploaded: !!driver.idCardImage },
+    { label: 'Permis de conduire', uploaded: !!driver.licenseImage },
+    { label: 'Photo du véhicule', uploaded: !!driver.vehicleImage },
+    { label: 'Selfie', uploaded: !!driver.selfieImage },
+  ];
+  const allUploaded = docsStatus.every(d => d.uploaded);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+            <Shield className="size-10 text-amber-600" />
+          </div>
+          <h1 className="text-xl font-bold text-center">En attente d&apos;approbation</h1>
+          <p className="text-sm text-muted-foreground text-center mt-2">
+            Votre profil doit être vérifié par un administrateur avant que vous puissiez commencer à recevoir des commandes.
+          </p>
+        </div>
+
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Documents</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {docsStatus.map(doc => (
+              <div key={doc.label} className="flex items-center justify-between">
+                <span className="text-sm">{doc.label}</span>
+                {doc.uploaded ? (
+                  <div className="flex items-center gap-1.5 text-emerald-600">
+                    <CheckCircle2 className="size-4" />
+                    <span className="text-xs font-medium">Envoyé</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-red-500">
+                    <XCircle className="size-4" />
+                    <span className="text-xs font-medium">Manquant</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {!allUploaded && (
+          <Button
+            variant="outline"
+            className="w-full mb-4"
+            onClick={() => {
+              const nav = useDriverNav.getState();
+              nav.navigate('documents');
+              onRefresh();
+            }}
+          >
+            <Upload className="size-4 mr-2" />
+            Compléter mes documents
+          </Button>
+        )}
+
+        <Button variant="ghost" className="w-full" onClick={onRefresh}>
+          <RefreshCw className="size-4 mr-2" />
+          Actualiser
         </Button>
+
+        <p className="text-xs text-center text-muted-foreground mt-4">
+          Vos documents doivent être vérifiés par un administrateur.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Home / Available View ────────────────────────────────────────────────────
+
+function HomeView({ driver, onAccept }: { driver: DriverProfile; onAccept: () => void }) {
+  const [isOnline, setIsOnline] = useState(driver.isOnline);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchAvailableOrders = useCallback(async () => {
+    if (!isOnline) return;
+    const { data } = await apiFetch<Order[]>('/api/drivers/available-orders');
+    if (data) setOrders(data);
+  }, [isOnline]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const { data } = await apiFetch<Order[]>('/api/drivers/available-orders');
+      if (!cancelled && data) setOrders(data);
+      if (!cancelled) setLoading(false);
+    };
+    load();
+    const id = setInterval(load, 10000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [isOnline]);
+
+  const handleToggle = async (checked: boolean) => {
+    setIsOnline(checked);
+    await apiFetch('/api/drivers', {
+      method: 'POST',
+      body: JSON.stringify({ isOnline: checked, isAvailable: checked }),
+    });
+  };
+
+  const handleAccept = async (orderId: string) => {
+    setAcceptingId(orderId);
+    const { data, error } = await apiFetch<Order>(`/api/drivers/${orderId}/accept`, { method: 'POST' });
+    if (!error && data) {
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      onAccept();
+    }
+    setAcceptingId(null);
+  };
+
+  // Offline stats
+  const todayDeliveries = driver.totalDeliveries;
+  const todayEarnings = driver.totalEarnings;
+  const avgRating = driver.totalRatings > 0 ? driver.rating : 0;
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Online Toggle */}
+      <Card className="overflow-hidden">
+        <div className={`p-6 text-center transition-colors ${isOnline ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'bg-gray-50 dark:bg-gray-900/20'}`}>
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+            <span className="text-lg font-bold">{isOnline ? 'En ligne' : 'Hors ligne'}</span>
+          </div>
+          <Switch
+            checked={isOnline}
+            onCheckedChange={handleToggle}
+            className="data-[state=checked]:bg-emerald-600 mx-auto"
+          />
+          <p className="text-xs text-muted-foreground mt-3">
+            {isOnline ? 'Vous recevrez des commandes附近的' : 'Activez pour recevoir des commandes'}
+          </p>
+        </div>
+      </Card>
+
+      {isOnline ? (
+        <>
+          {/* Waiting / Orders */}
+          {loading && orders.length === 0 ? (
+            <div className="flex flex-col items-center py-12 gap-3">
+              <Loader2 className="size-8 animate-spin text-emerald-600" />
+              <p className="text-sm text-muted-foreground">Recherche de commandes...</p>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="flex flex-col items-center py-12 gap-3">
+              <div className="relative">
+                <Radio className="size-12 text-emerald-500" />
+                <span className="absolute inset-0 animate-ping bg-emerald-400/20 rounded-full" />
+              </div>
+              <p className="font-medium">En attente de commandes...</p>
+              <p className="text-sm text-muted-foreground">Les nouvelles commandes apparaîtront ici automatiquement</p>
+              <Button variant="outline" size="sm" onClick={fetchAvailableOrders}>
+                <RefreshCw className="size-4 mr-1" />
+                Actualiser
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Commandes disponibles ({orders.length})
+                </h2>
+                <Button variant="ghost" size="sm" onClick={fetchAvailableOrders} disabled={loading}>
+                  <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {orders.map(order => (
+                  <AvailableOrderCard
+                    key={order.id}
+                    order={order}
+                    onAccept={handleAccept}
+                    accepting={acceptingId === order.id}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Offline Stats */}
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Résumé</h2>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label="Livraisons" value={String(todayDeliveries)} icon={Package} color="text-emerald-600" />
+            <StatCard label="Gains" value={formatPrice(todayEarnings)} icon={TrendingUp} color="text-orange-500" />
+            <StatCard label="Note" value={avgRating > 0 ? `${avgRating.toFixed(1)} ★` : '—'} icon={Star} color="text-amber-500" />
+          </div>
+          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" size="lg" onClick={() => handleToggle(true)}>
+            <Zap className="size-5 mr-2" />
+            Me mettre en ligne
+          </Button>
+        </>
       )}
     </div>
   );
 }
 
-// ─── Loading Skeleton ──────────────────────────────────────────────────────
-
-function LoadingCards({ count = 3 }: { count?: number }) {
+function StatCard({ label, value, icon: Icon, color }: { label: string; value: string; icon: React.ElementType; color: string }) {
   return (
-    <div className="space-y-3">
-      {Array.from({ length: count }).map((_, i) => (
-        <Card key={i} className="border-0 shadow-md">
-          <CardContent className="p-4 space-y-3">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-10 w-full rounded-xl" />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+    <Card className="text-center">
+      <CardContent className="pt-4 pb-4 px-3">
+        <Icon className={`size-5 mx-auto mb-1 ${color}`} />
+        <p className="text-lg font-bold leading-tight">{value}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+      </CardContent>
+    </Card>
   );
 }
 
-// ─── Home View ──────────────────────────────────────────────────────────────
-
-function HomeView() {
-  const { navigate, data } = useDriverNav();
-  const user = useAuthStore((s) => s.user);
-  const [isOnline, setIsOnline] = useState(false);
-  const [orders, setOrders] = useState<OrderData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ todayEarnings: 0, todayDeliveries: 0 });
-
-  const fetchOrders = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/orders?status=PENDING');
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(Array.isArray(data) ? data : []);
-      }
-    } catch {
-      setOrders([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await fetch('/api/stats');
-      if (res.ok) {
-        const data = await res.json();
-        setStats({
-          todayEarnings: data.totalRevenue || 0,
-          todayDeliveries: data.totalDeliveriesToday || 0,
-        });
-      }
-    } catch {
-      // keep defaults
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isOnline) {
-      fetchOrders();
-      fetchStats();
-    } else {
-      setOrders([]);
-      setLoading(false);
-    }
-  }, [isOnline, fetchOrders, fetchStats]);
-
-  const handleToggleOnline = () => {
-    const next = !isOnline;
-    setIsOnline(next);
-    toast.success(next ? 'Vous êtes en ligne' : 'Vous êtes hors ligne');
-  };
-
-  const handleAcceptOrder = async (order: Record<string, unknown>) => {
-    try {
-      const res = await fetch(`/api/orders/${order.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'CONFIRMED' }),
-      });
-      if (res.ok) {
-        toast.success('Commande acceptée');
-        navigate('ride', { id: order.id as string });
-      } else {
-        toast.error("Erreur lors de l'acceptation");
-      }
-    } catch {
-      toast.error('Erreur de connexion');
-    }
-  };
-
-  const initials = user ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() : 'LV';
+function AvailableOrderCard({ order, onAccept, accepting }: { order: Order; onAccept: (id: string) => void; accepting: boolean }) {
+  const itemCount = order.items?.length || 0;
+  const itemsSummary = order.items?.slice(0, 3).map(i => i.productName).join(', ') + (itemCount > 3 ? `... +${itemCount - 3}` : '');
 
   return (
-    <div className="space-y-5 pb-4">
-      {/* Online Toggle */}
-      <motion.div
-        className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 p-5 text-white shadow-lg"
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
-        <div className="flex items-center gap-3">
-          <motion.div
-            animate={{
-              scale: isOnline ? [1, 1.2, 1] : 1,
-              opacity: isOnline ? 1 : 0.5,
-            }}
-            transition={{ repeat: isOnline ? Infinity : 0, duration: 2 }}
-          >
-            <div className={`h-4 w-4 rounded-full ${isOnline ? 'bg-white' : 'bg-white/40'}`} />
-          </motion.div>
-          <div>
-            <p className="text-sm font-medium text-white/80">Statut</p>
-            <p className="text-lg font-bold">{isOnline ? 'En ligne' : 'Hors ligne'}</p>
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+              <Store className="size-5 text-orange-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">{order.merchant?.businessName || 'Marchand'}</p>
+              <p className="text-xs text-muted-foreground">#{order.orderNumber}</p>
+            </div>
+          </div>
+          <p className="font-bold text-emerald-600 text-sm">{formatPrice(order.deliveryFee)}</p>
+        </div>
+
+        <div className="space-y-2 mb-3">
+          <div className="flex items-start gap-2">
+            <MapPin className="size-4 text-emerald-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase">Ramassage</p>
+              <p className="text-xs">{order.merchant?.address || 'Adresse marchand'}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <MapPin className="size-4 text-orange-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase">Livraison</p>
+              <p className="text-xs">{order.deliveryAddress}</p>
+            </div>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="lg"
-          onClick={handleToggleOnline}
-          className="relative h-14 w-24 rounded-full bg-white/20 hover:bg-white/30 text-white p-0"
-          aria-label="Toggle online status"
-        >
-          <motion.div
-            className="absolute top-1 flex h-12 w-[46px] items-center justify-center rounded-full bg-white shadow-lg"
-            animate={{ left: isOnline ? 'calc(100% - 50px)' : '2px' }}
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-          >
-            <Truck className={`h-5 w-5 ${isOnline ? 'text-emerald-600' : 'text-gray-400'}`} />
-          </motion.div>
-        </Button>
-      </motion.div>
 
-      {/* Driver Info Card */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-        <Card className="border-0 shadow-md glass-card">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3 mb-4">
-              <Avatar className="h-12 w-12 border-2 border-emerald-500">
-                <AvatarFallback className="bg-emerald-100 text-emerald-700 text-lg font-bold">{initials}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-base truncate">{user ? `${user.firstName} ${user.lastName}` : 'Livreur'}</p>
-                <p className="text-sm text-muted-foreground">{user?.email || ''}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <button className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-3 text-center" onClick={() => navigate('history')}>
-                <TrendingUp className="mx-auto mb-1 h-5 w-5 text-emerald-600" />
-                <p className="text-lg font-bold">{stats.todayDeliveries}</p>
-                <p className="text-[10px] text-muted-foreground">Livraisons</p>
-              </button>
-              <button className="rounded-xl bg-amber-50 dark:bg-amber-950/30 p-3 text-center" onClick={() => navigate('ratings')}>
-                <Star className="mx-auto mb-1 h-5 w-5 text-amber-500" />
-                <p className="text-lg font-bold">-</p>
-                <p className="text-[10px] text-muted-foreground">Note</p>
-              </button>
-              <button className="rounded-xl bg-blue-50 dark:bg-blue-950/30 p-3 text-center" onClick={() => navigate('earnings')}>
-                <Wallet className="mx-auto mb-1 h-5 w-5 text-blue-600" />
-                <p className="text-lg font-bold">{formatPrice(stats.todayEarnings)}</p>
-                <p className="text-[10px] text-muted-foreground">Revenus</p>
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+        <div className="text-xs text-muted-foreground mb-3">
+          <Package className="size-3 inline mr-1" />
+          {itemsSummary || 'Aucun article'}
+        </div>
 
-      {/* Available Orders */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-        <div className="mb-3 flex items-center justify-between px-1">
-          <h2 className="text-base font-bold">Courses disponibles</h2>
-          {orders.length > 0 && (
-            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
-              {orders.length}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {order.estimatedTime && (
+              <Badge variant="outline" className="text-xs">
+                <Clock className="size-3 mr-1" />
+                ~{order.estimatedTime} min
+              </Badge>
+            )}
+            <Badge variant="outline" className="text-xs">
+              {formatPrice(order.total)}
             </Badge>
-          )}
-        </div>
-
-        {!isOnline ? (
-          <Card className="border-0 shadow-md">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <AlertCircle className="h-12 w-12 text-muted-foreground mb-3" />
-              <p className="text-lg font-semibold text-muted-foreground">Vous êtes hors ligne</p>
-              <p className="mt-1 text-sm text-muted-foreground">Mettez-vous en ligne pour voir les courses disponibles</p>
-            </CardContent>
-          </Card>
-        ) : loading ? (
-          <LoadingCards />
-        ) : orders.length === 0 ? (
-          <EmptyState icon={Package} title="Aucune course disponible" description="Recherche en cours..." />
-        ) : (
-          <div className="space-y-3">
-            {(orders as Record<string, unknown>[]).map((order, idx) => (
-              <motion.div key={order.id as string} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * idx }}>
-                <Card className="border-0 shadow-md overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="mb-3 flex items-start gap-2">
-                      <div className="flex flex-col items-center gap-0.5 pt-1">
-                        <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                        <div className="h-8 w-0.5 bg-gray-200 dark:bg-gray-700" />
-                        <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                      </div>
-                      <div className="flex-1 space-y-3">
-                        <div>
-                          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Marchand</p>
-                          <p className="text-sm font-semibold">{String((order.merchant as Record<string, unknown>)?.businessName || 'Marchand')}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Livrer à</p>
-                          <p className="text-sm font-semibold">{(order.deliveryAddress as string) || 'Adresse non spécifiée'}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-900 p-3 mb-3">
-                      <div className="text-center">
-                        <p className="text-xs text-muted-foreground">Gains</p>
-                        <p className="text-base font-bold text-emerald-600">{formatPrice(order.deliveryFee as number || 0)}</p>
-                      </div>
-                      <Separator orientation="vertical" className="h-8" />
-                      <div className="text-center">
-                        <p className="text-xs text-muted-foreground">Articles</p>
-                        <p className="text-base font-bold">{(order.items as unknown[])?.length || 0}</p>
-                      </div>
-                      <Separator orientation="vertical" className="h-8" />
-                      <div className="text-center">
-                        <p className="text-xs text-muted-foreground">Temps est.</p>
-                        <p className="text-base font-bold">~{String(order.estimatedTime || 30)} min</p>
-                      </div>
-                    </div>
-                    <Button
-                      className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
-                      onClick={() => handleAcceptOrder(order)}
-                    >
-                      Accepter
-                    </Button>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
           </div>
-        )}
-      </motion.div>
-    </div>
+          <Button
+            size="sm"
+            className="bg-orange-500 hover:bg-orange-600 text-white"
+            onClick={() => onAccept(order.id)}
+            disabled={accepting}
+          >
+            {accepting ? <Loader2 className="size-4 animate-spin" /> : <><Check className="size-4 mr-1" /> Accepter</>}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
-// ─── Ride View ──────────────────────────────────────────────────────────────
+// ─── Ride / Active Delivery View ──────────────────────────────────────────────
 
-function RideView() {
-  const { view, data, navigate } = useDriverNav();
-  const [order, setOrder] = useState<OrderData | null>(null);
+function RideView({ driver }: { driver: DriverProfile }) {
+  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<string>('assigned');
+  const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { navigate } = useDriverNav();
 
   useEffect(() => {
-    const fetchOrder = async () => {
-      if (!data?.id) {
-        setLoading(false);
-        return;
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const { data } = await apiFetch<{ orders: Order[]; total: number }>('/api/orders?status=ASSIGNED&limit=5');
+      if (cancelled) return;
+      let found: Order | null = null;
+      if (data?.orders && data.orders.length > 0) {
+        found = data.orders.find(o => o.status === 'IN_TRANSIT')
+          || data.orders.find(o => o.status === 'PICKED_UP')
+          || data.orders.find(o => o.status === 'ASSIGNED')
+          || null;
       }
-      try {
-        setLoading(true);
-        const res = await fetch(`/api/orders/${data.id}`);
-        if (res.ok) {
-          const found = await res.json();
-          if (found) {
-            setOrder(found);
-            setStatus(found.status as string || 'CONFIRMED');
-          }
+      if (!found) {
+        const { data: data2 } = await apiFetch<{ orders: Order[] }>('/api/orders?limit=10');
+        if (!cancelled && data2?.orders) {
+          found = data2.orders.find(o => ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)) || null;
         }
-      } catch {
-        // keep empty
-      } finally {
+      }
+      if (!cancelled) {
+        setActiveOrder(found);
         setLoading(false);
       }
     };
-    fetchOrder();
-  }, [data?.id]);
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
-  if (!data?.id && !order) {
+  const updateStatus = async (newStatus: string) => {
+    if (!activeOrder) return;
+    setUpdating(true);
+    setError(null);
+    const { data, error: err } = await apiFetch<Order>(`/api/orders/${activeOrder.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (err) {
+      setError(err);
+    } else if (data) {
+      if (newStatus === 'DELIVERED') {
+        navigate('home');
+      } else {
+        setActiveOrder(data);
+      }
+    }
+    setUpdating(false);
+  };
+
+  if (loading) {
     return (
-      <EmptyState
-        icon={Truck}
-        title="Aucune course en cours"
-        description="Acceptez une course depuis l'accueil"
-        action={{ label: "Retour à l'accueil", onClick: () => navigate('home') }}
-      />
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="size-8 animate-spin text-emerald-600" />
+      </div>
     );
   }
 
-  if (loading) {
-    return <LoadingCards count={2} />;
+  if (!activeOrder) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-6 gap-4">
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+          <Navigation className="size-8 text-gray-400" />
+        </div>
+        <p className="text-center font-medium">Aucune livraison active</p>
+        <p className="text-sm text-muted-foreground text-center">Acceptez une commande pour commencer une livraison</p>
+        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('home')}>
+          Voir les commandes
+        </Button>
+      </div>
+    );
   }
 
-  const merchantInfo = order?.merchant as MerchantInfo | undefined;
-  const driverInfo = order?.driver as Record<string, unknown> | undefined;
-  const driverUser = driverInfo?.user as Record<string, unknown> | undefined;
+  const status = activeOrder.status;
+  const isAssigned = status === 'ASSIGNED';
+  const isPickedUp = status === 'PICKED_UP';
+  const isInTransit = status === 'IN_TRANSIT';
+  const merchantPhone = activeOrder.merchant?.phone || activeOrder.merchant?.user?.phone || '';
+  const clientPhone = activeOrder.client?.user?.phone || '';
 
   return (
-    <div className="space-y-4 pb-4">
-      {/* Back button */}
-      <Button variant="ghost" size="sm" onClick={() => navigate('home')} className="gap-2">
-        <ArrowLeft className="h-4 w-4" />
-        Retour
-      </Button>
-
-      <Card className="border-0 shadow-md glass-card">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Package className="h-5 w-5 text-emerald-600" />
-            Course {order?.orderNumber || ''}
-          </CardTitle>
-          <Badge className={ORDER_STATUS_COLORS[status] || ORDER_STATUS_COLORS.PENDING}>
-            {ORDER_STATUS_LABELS[status] || status}
-          </Badge>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Pickup */}
-          <div className="flex items-start gap-3">
-            <div className="mt-1">
-              <CircleDot className="h-5 w-5 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Récupérer</p>
-              <p className="text-sm font-semibold">{merchantInfo?.businessName || 'Marchand'}</p>
-              <p className="text-xs text-muted-foreground">{merchantInfo?.phone || ''}</p>
-            </div>
+    <div className="p-4 space-y-4">
+      {/* Status Steps */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <CircleDot className="size-5 text-emerald-600" />
+            <span className="font-semibold text-sm">
+              {isAssigned && 'Aller au restaurant'}
+              {isPickedUp && 'En route vers le client'}
+              {isInTransit && 'En livraison'}
+            </span>
           </div>
-
-          <div className="ml-2.5 h-6 w-0.5 bg-gray-200 dark:bg-gray-700" />
-
-          {/* Delivery */}
-          <div className="flex items-start gap-3">
-            <div className="mt-1">
-              <MapPin className="h-5 w-5 text-red-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Livrer à</p>
-              <p className="text-sm font-semibold">{order?.deliveryAddress || 'Adresse non spécifiée'}</p>
-              <p className="text-xs text-muted-foreground">{order?.deliveryQuartier || ''}, {order?.deliveryCity || 'Bamako'}</p>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Customer & Earnings */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-gray-50 dark:bg-gray-900 p-3">
-              <p className="text-xs text-muted-foreground">Client</p>
-              <p className="text-sm font-semibold">Client</p>
-              <p className="text-xs text-muted-foreground">{order?.paymentMethod || 'CASH'}</p>
-            </div>
-            <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-3">
-              <p className="text-xs text-muted-foreground">Gains</p>
-              <p className="text-lg font-bold text-emerald-600">{formatPrice(order?.deliveryFee as number || 0)}</p>
-            </div>
+          <div className="flex items-center gap-1">
+            <StepDot active done={isAssigned || isPickedUp || isInTransit} label="Assigné" />
+            <StepLine done={isPickedUp || isInTransit} />
+            <StepDot active={isPickedUp || isInTransit} done={isPickedUp || isInTransit} label="Récupéré" />
+            <StepLine done={isInTransit} />
+            <StepDot active={isInTransit} done={false} label="Livré" />
           </div>
         </CardContent>
       </Card>
-
-      {/* Actions */}
-      <div className="space-y-3">
-        {status !== 'PICKED_UP' && status !== 'IN_TRANSIT' && status !== 'DELIVERED' && (
-          <Button
-            className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
-            onClick={async () => {
-              try {
-                const res = await fetch(`/api/orders/${order?.id}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ status: 'PICKED_UP' }),
-                });
-                if (res.ok) {
-                  setStatus('PICKED_UP');
-                  toast.success('Colis récupéré !');
-                } else {
-                  toast.error('Erreur lors de la mise à jour');
-                }
-              } catch {
-                toast.error('Erreur de connexion');
-              }
-            }}
-          >
-            <Package className="mr-2 h-5 w-5" />
-            J&apos;ai récupéré la commande
-          </Button>
-        )}
-
-        <Button
-          className="w-full h-12 text-base font-bold"
-          variant="outline"
-          onClick={() => navigate('navigation', data)}
-        >
-          <Navigation className="mr-2 h-5 w-5" />
-          Commencer la navigation
-        </Button>
-
-        <Button
-          className="w-full h-12 text-base font-bold"
-          variant="outline"
-          onClick={() => toast.info('Appel en cours...')}
-        >
-          <Phone className="mr-2 h-5 w-5" />
-          Appeler le client
-        </Button>
-
-        {status !== 'DELIVERED' && (
-          <Button
-            className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
-            onClick={async () => {
-              try {
-                const res = await fetch(`/api/orders/${order?.id}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ status: 'DELIVERED' }),
-                });
-                if (res.ok) {
-                  toast.success('Commande livrée !');
-                  navigate('home');
-                } else {
-                  toast.error('Erreur lors de la livraison');
-                }
-              } catch {
-                toast.error('Erreur de connexion');
-              }
-            }}
-          >
-            <CheckCircle2 className="mr-2 h-5 w-5" />
-            Livré
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Navigation View ────────────────────────────────────────────────────────
-
-function NavigationView() {
-  const { data, navigate } = useDriverNav();
-  const [order, setOrder] = useState<OrderData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!data?.id) {
-      setLoading(false);
-      return;
-    }
-    const fetchOrder = async () => {
-      try {
-        const res = await fetch(`/api/orders/${data.id}`);
-        if (res.ok) {
-          const found = await res.json();
-          if (found) setOrder(found);
-        }
-      } catch {
-        // empty
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchOrder();
-  }, [data?.id]);
-
-  if (!data?.id && !order) {
-    return (
-      <EmptyState
-        icon={Navigation}
-        title="Aucune navigation en cours"
-        action={{ label: "Retour à l'accueil", onClick: () => navigate('home') }}
-      />
-    );
-  }
-
-  if (loading) return <LoadingCards count={1} />;
-
-  return (
-    <div className="space-y-4 pb-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate('ride', data)} className="gap-2">
-        <ArrowLeft className="h-4 w-4" />
-        Retour à la course
-      </Button>
 
       {/* Map Placeholder */}
-      <div className="relative h-64 rounded-2xl bg-gray-200 dark:bg-gray-800 overflow-hidden">
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
-            <Navigation className="h-12 w-12 text-emerald-500" />
-          </motion.div>
-          <p className="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">Navigation en cours...</p>
+      <div className="rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-950/40 dark:to-emerald-900/20 h-40 flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-8 left-8 w-32 h-1 bg-emerald-600 rounded rotate-12" />
+          <div className="absolute top-16 left-16 w-24 h-1 bg-emerald-600 rounded -rotate-6" />
+          <div className="absolute bottom-12 right-12 w-28 h-1 bg-orange-500 rounded rotate-45" />
+          <div className="absolute bottom-8 right-8 w-20 h-1 bg-orange-500 rounded -rotate-12" />
+        </div>
+        <div className="flex flex-col items-center gap-2 z-10">
+          <MapPin className="size-8 text-emerald-600" />
+          <span className="text-xs text-muted-foreground font-medium">Carte de navigation</span>
         </div>
       </div>
 
-      <Card className="border-0 shadow-md glass-card">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <Route className="h-5 w-5 text-emerald-600" />
-            <div>
-              <p className="text-sm font-semibold">{order?.deliveryAddress || 'Destination'}</p>
-              <p className="text-xs text-muted-foreground">{order?.deliveryQuartier || ''}, {order?.deliveryCity || 'Bamako'}</p>
+      {/* Merchant Info */}
+      {isAssigned && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Store className="size-4 text-emerald-600" />
+              Restaurant
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="font-medium">{activeOrder.merchant?.businessName}</p>
+            <div className="flex items-start gap-2 text-sm text-muted-foreground">
+              <MapPin className="size-4 mt-0.5 shrink-0" />
+              <span>{activeOrder.merchant?.address}</span>
             </div>
-          </div>
+            {merchantPhone && (
+              <a href={`tel:${merchantPhone}`} className="flex items-center gap-2 text-sm text-emerald-600 font-medium">
+                <Phone className="size-4" />
+                {merchantPhone}
+              </a>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Button
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={() => updateStatus('PICKED_UP')}
+              disabled={updating}
+            >
+              {updating ? <Loader2 className="size-4 animate-spin mr-2" /> : <Check className="size-4 mr-2" />}
+              J&apos;ai récupéré la commande
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-3 text-center">
-              <Timer className="mx-auto mb-1 h-5 w-5 text-emerald-600" />
-              <p className="text-xl font-bold">~{order?.estimatedTime || 30} min</p>
-              <p className="text-xs text-muted-foreground">Temps estimé</p>
+      {/* Client Info (when picked up) */}
+      {(isPickedUp || isInTransit) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <UserCircle className="size-4 text-orange-500" />
+              Client
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="font-medium">
+              {activeOrder.client?.user?.firstName} {activeOrder.client?.user?.lastName}
+            </p>
+            <div className="flex items-start gap-2 text-sm text-muted-foreground">
+              <MapPin className="size-4 mt-0.5 shrink-0 text-orange-500" />
+              <span>{activeOrder.deliveryAddress}</span>
             </div>
-            <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 p-3 text-center">
-              <Route className="mx-auto mb-1 h-5 w-5 text-amber-500" />
-              <p className="text-xl font-bold">-- km</p>
-              <p className="text-xs text-muted-foreground">Distance</p>
-            </div>
-          </div>
+            {clientPhone && (
+              <a href={`tel:${clientPhone}`} className="flex items-center gap-2 text-sm text-emerald-600 font-medium">
+                <Phone className="size-4" />
+                {clientPhone}
+              </a>
+            )}
+          </CardContent>
+          <CardFooter>
+            {isPickedUp && (
+              <Button
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={() => updateStatus('IN_TRANSIT')}
+                disabled={updating}
+              >
+                {updating ? <Loader2 className="size-4 animate-spin mr-2" /> : <Navigation className="size-4 mr-2" />}
+                Démarrer la livraison
+              </Button>
+            )}
+            {isInTransit && (
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => updateStatus('DELIVERED')}
+                disabled={updating}
+              >
+                {updating ? <Loader2 className="size-4 animate-spin mr-2" /> : <CheckCircle2 className="size-4 mr-2" />}
+                J&apos;ai livré
+              </Button>
+            )}
+          </CardFooter>
+        </Card>
+      )}
 
-          <Button
-            className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
-            onClick={async () => {
-              try {
-                const res = await fetch(`/api/orders/${order?.id}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ status: 'DELIVERED' }),
-                });
-                if (res.ok) {
-                  toast.success('Livraison terminée !');
-                  navigate('home');
-                } else {
-                  toast.error('Erreur lors de la livraison');
-                }
-              } catch {
-                toast.error('Erreur de connexion');
-              }
-            }}
-          >
-            <CheckCircle2 className="mr-2 h-5 w-5" />
-            Terminer la livraison
-          </Button>
+      {/* Contact Buttons */}
+      <div className="flex gap-3">
+        {merchantPhone && (
+          <a href={`tel:${merchantPhone}`} className="flex-1">
+            <Button variant="outline" className="w-full">
+              <Phone className="size-4 mr-2" />
+              Appeler le restaurant
+            </Button>
+          </a>
+        )}
+        {clientPhone && (
+          <a href={`tel:${clientPhone}`} className="flex-1">
+            <Button variant="outline" className="w-full">
+              <Phone className="size-4 mr-2" />
+              Appeler le client
+            </Button>
+          </a>
+        )}
+      </div>
+
+      {/* Order Summary */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Détails de la commande</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Commande</span>
+            <span className="font-mono">#{activeOrder.orderNumber}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Articles</span>
+            <span>{activeOrder.items?.length || 0}</span>
+          </div>
+          <Separator />
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Sous-total</span>
+            <span>{formatPrice(activeOrder.subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Frais de livraison</span>
+            <span className="text-emerald-600 font-medium">{formatPrice(activeOrder.deliveryFee)}</span>
+          </div>
+          <div className="flex justify-between text-sm font-bold">
+            <span>Total</span>
+            <span>{formatPrice(activeOrder.total)}</span>
+          </div>
+          {activeOrder.notes && (
+            <>
+              <Separator />
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">Note :</span> {activeOrder.notes}
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── History View ───────────────────────────────────────────────────────────
+function StepDot({ active, done, label }: { active: boolean; done: boolean; label: string }) {
+  return (
+    <div className="flex flex-col items-center">
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+        done ? 'bg-emerald-600 text-white' : active ? 'bg-emerald-100 text-emerald-600 ring-2 ring-emerald-600' : 'bg-gray-200 text-gray-400'
+      }`}>
+        {done ? <Check className="size-3" /> : active ? <CircleDot className="size-3" /> : ''}
+      </div>
+      <span className="text-[9px] text-muted-foreground mt-1">{label}</span>
+    </div>
+  );
+}
+
+function StepLine({ done }: { done: boolean }) {
+  return <div className={`flex-1 h-0.5 rounded ${done ? 'bg-emerald-600' : 'bg-gray-200'}`} />;
+}
+
+// ─── History View ────────────────────────────────────────────────────────────
 
 function HistoryView() {
-  const { navigate } = useDriverNav();
-  const [orders, setOrders] = useState<OrderData[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'DELIVERED' | 'CANCELLED'>('all');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const res = await fetch('/api/orders');
-        if (res.ok) {
-          const data = await res.json();
-          setOrders(Array.isArray(data) ? data : []);
-        }
-      } catch {
-        setOrders([]);
-      } finally {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const statusParam = filter === 'all' ? '' : `&status=${filter}`;
+      const { data } = await apiFetch<{ orders: Order[] }>(`/api/orders?limit=50${statusParam}`);
+      if (!cancelled) {
+        if (data?.orders) setOrders(data.orders.filter(o => ['DELIVERED', 'CANCELLED'].includes(o.status)));
         setLoading(false);
       }
     };
-    fetchOrders();
+    load();
+    return () => { cancelled = true; };
+  }, [filter]);
+
+  const openDetail = async (orderId: string) => {
+    setDetailLoading(true);
+    const { data } = await apiFetch<Order>(`/api/orders/${orderId}`);
+    if (data) setDetailOrder(data);
+    setDetailLoading(false);
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      <h2 className="text-lg font-bold">Historique des livraisons</h2>
+
+      {/* Filter Tabs */}
+      <div className="flex gap-2">
+        {[
+          { key: 'all' as const, label: 'Tout' },
+          { key: 'DELIVERED' as const, label: 'Livrées' },
+          { key: 'CANCELLED' as const, label: 'Annulées' },
+        ].map(f => (
+          <Button
+            key={f.key}
+            variant={filter === f.key ? 'default' : 'outline'}
+            size="sm"
+            className={filter === f.key ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </Button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-emerald-600" />
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="text-center py-12">
+          <Clock className="size-12 mx-auto text-gray-300 mb-3" />
+          <p className="text-muted-foreground">Aucune livraison trouvée</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {orders.map(order => (
+            <Card key={order.id} className="cursor-pointer hover:border-emerald-200 transition-colors" onClick={() => { setExpandedId(expandedId === order.id ? null : order.id); openDetail(order.id); }}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold text-sm">#{order.orderNumber}</p>
+                    <p className="text-xs text-muted-foreground">{order.merchant?.businessName}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{order.deliveryAddress}</p>
+                  </div>
+                  <div className="text-right">
+                    <Badge className={ORDER_STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-800'}>
+                      {ORDER_STATUS_LABELS[order.status] || order.status}
+                    </Badge>
+                    <p className="text-xs font-medium mt-1">{formatPrice(order.deliveryFee)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
+                  <span>{new Date(order.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  <ChevronDown className={`size-4 transition-transform ${expandedId === order.id ? 'rotate-180' : ''}`} />
+                </div>
+
+                {expandedId === order.id && detailOrder && (
+                  <div className="mt-3 pt-3 border-t space-y-2">
+                    {detailLoading && !detailOrder ? (
+                      <Loader2 className="size-4 animate-spin mx-auto" />
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Sous-total</span>
+                          <span>{formatPrice(detailOrder.subtotal)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Frais de livraison</span>
+                          <span className="text-emerald-600">{formatPrice(detailOrder.deliveryFee)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm font-bold">
+                          <span>Total</span>
+                          <span>{formatPrice(detailOrder.total)}</span>
+                        </div>
+                        {detailOrder.items?.length > 0 && (
+                          <>
+                            <Separator />
+                            <p className="text-xs font-medium text-muted-foreground">Articles :</p>
+                            {detailOrder.items.map(item => (
+                              <div key={item.id} className="flex justify-between text-xs text-muted-foreground">
+                                <span>{item.quantity}x {item.productName}</span>
+                                <span>{formatPrice(item.totalPrice)}</span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Earnings View ────────────────────────────────────────────────────────────
+
+function EarningsView({ driver }: { driver: DriverProfile }) {
+  const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'earnings' | 'wallet'>('earnings');
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [walletRes, ordersRes] = await Promise.all([
+        apiFetch<WalletData>('/api/wallet'),
+        apiFetch<{ orders: Order[] }>('/api/orders?limit=100'),
+      ]);
+      if (walletRes.data) setWallet(walletRes.data);
+      if (ordersRes.data?.orders) {
+        setOrders(ordersRes.data.orders.filter(o => o.status === 'DELIVERED'));
+      }
+      setLoading(false);
+    }
+    load();
   }, []);
 
-  if (loading) return <LoadingCards count={5} />;
+  const deliveredOrders = orders.filter(o => o.status === 'DELIVERED');
 
-  if (orders.length === 0) {
-    return <EmptyState icon={Clock} title="Aucun historique" description="Vos courses livrées apparaîtront ici" />;
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const weekStart = new Date(todayStart - now.getDay() * 86400000).getTime();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+  const todayEarnings = deliveredOrders
+    .filter(o => new Date(o.createdAt).getTime() >= todayStart)
+    .reduce((sum, o) => sum + o.deliveryFee, 0);
+  const weekEarnings = deliveredOrders
+    .filter(o => new Date(o.createdAt).getTime() >= weekStart)
+    .reduce((sum, o) => sum + o.deliveryFee, 0);
+  const monthEarnings = deliveredOrders
+    .filter(o => new Date(o.createdAt).getTime() >= monthStart)
+    .reduce((sum, o) => sum + o.deliveryFee, 0);
+  const totalEarnings = deliveredOrders.reduce((sum, o) => sum + o.deliveryFee, 0);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="size-8 animate-spin text-emerald-600" />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-3 pb-4">
-      {orders.map((order) => {
-        const merchant = order.merchant as MerchantInfo | undefined;
-        const orderStatus = String(order.status || 'PENDING');
-        return (
-          <Card
-            key={order.id || ''}
-            className="border-0 shadow-md glass-card cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => navigate('ride', { id: order.id || '' })}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-bold">{String(order.orderNumber || '')}</p>
-                <Badge className={ORDER_STATUS_COLORS[orderStatus] || ORDER_STATUS_COLORS.PENDING}>
-                  {ORDER_STATUS_LABELS[orderStatus] || orderStatus}
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground mb-1">{merchant?.businessName || 'Marchand'}</p>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
-                  {order.createdAt ? new Date(order.createdAt as string).toLocaleDateString('fr-FR') : ''}
-                </p>
-                <p className="text-sm font-bold text-emerald-600">{formatPrice(order.total as number || 0)}</p>
-              </div>
+    <div className="p-4 space-y-4">
+      <h2 className="text-lg font-bold">Mes gains</h2>
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'earnings' | 'wallet')}>
+        <TabsList className="w-full">
+          <TabsTrigger value="earnings" className="flex-1">Gains</TabsTrigger>
+          <TabsTrigger value="wallet" className="flex-1">Portefeuille</TabsTrigger>
+          <TabsTrigger value="ratings" className="flex-1" onClick={() => useDriverNav.getState().navigate('ratings')}>Notes</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="earnings" className="space-y-4 mt-4">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <EarningsCard label="Aujourd&apos;hui" value={formatPrice(todayEarnings)} icon={Zap} color="bg-emerald-100 text-emerald-700" />
+            <EarningsCard label="Cette semaine" value={formatPrice(weekEarnings)} icon={TrendingUp} color="bg-orange-100 text-orange-700" />
+            <EarningsCard label="Ce mois" value={formatPrice(monthEarnings)} icon={CreditCard} color="bg-amber-100 text-amber-700" />
+            <EarningsCard label="Total" value={formatPrice(totalEarnings)} icon={Wallet} color="bg-emerald-100 text-emerald-700" />
+          </div>
+
+          {/* Breakdown */}
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Détail des gains</h3>
+          {deliveredOrders.length === 0 ? (
+            <div className="text-center py-8">
+              <Wallet className="size-12 mx-auto text-gray-300 mb-3" />
+              <p className="text-muted-foreground">Aucun gain pour le moment</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {deliveredOrders.slice(0, 20).map(order => {
+                const commission = Math.round(order.deliveryFee * 0.1);
+                const net = order.deliveryFee - commission;
+                return (
+                  <Card key={order.id}>
+                    <CardContent className="p-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">#{order.orderNumber}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {order.merchant?.businessName} • {new Date(order.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-emerald-600">{formatPrice(net)}</p>
+                        <p className="text-[10px] text-muted-foreground">Frais: {formatPrice(order.deliveryFee)}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="wallet" className="space-y-4 mt-4">
+          <Card className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white">
+            <CardContent className="p-6">
+              <p className="text-sm opacity-80">Solde du portefeuille</p>
+              <p className="text-3xl font-bold mt-1">{formatPrice(wallet?.balance || 0)}</p>
+              <p className="text-xs opacity-60 mt-2">
+                {wallet?.transactions?.length || 0} transactions récentes
+              </p>
             </CardContent>
           </Card>
-        );
-      })}
+
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Transactions récentes</h3>
+          {(!wallet?.transactions || wallet.transactions.length === 0) ? (
+            <div className="text-center py-8">
+              <CreditCard className="size-12 mx-auto text-gray-300 mb-3" />
+              <p className="text-muted-foreground">Aucune transaction</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {wallet.transactions.map(tx => (
+                <Card key={tx.id}>
+                  <CardContent className="p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{tx.description}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <Badge variant={tx.type === 'CREDIT' ? 'default' : 'destructive'} className={tx.type === 'CREDIT' ? 'bg-emerald-100 text-emerald-700' : ''}>
+                      {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
+                    </Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="ratings" />
+      </Tabs>
     </div>
   );
 }
 
-// ─── Earnings View ──────────────────────────────────────────────────────────
+function EarningsCard({ label, value, icon: Icon, color }: { label: string; value: string; icon: React.ElementType; color: string }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className={`w-8 h-8 rounded-lg ${color} flex items-center justify-center mb-2`}>
+          <Icon className="size-4" />
+        </div>
+        <p className="text-lg font-bold">{value}</p>
+        <p className="text-[10px] text-muted-foreground">{label}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
-function EarningsView() {
-  const [stats, setStats] = useState({ totalRevenue: 0, totalDeliveriesToday: 0 });
-  const [weeklyData, setWeeklyData] = useState<{ day: string; amount: number }[]>([]);
+// ─── Ratings View ─────────────────────────────────────────────────────────────
+
+function RatingsView({ driver }: { driver: DriverProfile }) {
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await fetch('/api/stats');
-        if (res.ok) {
-          const data = await res.json();
-          setStats({
-            totalRevenue: data.totalRevenue || 0,
-            totalDeliveriesToday: data.totalDeliveriesToday || 0,
-          });
-        }
-      } catch {
-        // keep defaults
-      } finally {
-        setLoading(false);
+    async function load() {
+      setLoading(true);
+      const { data } = await apiFetch<{ orders: Order[] }>('/api/orders?limit=50');
+      if (data?.orders) {
+        setOrders(data.orders.filter(o => o.status === 'DELIVERED' && o.ratings && o.ratings.length > 0) as (Order & { ratings: { score: number; comment: string | null; createdAt: string; client: { user: { firstName: string } } }[] })[]);
       }
-    };
-    fetchStats();
+      setLoading(false);
+    }
+    load();
   }, []);
 
-  const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-  const weekData = days.map((day) => ({
-    day,
-    amount: weeklyData.find((d) => d.day === day)?.amount || 0,
-  }));
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-32 w-full rounded-2xl" />
-        <Skeleton className="h-64 w-full rounded-2xl" />
-      </div>
-    );
-  }
-
-  if (stats.totalRevenue === 0 && weeklyData.length === 0) {
-    return <EmptyState icon={Wallet} title="Aucun revenu" description="Effectuez des livraisons pour voir vos revenus" />;
-  }
-
-  return (
-    <div className="space-y-4 pb-4">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card className="border-0 shadow-md glass-card">
-          <CardContent className="p-4 text-center">
-            <TrendingUp className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
-            <p className="text-2xl font-bold gradient-text">{formatPrice(stats.totalRevenue)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Total revenus</p>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-md glass-card">
-          <CardContent className="p-4 text-center">
-            <Clock className="mx-auto mb-2 h-6 w-6 text-amber-500" />
-            <p className="text-2xl font-bold">{formatPrice(Math.round(stats.totalRevenue / 30))}</p>
-            <p className="text-xs text-muted-foreground mt-1">Aujourd&apos;hui (estimé)</p>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-md glass-card">
-          <CardContent className="p-4 text-center">
-            <Package className="mx-auto mb-2 h-6 w-6 text-blue-600" />
-            <p className="text-2xl font-bold">{stats.totalDeliveriesToday}</p>
-            <p className="text-xs text-muted-foreground mt-1">Livraisons aujourd&apos;hui</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Withdrawal Button */}
-      <Button
-        className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
-        onClick={() => toast.info('Bientôt disponible')}
-      >
-        <Wallet className="mr-2 h-5 w-5" />
-        Demander un retrait
-      </Button>
-
-      {/* Weekly Chart */}
-      <Card className="border-0 shadow-md glass-card">
-        <CardHeader>
-          <CardTitle className="text-base">Revenus de la semaine</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weekData}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value: number) => [formatPrice(value), 'Revenus']}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                />
-                <Bar dataKey="amount" fill="#10b981" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Transactions */}
-      <Card className="border-0 shadow-md glass-card">
-        <CardHeader>
-          <CardTitle className="text-base">Dernières transactions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <EmptyState icon={CreditCard} title="Aucune transaction" description="Les transactions apparaîtront ici" />
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ─── Ratings View ───────────────────────────────────────────────────────────
-
-function RatingsView() {
-  const [ratings, setRatings] = useState<{ average: number; total: number; reviews: { name: string; rating: number; comment: string; date: string }[] }>({
-    average: 0, total: 0, reviews: [],
+  // Flatten ratings from orders
+  interface FlatRating { score: number; comment: string | null; date: string; clientName: string }
+  const ratings: FlatRating[] = [];
+  orders.forEach((o) => {
+    if (o.ratings && Array.isArray(o.ratings)) {
+      o.ratings.forEach((rating: { score: number; comment: string | null; createdAt: string; client: { user: { firstName: string; lastName: string } } }) => {
+        ratings.push({
+          score: rating.score,
+          comment: rating.comment,
+          date: rating.createdAt,
+          clientName: rating.client?.user ? `${rating.client.user.firstName} ${rating.client.user.lastName}` : 'Client',
+        });
+      });
+    }
   });
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchRatings = async () => {
-      try {
-        const res = await fetch('/api/stats');
-        if (res.ok) {
-          const data = await res.json();
-          setRatings({
-            average: data.avgRating || 0,
-            total: 0,
-            reviews: [],
-          });
-        }
-      } catch {
-        // keep defaults
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRatings();
-  }, []);
+  const avgRating = driver.rating;
+  const totalRatings = driver.totalRatings;
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-32 w-full rounded-2xl" />
-        <Skeleton className="h-48 w-full rounded-2xl" />
+      <div className="flex justify-center py-20">
+        <Loader2 className="size-8 animate-spin text-emerald-600" />
       </div>
     );
   }
 
-  if (ratings.average === 0 && ratings.total === 0) {
-    return <EmptyState icon={Star} title="Aucune évaluation" description="Les évaluations de vos clients apparaîtront ici" />;
-  }
-
-  const distribution = [
-    { stars: 5, count: 0, percentage: 0 },
-    { stars: 4, count: 0, percentage: 0 },
-    { stars: 3, count: 0, percentage: 0 },
-    { stars: 2, count: 0, percentage: 0 },
-    { stars: 1, count: 0, percentage: 0 },
-  ];
-
   return (
-    <div className="space-y-4 pb-4">
-      {/* Average Rating */}
-      <Card className="border-0 shadow-md glass-card">
-        <CardContent className="p-6 text-center">
-          <div className="flex items-center justify-center gap-1 mb-2">
-            {Array.from({ length: 5 }).map((_, i) => (
+    <div className="p-4 space-y-4">
+      <h2 className="text-lg font-bold">Mes notes</h2>
+
+      {/* Average Rating Card */}
+      <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20">
+        <CardContent className="p-6 flex flex-col items-center">
+          <p className="text-5xl font-bold text-amber-600">{avgRating > 0 ? avgRating.toFixed(1) : '—'}</p>
+          <div className="flex gap-1 my-2">
+            {[1, 2, 3, 4, 5].map(i => (
               <Star
                 key={i}
-                className={`h-8 w-8 ${i < Math.round(ratings.average) ? 'text-amber-500 fill-amber-500' : 'text-gray-300'}`}
+                className={`size-6 ${i <= Math.round(avgRating) ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`}
               />
             ))}
           </div>
-          <p className="text-4xl font-bold">{ratings.average.toFixed(1)}</p>
-          <p className="text-sm text-muted-foreground mt-1">{ratings.total} évaluation{ratings.total !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-muted-foreground">{totalRatings} évaluation{totalRatings > 1 ? 's' : ''}</p>
         </CardContent>
       </Card>
 
-      {/* Distribution */}
-      <Card className="border-0 shadow-md glass-card">
-        <CardHeader>
-          <CardTitle className="text-base">Répartition des notes</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {distribution.map((d) => (
-            <div key={d.stars} className="flex items-center gap-3">
-              <span className="text-sm font-medium w-12">{d.stars} étoile{d.stars > 1 ? 's' : ''}</span>
-              <Progress value={d.percentage} className="flex-1 h-2" />
-              <span className="text-sm text-muted-foreground w-8 text-right">{d.percentage}%</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Reviews */}
-      <Card className="border-0 shadow-md glass-card">
-        <CardHeader>
-          <CardTitle className="text-base">Avis récents</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {ratings.reviews.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Aucun avis pour le moment</p>
-          ) : (
-            <div className="space-y-4">
-              {ratings.reviews.map((review, i) => (
-                <div key={i} className="border-b last:border-0 pb-4 last:pb-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="text-xs">{review.name?.[0] || '?'}</AvatarFallback>
-                      </Avatar>
-                      <p className="text-sm font-semibold">{review.name}</p>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{review.date}</span>
+      {/* Recent Ratings */}
+      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Évaluations récentes</h3>
+      {ratings.length === 0 ? (
+        <div className="text-center py-8">
+          <Star className="size-12 mx-auto text-gray-300 mb-3" />
+          <p className="text-muted-foreground">Aucune évaluation pour le moment</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {ratings.map((r, i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <p className="text-sm font-medium">{r.clientName}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {new Date(r.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-1 mb-1">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className={`h-3 w-3 ${i < review.rating ? 'text-amber-500 fill-amber-500' : 'text-gray-300'}`} />
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <Star key={i} className={`size-3 ${i <= r.score ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`} />
                     ))}
                   </div>
-                  <p className="text-sm text-muted-foreground">{review.comment}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                {r.comment && (
+                  <p className="text-sm text-muted-foreground italic">&ldquo;{r.comment}&rdquo;</p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <div className="pt-2">
+        <Button variant="outline" className="w-full" onClick={() => useDriverNav.getState().navigate('earnings')}>
+          <ChevronLeft className="size-4 mr-2" />
+          Retour aux gains
+        </Button>
+      </div>
     </div>
   );
 }
 
-// ─── Wallet View ────────────────────────────────────────────────────────────
+// ─── Wallet View (Standalone) ────────────────────────────────────────────────
 
 function WalletView() {
-  const [balance, setBalance] = useState(0);
-  const [transactions, setTransactions] = useState<{ id: string; type: string; description: string; amount: number; date: string }[]>([]);
+  const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogType, setDialogType] = useState<'add' | 'withdraw'>('add');
-  const [amount, setAmount] = useState('');
 
   useEffect(() => {
-    const fetchWallet = async () => {
-      try {
-        const res = await fetch('/api/stats');
-        if (res.ok) {
-          const data = await res.json();
-          setBalance(data.totalRevenue || 0);
-        }
-      } catch {
-        // keep defaults
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchWallet();
+    apiFetch<WalletData>('/api/wallet').then(({ data }) => {
+      if (data) setWallet(data);
+      setLoading(false);
+    });
   }, []);
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-40 w-full rounded-2xl" />
-        <Skeleton className="h-48 w-full rounded-2xl" />
+      <div className="flex justify-center py-20">
+        <Loader2 className="size-8 animate-spin text-emerald-600" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 pb-4">
-      {/* Balance Card */}
-      <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-600 to-emerald-700 text-white">
+    <div className="p-4 space-y-4">
+      <h2 className="text-lg font-bold">Portefeuille</h2>
+
+      <Card className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white">
         <CardContent className="p-6">
-          <p className="text-sm text-white/80">Solde disponible</p>
-          <p className="text-3xl font-bold mt-1">{formatPrice(balance)}</p>
-          <div className="flex gap-3 mt-4">
-            <Button
-              variant="secondary"
-              className="flex-1"
-              onClick={() => { setDialogType('add'); setDialogOpen(true); }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Ajouter
-            </Button>
-            <Button
-              variant="secondary"
-              className="flex-1"
-              onClick={() => { setDialogType('withdraw'); setDialogOpen(true); }}
-            >
-              <Minus className="mr-2 h-4 w-4" />
-              Retirer
-            </Button>
-          </div>
+          <p className="text-sm opacity-80">Solde disponible</p>
+          <p className="text-4xl font-bold mt-1">{formatPrice(wallet?.balance || 0)}</p>
         </CardContent>
       </Card>
 
-      {/* Transactions */}
-      <Card className="border-0 shadow-md glass-card">
-        <CardHeader>
-          <CardTitle className="text-base">Historique des transactions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {transactions.length === 0 ? (
-            <EmptyState icon={CreditCard} title="Aucune transaction" description="Vos transactions apparaîtront ici" />
-          ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {transactions.map((tx) => (
-                <div key={tx.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
-                  <div className={`rounded-full p-2 ${tx.type === 'credit' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-                    {tx.type === 'credit' ? (
-                      <ArrowDownLeft className="h-4 w-4 text-emerald-600" />
-                    ) : (
-                      <ArrowUpRight className="h-4 w-4 text-red-600" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{tx.description}</p>
-                    <p className="text-xs text-muted-foreground">{tx.date}</p>
-                  </div>
-                  <p className={`text-sm font-bold ${tx.type === 'credit' ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {tx.type === 'credit' ? '+' : '-'}{formatPrice(tx.amount)}
+      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Historique des transactions</h3>
+      {(!wallet?.transactions || wallet.transactions.length === 0) ? (
+        <div className="text-center py-8">
+          <CreditCard className="size-12 mx-auto text-gray-300 mb-3" />
+          <p className="text-muted-foreground">Aucune transaction</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {wallet.transactions.map(tx => (
+            <Card key={tx.id}>
+              <CardContent className="p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">{tx.description}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <span className={`text-sm font-bold ${tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
+                </span>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-      {/* Add/Withdraw Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+// ─── Notifications View ──────────────────────────────────────────────────────
+
+function NotificationsView({ onBack }: { onBack?: () => void }) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const { data } = await apiFetch<{ notifications: Notification[]; total: number }>('/api/notifications?limit=50');
+      if (!cancelled) {
+        if (data) { setNotifications(data.notifications); setTotal(data.total); }
+        setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const markRead = async (id: string) => {
+    await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  };
+
+  const markAllRead = async () => {
+    await apiFetch('/api/notifications', { method: 'PUT' });
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  };
+
+  const typeIcon: Record<string, React.ElementType> = {
+    ORDER: Package,
+    DELIVERY: Navigation,
+    PAYMENT: CreditCard,
+    INFO: Bell,
+    SYSTEM: AlertCircle,
+    PROMO: Zap,
+    SUPPORT: MessageSquare,
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold">Notifications</h2>
+        {notifications.some(n => !n.isRead) && (
+          <Button variant="ghost" size="sm" onClick={markAllRead}>
+            Tout marquer comme lu
+          </Button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-emerald-600" />
+        </div>
+      ) : notifications.length === 0 ? (
+        <div className="text-center py-12">
+          <Bell className="size-12 mx-auto text-gray-300 mb-3" />
+          <p className="text-muted-foreground">Aucune notification</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {notifications.map(n => {
+            const Icon = typeIcon[n.type] || Bell;
+            return (
+              <Card
+                key={n.id}
+                className={`cursor-pointer transition-colors ${!n.isRead ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-200' : ''}`}
+                onClick={() => { if (!n.isRead) markRead(n.id); }}
+              >
+                <CardContent className="p-3 flex gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                    !n.isRead ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
+                  }`}>
+                    <Icon className="size-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className={`text-sm ${!n.isRead ? 'font-semibold' : 'font-medium'}`}>{n.title}</p>
+                      {!n.isRead && <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 mt-1.5" />}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {new Date(n.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Support View ─────────────────────────────────────────────────────────────
+
+function SupportView() {
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const fetchTickets = useCallback(async () => {
+    setLoading(true);
+    const { data } = await apiFetch<SupportTicket[]>('/api/support');
+    if (data) setTickets(data);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const { data } = await apiFetch<SupportTicket[]>('/api/support');
+      if (!cancelled) { if (data) setTickets(data); setLoading(false); }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!subject.trim() || !description.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    setSuccess(false);
+    const { error: err } = await apiFetch('/api/support', {
+      method: 'POST',
+      body: JSON.stringify({ subject, description }),
+    });
+    if (err) {
+      setError(err);
+    } else {
+      setSuccess(true);
+      setSubject('');
+      setDescription('');
+      setShowForm(false);
+      fetchTickets();
+    }
+    setSubmitting(false);
+  };
+
+  const statusLabel: Record<string, string> = {
+    OPEN: 'Ouvert',
+    IN_PROGRESS: 'En cours',
+    RESOLVED: 'Résolu',
+    CLOSED: 'Fermé',
+  };
+  const statusColor: Record<string, string> = {
+    OPEN: 'bg-blue-100 text-blue-800',
+    IN_PROGRESS: 'bg-orange-100 text-orange-800',
+    RESOLVED: 'bg-emerald-100 text-emerald-800',
+    CLOSED: 'bg-gray-100 text-gray-800',
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold">Support</h2>
+        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setShowForm(true)}>
+          <Plus className="size-4 mr-1" />
+          Nouveau ticket
+        </Button>
+      </div>
+
+      {/* New Ticket Dialog */}
+      <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{dialogType === 'add' ? 'Ajouter des fonds' : 'Retirer des fonds'}</DialogTitle>
-            <DialogDescription>
-              {dialogType === 'add' ? 'Entrez le montant à ajouter à votre portefeuille.' : 'Entrez le montant à retirer de votre portefeuille.'}
-            </DialogDescription>
+            <DialogTitle>Nouveau ticket de support</DialogTitle>
+            <DialogDescription>Décrivez votre problème et nous vous répondrons rapidement.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Input
-              type="number"
-              placeholder="Montant en FCFA"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
+            <div>
+              <Label htmlFor="subject">Sujet</Label>
+              <Input id="subject" placeholder="Sujet de votre demande" value={subject} onChange={e => setSubject(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea id="description" placeholder="Décrivez votre problème en détail..." value={description} onChange={e => setDescription(e.target.value)} rows={4} />
+            </div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            {success && <p className="text-sm text-emerald-600">Ticket envoyé avec succès !</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => {
-                toast.success(dialogType === 'add' ? 'Fonds ajoutés avec succès' : 'Retrait effectué');
-                setDialogOpen(false);
-                setAmount('');
-              }}
-            >
-              {dialogType === 'add' ? 'Ajouter' : 'Retirer'}
+            <Button variant="outline" onClick={() => setShowForm(false)}>Annuler</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSubmit} disabled={submitting || !subject.trim() || !description.trim()}>
+              {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : <Send className="size-4 mr-2" />}
+              Envoyer
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-emerald-600" />
+        </div>
+      ) : tickets.length === 0 ? (
+        <div className="text-center py-12">
+          <MessageSquare className="size-12 mx-auto text-gray-300 mb-3" />
+          <p className="text-muted-foreground">Aucun ticket de support</p>
+          <p className="text-xs text-muted-foreground mt-1">Créez un ticket si vous avez besoin d&apos;aide</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {tickets.map(ticket => (
+            <Card key={ticket.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold text-sm">{ticket.subject}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{ticket.description}</p>
+                  </div>
+                  <Badge className={statusColor[ticket.status] || 'bg-gray-100'}>
+                    {statusLabel[ticket.status] || ticket.status}
+                  </Badge>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  {new Date(ticket.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Support View ───────────────────────────────────────────────────────────
+// ─── Profile View ────────────────────────────────────────────────────────────
 
-function SupportView() {
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
-  const [sending, setSending] = useState(false);
+function ProfileView({ driver, onRefresh }: { driver: DriverProfile; onRefresh: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSend = async () => {
-    if (!subject.trim() || !message.trim()) {
-      toast.error('Veuillez remplir tous les champs');
-      return;
+  const [form, setForm] = useState({
+    vehicleType: driver.vehicleType,
+    vehiclePlate: driver.vehiclePlate || '',
+    vehicleBrand: driver.vehicleBrand || '',
+    vehicleColor: driver.vehicleColor || '',
+  });
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccess(false);
+    const { error: err } = await apiFetch('/api/drivers', {
+      method: 'POST',
+      body: JSON.stringify(form),
+    });
+    if (err) {
+      setError(err);
+    } else {
+      setSuccess(true);
+      setEditing(false);
+      onRefresh();
+      setTimeout(() => setSuccess(false), 3000);
     }
-    setSending(true);
-    try {
-      const res = await fetch('/api/support', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, message }),
-      });
-      if (res.ok) {
-        toast.success('Message envoyé avec succès');
-        setSubject('');
-        setMessage('');
-      } else {
-        toast.error("Erreur lors de l'envoi");
-      }
-    } catch {
-      toast.error("Erreur de connexion");
-    } finally {
-      setSending(false);
-    }
+    setSaving(false);
+  };
+
+  const vehicleTypeLabel: Record<string, string> = {
+    MOTO: 'Moto',
+    VELO: 'Vélo',
+    VOITURE: 'Voiture',
   };
 
   return (
-    <div className="space-y-4 pb-4">
-      <Card className="border-0 shadow-md glass-card">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Headphones className="h-5 w-5 text-emerald-600" />
-            Support
-          </CardTitle>
-          <CardDescription>Notre équipe est là pour vous aider</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Sujet</label>
-            <Input
-              placeholder="Décrivez votre problème..."
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Message</label>
-            <Textarea
-              placeholder="Détaillez votre demande..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={5}
-            />
-          </div>
-          <Button
-            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700"
-            onClick={handleSend}
-            disabled={sending}
-          >
-            {sending ? (
-              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-                <Send className="mr-2 h-4 w-4" />
-              </motion.div>
+    <div className="p-4 space-y-4">
+      <h2 className="text-lg font-bold">Mon profil</h2>
+
+      {/* Profile Header */}
+      <Card>
+        <CardContent className="p-6 flex flex-col items-center">
+          <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
+            {driver.user.avatar ? (
+              <img src={driver.user.avatar} alt="" className="w-20 h-20 rounded-full object-cover" />
             ) : (
-              <Send className="mr-2 h-4 w-4" />
+              <User className="size-10 text-emerald-600" />
             )}
-            Envoyer
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ─── Profile View ───────────────────────────────────────────────────────────
-
-function ProfileView() {
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
-  const [vehicleInfo, setVehicleInfo] = useState({ type: '', plate: '', color: '' });
-  const [editing, setEditing] = useState(false);
-
-  return (
-    <div className="space-y-4 pb-4">
-      {/* User Info */}
-      <Card className="border-0 shadow-md glass-card">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Avatar className="h-16 w-16 border-2 border-emerald-500">
-              <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xl font-bold">
-                {user ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() : 'LV'}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="text-xl font-bold">{user ? `${user.firstName} ${user.lastName}` : 'Livreur'}</p>
-              <p className="text-sm text-muted-foreground">{user?.email || ''}</p>
-            </div>
           </div>
-          {user?.isVerified && (
-            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-              <ShieldCheck className="mr-1 h-3 w-3" />
-              Vérifié
-            </Badge>
-          )}
+          <h3 className="font-bold text-lg">{driver.user.firstName} {driver.user.lastName}</h3>
+          <p className="text-sm text-muted-foreground">{driver.user.phone}</p>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center gap-1">
+              <Star className="size-4 fill-amber-400 text-amber-400" />
+              <span className="text-sm font-medium">{driver.rating > 0 ? driver.rating.toFixed(1) : 'Nouveau'}</span>
+            </div>
+            <span className="text-muted-foreground">•</span>
+            <span className="text-sm text-muted-foreground">{driver.totalDeliveries} livraisons</span>
+          </div>
         </CardContent>
       </Card>
 
       {/* Vehicle Info */}
-      <Card className="border-0 shadow-md glass-card">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Truck className="h-5 w-5 text-emerald-600" />
-            Informations véhicule
-          </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => setEditing(!editing)}>
-            {editing ? 'Annuler' : 'Modifier'}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Type de véhicule</label>
-            <Input
-              placeholder="Ex: Moto, Voiture..."
-              value={vehicleInfo.type}
-              onChange={(e) => setVehicleInfo({ ...vehicleInfo, type: e.target.value })}
-              disabled={!editing}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Immatriculation</label>
-            <Input
-              placeholder="Ex: AK-0452-BM"
-              value={vehicleInfo.plate}
-              onChange={(e) => setVehicleInfo({ ...vehicleInfo, plate: e.target.value })}
-              disabled={!editing}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Couleur</label>
-            <Input
-              placeholder="Ex: Rouge, Noir..."
-              value={vehicleInfo.color}
-              onChange={(e) => setVehicleInfo({ ...vehicleInfo, color: e.target.value })}
-              disabled={!editing}
-            />
-          </div>
-          {editing && (
-            <Button
-              className="w-full bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => {
-                setEditing(false);
-                toast.success('Informations véhicule mises à jour');
-              }}
-            >
-              Enregistrer
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">Informations du véhicule</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setEditing(!editing)}>
+              {editing ? 'Annuler' : 'Modifier'}
             </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editing ? (
+            <div className="space-y-3">
+              <div>
+                <Label>Type de véhicule</Label>
+                <div className="flex gap-2 mt-1">
+                  {['MOTO', 'VELO', 'VOITURE'].map(type => (
+                    <Button
+                      key={type}
+                      variant={form.vehicleType === type ? 'default' : 'outline'}
+                      size="sm"
+                      className={form.vehicleType === type ? 'bg-emerald-600' : ''}
+                      onClick={() => setForm(prev => ({ ...prev, vehicleType: type }))}
+                    >
+                      {vehicleTypeLabel[type]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="plate">Immatriculation</Label>
+                <Input id="plate" value={form.vehiclePlate} onChange={e => setForm(prev => ({ ...prev, vehiclePlate: e.target.value }))} placeholder="Ex: AK-1234-BC" />
+              </div>
+              <div>
+                <Label htmlFor="brand">Marque</Label>
+                <Input id="brand" value={form.vehicleBrand} onChange={e => setForm(prev => ({ ...prev, vehicleBrand: e.target.value }))} placeholder="Ex: Yamaha, Honda..." />
+              </div>
+              <div>
+                <Label htmlFor="color">Couleur</Label>
+                <Input id="color" value={form.vehicleColor} onChange={e => setForm(prev => ({ ...prev, vehicleColor: e.target.value }))} placeholder="Ex: Rouge, Noir..." />
+              </div>
+              {error && <p className="text-sm text-red-500">{error}</p>}
+              {success && <p className="text-sm text-emerald-600">Profil mis à jour !</p>}
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : <Check className="size-4 mr-2" />}
+                Enregistrer
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <ProfileRow label="Type" value={vehicleTypeLabel[driver.vehicleType] || driver.vehicleType} />
+              {driver.vehiclePlate && <ProfileRow label="Immatriculation" value={driver.vehiclePlate} />}
+              {driver.vehicleBrand && <ProfileRow label="Marque" value={driver.vehicleBrand} />}
+              {driver.vehicleColor && <ProfileRow label="Couleur" value={driver.vehicleColor} />}
+              {!driver.vehiclePlate && !driver.vehicleBrand && !driver.vehicleColor && (
+                <p className="text-sm text-muted-foreground text-center py-2">Aucune information véhicule renseignée</p>
+              )}
+            </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Quick Links */}
+      <Card>
+        <CardContent className="p-0">
+          <QuickLink icon={FileText} label="Mes documents" onClick={() => useDriverNav.getState().navigate('documents')} />
+          <Separator />
+          <QuickLink icon={Star} label="Mes notes" onClick={() => useDriverNav.getState().navigate('ratings')} />
+          <Separator />
+          <QuickLink icon={CreditCard} label="Portefeuille" onClick={() => useDriverNav.getState().navigate('wallet')} />
+          <Separator />
+          <QuickLink icon={MessageSquare} label="Support" onClick={() => useDriverNav.getState().navigate('support')} />
+          <Separator />
+          <QuickLink icon={Bell} label="Notifications" onClick={() => useDriverNav.getState().navigate('notifications')} />
         </CardContent>
       </Card>
 
       {/* Logout */}
       <Button
-        variant="outline"
-        className="w-full h-12 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30"
-        onClick={logout}
+        variant="destructive"
+        className="w-full"
+        onClick={() => useAuthStore.getState().logout()}
       >
-        <LogOut className="mr-2 h-5 w-5" />
+        <LogOut className="size-4 mr-2" />
         Se déconnecter
       </Button>
     </div>
   );
 }
 
-// ─── Notifications View ─────────────────────────────────────────────────────
-
-function NotificationsView() {
-  return <EmptyState icon={Bell} title="Aucune notification" description="Vos notifications apparaîtront ici" />;
-}
-
-// ─── Chat View ──────────────────────────────────────────────────────────────
-
-function ChatView() {
-  return <EmptyState icon={MessageCircle} title="Aucune conversation" description="Vos conversations avec les clients apparaîtront ici" />;
-}
-
-// ─── Documents View ─────────────────────────────────────────────────────────
-
-const DOCUMENT_TYPES = [
-  { id: 'id_card', field: 'idCardImage', name: "Carte d'identité nationale", description: "Pièce d'identité en cours de validité" },
-  { id: 'license', field: 'licenseImage', name: 'Permis de conduire', description: 'Permis moto ou voiture catégorie A/B' },
-  { id: 'registration', field: 'vehicleImage', name: "Carte grise du véhicule", description: "Enregistrement du véhicule" },
-  { id: 'selfie', field: 'selfieImage', name: 'Selfie avec pièce', description: "Photo de vous avec votre pièce d'identité" },
-];
-
-type DocStatus = 'pending' | 'submitted' | 'verified';
-
-function DocumentsView() {
-  const [documents, setDocuments] = useState<Record<string, DocStatus>>({});
-  const [previews, setPreviews] = useState<Record<string, string>>({});
-
-  const handleUpload = (docId: string, docName: string) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*,.pdf';
-    input.onchange = () => {
-      if (input.files && input.files.length > 0) {
-        const file = input.files[0];
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = reader.result as string;
-          setPreviews((prev) => ({ ...prev, [docId]: base64 }));
-          setDocuments((prev) => ({ ...prev, [docId]: 'submitted' }));
-          toast.success(`${docName} soumis avec succès`);
-        };
-        reader.onerror = () => {
-          toast.error("Erreur lors de la lecture du fichier");
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-    input.click();
-  };
-
+function ProfileRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-4 pb-4">
-      <Card className="border-0 shadow-md glass-card">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-5 w-5 text-emerald-600" />
-            Documents de vérification
-          </CardTitle>
-          <CardDescription>Soumettez vos documents pour vérification</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {DOCUMENT_TYPES.map((doc) => {
-            const status = documents[doc.id] || 'pending';
-            const preview = previews[doc.id];
-            return (
-              <div key={doc.id} className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-                {preview ? (
-                  <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0 border">
-                    <img src={preview} alt={doc.name} className="h-full w-full object-cover" />
-                  </div>
-                ) : (
-                  <div className={`rounded-full p-2 shrink-0 ${
-                    status === 'verified' ? 'bg-emerald-100 dark:bg-emerald-900/30' :
-                    status === 'submitted' ? 'bg-amber-100 dark:bg-amber-900/30' :
-                    'bg-gray-100 dark:bg-gray-900'
-                  }`}>
-                    <FileText className={`h-5 w-5 ${
-                      status === 'verified' ? 'text-emerald-600' :
-                      status === 'submitted' ? 'text-amber-600' :
-                      'text-gray-400'
-                    }`} />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">{doc.name}</p>
-                  <p className="text-xs text-muted-foreground">{doc.description}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant="secondary" className={
-                    status === 'verified' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                    status === 'submitted' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                    'bg-gray-100 text-gray-500'
-                  }>
-                    {status === 'verified' ? 'Vérifié' : status === 'submitted' ? 'En cours' : 'Non soumis'}
-                  </Badge>
-                  <Button variant="ghost" size="icon" onClick={() => handleUpload(doc.id, doc.name)}>
-                    <Upload className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-sm font-medium">{value}</span>
     </div>
   );
 }
 
-// ─── View Renderer ──────────────────────────────────────────────────────────
-
-function ViewRenderer({ view }: { view: string }) {
-  switch (view) {
-    case 'home': return <HomeView />;
-    case 'ride': return <RideView />;
-    case 'navigation': return <NavigationView />;
-    case 'history': return <HistoryView />;
-    case 'earnings': return <EarningsView />;
-    case 'ratings': return <RatingsView />;
-    case 'wallet': return <WalletView />;
-    case 'support': return <SupportView />;
-    case 'profile': return <ProfileView />;
-    case 'notifications': return <NotificationsView />;
-    case 'chat': return <ChatView />;
-    case 'documents': return <DocumentsView />;
-    default: return <HomeView />;
-  }
+function QuickLink({ icon: Icon, label, onClick }: { icon: React.ElementType; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center justify-between w-full p-4 hover:bg-muted/50 transition-colors"
+    >
+      <div className="flex items-center gap-3">
+        <Icon className="size-5 text-muted-foreground" />
+        <span className="text-sm font-medium">{label}</span>
+      </div>
+      <ChevronRight className="size-4 text-muted-foreground" />
+    </button>
+  );
 }
 
-// ─── Main Driver App ────────────────────────────────────────────────────────
+// ─── Documents View ───────────────────────────────────────────────────────────
 
-export default function DriverApp() {
-  const { view, navigate } = useDriverNav();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+function DocumentsView({ driver, onRefresh }: { driver: DriverProfile; onRefresh: () => void }) {
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const currentNav = NAV_ITEMS.find((item) => item.id === view);
+  const docs = [
+    { key: 'idCardImage', label: "Pièce d'identité", field: 'idCardImage', value: driver.idCardImage },
+    { key: 'licenseImage', label: 'Permis de conduire', field: 'licenseImage', value: driver.licenseImage },
+    { key: 'vehicleImage', label: 'Photo du véhicule', field: 'vehicleImage', value: driver.vehicleImage },
+    { key: 'selfieImage', label: 'Selfie', field: 'selfieImage', value: driver.selfieImage },
+  ];
+
+  const handleUpload = async (field: string, file: File) => {
+    setUploading(field);
+    setError(null);
+    setSuccess(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${useAuthStore.getState().token}` },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({ error: 'Erreur d\'upload' }));
+      setError(errData.error || 'Erreur d\'upload');
+      setUploading(null);
+      return;
+    }
+
+    const uploadData = await res.json();
+    const url = uploadData.url;
+
+    // Save to driver profile
+    const { error: saveErr } = await apiFetch('/api/drivers', {
+      method: 'POST',
+      body: JSON.stringify({ [field]: url }),
+    });
+
+    if (saveErr) {
+      setError(saveErr);
+    } else {
+      setSuccess(field);
+      onRefresh();
+      setTimeout(() => setSuccess(null), 3000);
+    }
+    setUploading(null);
+  };
+
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   return (
-    <div className="flex h-full">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-60 flex-col border-r bg-card shrink-0">
-        <div className="p-4">
-          <h1 className="text-xl font-bold gradient-text">Rapigo Driver</h1>
-        </div>
-        <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = view === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => navigate(item.id)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
+    <div className="p-4 space-y-4">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" onClick={() => useDriverNav.getState().goBack()}>
+          <ChevronLeft className="size-5" />
+        </Button>
+        <h2 className="text-lg font-bold">Mes documents</h2>
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-0">
-        {/* Mobile Header */}
-        <header className="md:hidden sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b px-4 py-3">
-          <div className="flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden"
-            >
-              <ChevronRight className="h-5 w-5 rotate-180" />
-            </Button>
-            <h1 className="text-base font-bold gradient-text">Rapigo Driver</h1>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              onClick={() => navigate('notifications')}
-            >
-              <Bell className="h-5 w-5" />
-            </Button>
+      <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/10">
+        <CardContent className="p-4 flex items-start gap-3">
+          <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-400">Vérification requise</p>
+            <p className="text-xs text-amber-700 dark:text-amber-500 mt-0.5">
+              Vos documents doivent être vérifiés par un administrateur avant que vous puissiez commencer à livrer.
+            </p>
           </div>
-        </header>
+        </CardContent>
+      </Card>
 
-        {/* Mobile Sidebar Overlay */}
-        <AnimatePresence>
-          {sidebarOpen && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-40 bg-black/50 md:hidden"
-                onClick={() => setSidebarOpen(false)}
-              />
-              <motion.aside
-                initial={{ x: -280 }}
-                animate={{ x: 0 }}
-                exit={{ x: -280 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                className="fixed left-0 top-0 bottom-0 z-50 w-60 bg-card border-r shadow-xl md:hidden"
-              >
-                <div className="p-4 flex items-center justify-between">
-                  <h1 className="text-xl font-bold gradient-text">Rapigo Driver</h1>
-                  <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
-                    <ArrowLeft className="h-5 w-5" />
-                  </Button>
+      {error && (
+        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-lg p-3">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {docs.map(doc => (
+          <Card key={doc.key}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    doc.value ? 'bg-emerald-100' : 'bg-red-100'
+                  }`}>
+                    {doc.value ? (
+                      <CheckCircle2 className="size-5 text-emerald-600" />
+                    ) : (
+                      <XCircle className="size-5 text-red-500" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{doc.label}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {doc.value ? 'Document envoyé' : 'Document manquant'}
+                    </p>
+                  </div>
                 </div>
-                <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-1">
-                  {NAV_ITEMS.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = view === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => { navigate(item.id); setSidebarOpen(false); }}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </nav>
-              </motion.aside>
-            </>
-          )}
-        </AnimatePresence>
+                <Badge variant={doc.value ? 'default' : 'destructive'} className={doc.value ? 'bg-emerald-100 text-emerald-700' : ''}>
+                  {doc.value ? 'Envoyé' : 'Manquant'}
+                </Badge>
+              </div>
 
-        {/* Desktop Header */}
-        <div className="hidden md:block px-6 py-4 border-b">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            {currentNav && <currentNav.icon className="h-5 w-5 text-emerald-600" />}
-            {currentNav?.label || 'Accueil'}
-          </h2>
-        </div>
+              {doc.value && (
+                <div className="mb-3 rounded-lg border overflow-hidden bg-gray-50 dark:bg-gray-900/50">
+                  <img
+                    src={doc.value}
+                    alt={doc.label}
+                    className="w-full h-40 object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
 
-        {/* Page Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4 md:p-6 max-w-3xl mx-auto">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={view}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2 }}
+              <input
+                type="file"
+                ref={el => { fileInputRefs.current[doc.key] = el; }}
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUpload(doc.field, file);
+                  e.target.value = '';
+                }}
+              />
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => fileInputRefs.current[doc.key]?.click()}
+                disabled={uploading === doc.field}
               >
-                <ViewRenderer view={view} />
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </div>
+                {uploading === doc.field ? (
+                  <><Loader2 className="size-4 animate-spin mr-2" /> Envoi en cours...</>
+                ) : success === doc.field ? (
+                  <><Check className="size-4 mr-2 text-emerald-600" /> Mis à jour !</>
+                ) : doc.value ? (
+                  <><RefreshCw className="size-4 mr-2" /> Remplacer</>
+                ) : (
+                  <><Upload className="size-4 mr-2" /> Téléverser</>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-        {/* Mobile Bottom Tab Bar */}
-        <nav className="md:hidden sticky bottom-0 z-30 bg-background/80 backdrop-blur-lg border-t">
-          <div className="flex items-center justify-around py-1">
-            {MOBILE_TABS.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = view === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => navigate(tab.id)}
-                  className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-colors min-w-[64px] ${
-                    isActive
-                      ? 'text-emerald-600'
-                      : 'text-muted-foreground'
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-[10px] font-medium">{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-      </main>
+// ─── Navigation Placeholder ──────────────────────────────────────────────────
+
+function NavigationPlaceholder() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 px-6 gap-4">
+      <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+        <Navigation className="size-8 text-emerald-600" />
+      </div>
+      <h3 className="font-semibold">Navigation</h3>
+      <p className="text-sm text-muted-foreground text-center">La navigation en temps réel sera bientôt disponible.</p>
+    </div>
+  );
+}
+
+// ─── Chat Placeholder ─────────────────────────────────────────────────────────
+
+function ChatPlaceholder() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 px-6 gap-4">
+      <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+        <MessageSquare className="size-8 text-emerald-600" />
+      </div>
+      <h3 className="font-semibold">Chat</h3>
+      <p className="text-sm text-muted-foreground text-center">La messagerie sera bientôt disponible.</p>
     </div>
   );
 }

@@ -1,109 +1,126 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const merchantId = searchParams.get('merchantId');
-    const category = searchParams.get('category');
-    const search = searchParams.get('search');
+    const merchantId = searchParams.get('merchantId') || '';
+    const categoryId = searchParams.get('categoryId') || '';
+    const search = searchParams.get('search') || '';
     const featured = searchParams.get('featured');
-    const all = searchParams.get('all');
+    const available = searchParams.get('available');
 
     const where: Record<string, unknown> = {};
-    if (all !== 'true') {
-      where.isAvailable = true;
+
+    if (merchantId) {
+      where.merchantId = merchantId;
     }
-    if (merchantId) where.merchantId = merchantId;
-    if (category) where.categoryId = category;
-    if (featured === 'true') where.isFeatured = true;
+    if (categoryId) {
+      where.categoryId = categoryId;
+    }
     if (search) {
-      where.name = { contains: search, mode: 'insensitive' as const };
+      where.OR = [
+        { name: { contains: search } },
+        { shortDescription: { contains: search } },
+      ];
+    }
+    if (featured === 'true') {
+      where.isFeatured = true;
+    }
+    if (available !== 'false') {
+      where.isAvailable = true;
     }
 
     const products = await db.product.findMany({
       where,
-      include: { merchant: { select: { businessName: true } }, category: { select: { name: true, icon: true } } },
-      orderBy: { totalSold: 'desc' },
-      take: 100,
+      include: {
+        merchant: { select: { id: true, businessName: true, logo: true, isApproved: true } },
+        category: true,
+      },
+      orderBy: { createdAt: 'desc' },
     });
+
     return NextResponse.json(products);
-  } catch {
+  } catch (error) {
+    console.error('List products error:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const data = await request.json();
-    if (!data.name || !data.price || !data.merchantId) {
-      return NextResponse.json({ error: 'Nom, prix et merchantId requis' }, { status: 400 });
+    const auth = await getAuthUser(request);
+    if (!auth) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
-    const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now().toString(36);
+
+    if (auth.role !== 'MERCHANT') {
+      return NextResponse.json({ error: 'Accès réservé aux marchands' }, { status: 403 });
+    }
+
+    const merchant = await db.merchant.findUnique({ where: { userId: auth.userId } });
+    if (!merchant) {
+      return NextResponse.json({ error: 'Profil marchand non trouvé' }, { status: 404 });
+    }
+
+    if (!merchant.isApproved) {
+      return NextResponse.json({ error: 'Votre compte marchand n\'est pas encore approuvé' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { name, categoryId, shortDescription, longDescription, price, comparePrice,
+      image, images, video, sku, barcode, weight, dimensions, variants,
+      options, supplements, allergens, tags, brand, origin, stock,
+      isAvailable, isFeatured, preparationTime } = body;
+
+    if (!name || price === undefined || price === null) {
+      return NextResponse.json({ error: 'Nom et prix requis' }, { status: 400 });
+    }
+
+    if (typeof price !== 'number' || price < 0) {
+      return NextResponse.json({ error: 'Prix invalide' }, { status: 400 });
+    }
+
+    // Generate slug
+    const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const uniqueSuffix = Date.now().toString(36);
+    const slug = `${baseSlug}-${uniqueSuffix}`;
 
     const product = await db.product.create({
       data: {
-        name: data.name,
+        merchantId: merchant.id,
+        categoryId: categoryId || null,
+        name,
         slug,
-        description: data.description || null,
-        price: parseFloat(data.price) || 0,
-        comparePrice: data.comparePrice ? parseFloat(data.comparePrice) : null,
-        stock: parseInt(data.stock) || 0,
-        merchantId: data.merchantId,
-        categoryId: data.categoryId || null,
-        image: data.image || null,
-        images: data.images ? JSON.stringify(data.images) : null,
-        isAvailable: data.isAvailable !== false,
-        isFeatured: !!data.isFeatured,
+        shortDescription,
+        longDescription,
+        price,
+        comparePrice,
+        image,
+        images: images ? JSON.stringify(images) : null,
+        video,
+        sku,
+        barcode,
+        weight,
+        dimensions: dimensions ? JSON.stringify(dimensions) : null,
+        variants: variants ? JSON.stringify(variants) : null,
+        options: options ? JSON.stringify(options) : null,
+        supplements: supplements ? JSON.stringify(supplements) : null,
+        allergens: allergens ? JSON.stringify(allergens) : null,
+        tags: tags ? JSON.stringify(tags) : null,
+        brand,
+        origin,
+        stock: stock ?? 0,
+        isAvailable: isAvailable ?? true,
+        isFeatured: isFeatured ?? false,
+        preparationTime,
       },
     });
+
     return NextResponse.json(product, { status: 201 });
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Erreur serveur';
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const data = await request.json();
-    if (!data.id) {
-      return NextResponse.json({ error: 'ID requis' }, { status: 400 });
-    }
-    const updateData: Record<string, unknown> = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.price !== undefined) updateData.price = parseFloat(data.price) || 0;
-    if (data.comparePrice !== undefined) updateData.comparePrice = data.comparePrice ? parseFloat(data.comparePrice) : null;
-    if (data.stock !== undefined) updateData.stock = parseInt(data.stock) || 0;
-    if (data.categoryId !== undefined) updateData.categoryId = data.categoryId || null;
-    if (data.image !== undefined) updateData.image = data.image;
-    if (data.images !== undefined) updateData.images = data.images ? JSON.stringify(data.images) : null;
-    if (data.isAvailable !== undefined) updateData.isAvailable = data.isAvailable;
-    if (data.isFeatured !== undefined) updateData.isFeatured = data.isFeatured;
-
-    const product = await db.product.update({
-      where: { id: data.id },
-      data: updateData,
-    });
-    return NextResponse.json(product);
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Erreur serveur';
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) {
-      return NextResponse.json({ error: 'ID requis' }, { status: 400 });
-    }
-    await db.product.delete({ where: { id } });
-    return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Erreur serveur';
-    return NextResponse.json({ error: msg }, { status: 500 });
+  } catch (error) {
+    console.error('Create product error:', error);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

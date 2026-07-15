@@ -1,66 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ error: 'userId requis' }, { status: 400 });
+    const auth = await getAuthUser(request);
+    if (!auth) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+    
+    if (auth.role !== 'MERCHANT') {
+      return NextResponse.json({ error: 'Accès réservé aux marchands' }, { status: 403 });
     }
 
     const merchant = await db.merchant.findUnique({
-      where: { userId },
+      where: { userId: auth.userId },
       include: {
-        businesses: true,
-        user: { select: { email: true, firstName: true, lastName: true, phone: true, avatar: true } },
-        subscriptions: {
-          include: { plan: true },
-          where: { status: 'ACTIVE' },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
+        user: { select: { id: true, email: true, phone: true, firstName: true, lastName: true, isActive: true } },
+        deliveryZones: true,
+        paymentConfigs: true,
+        subscriptions: { include: { plan: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+        _count: { select: { products: true, orders: true } },
       },
     });
 
     if (!merchant) {
-      return NextResponse.json({ error: 'Marchand non trouvé' }, { status: 404 });
+      return NextResponse.json({ error: 'Profil marchand non trouvé' }, { status: 404 });
     }
 
     return NextResponse.json(merchant);
-  } catch {
+  } catch (error) {
+    console.error('Merchant me error:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const data = await request.json();
-    if (!data.userId) {
-      return NextResponse.json({ error: 'userId requis' }, { status: 400 });
-    }
-
-    const merchant = await db.merchant.findUnique({ where: { userId: data.userId } });
-    if (!merchant) {
-      return NextResponse.json({ error: 'Marchand non trouvé' }, { status: 404 });
-    }
-
-    const updateData: Record<string, unknown> = {};
-    if (data.businessName !== undefined) updateData.businessName = data.businessName;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.address !== undefined) updateData.address = data.address;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.operatingHours !== undefined) updateData.operatingHours = data.operatingHours;
-    if (data.businessType !== undefined) updateData.businessType = data.businessType;
-
-    const updated = await db.merchant.update({
-      where: { userId: data.userId },
-      data: updateData,
-    });
-    return NextResponse.json(updated);
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Erreur serveur';
-    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

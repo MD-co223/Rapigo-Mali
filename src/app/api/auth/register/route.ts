@@ -1,69 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { signToken } from '@/lib/auth';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, phone, password, firstName, lastName, role } = await request.json();
+    const body = await request.json();
+    const { email, phone, password, firstName, lastName, role } = body;
 
     if (!email || !phone || !password || !firstName || !lastName || !role) {
       return NextResponse.json({ error: 'Tous les champs sont requis' }, { status: 400 });
     }
 
-    const exists = await db.user.findFirst({ where: { OR: [{ email }, { phone }] } });
-    if (exists) {
-      return NextResponse.json({ error: 'Email ou téléphone déjà utilisé' }, { status: 409 });
+    const validRoles = ['CLIENT', 'MERCHANT', 'DRIVER'];
+    if (!validRoles.includes(role)) {
+      return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    if (password.length < 6) {
+      return NextResponse.json({ error: 'Le mot de passe doit contenir au moins 6 caractères' }, { status: 400 });
+    }
+
+    const existingEmail = await db.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (existingEmail) {
+      return NextResponse.json({ error: 'Cet email est déjà utilisé' }, { status: 409 });
+    }
+
+    const existingPhone = await db.user.findUnique({ where: { phone } });
+    if (existingPhone) {
+      return NextResponse.json({ error: 'Ce numéro de téléphone est déjà utilisé' }, { status: 409 });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const referralCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+
     const user = await db.user.create({
       data: {
-        email, phone, password: hashedPassword, firstName, lastName, role,
-        isVerified: role === 'ADMIN',
+        email: email.toLowerCase(),
+        phone,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role,
+        isVerified: role === 'CLIENT',
+      },
+      include: {
+        client: true,
+        merchant: true,
+        driver: true,
       },
     });
 
     // Create role-specific profile
     if (role === 'CLIENT') {
-      const referralCode = `RAPIGO${firstName.toUpperCase().slice(0, 3)}${Math.floor(Math.random() * 9000) + 1000}`;
-      await db.client.create({ data: { userId: user.id, referralCode, city: 'Bamako' } });
-      await db.wallet.create({ data: { userId: user.id } });
+      await db.client.create({
+        data: {
+          userId: user.id,
+          referralCode,
+        },
+      });
+      await db.wallet.create({
+        data: { userId: user.id, balance: 0 },
+      });
     } else if (role === 'MERCHANT') {
       await db.merchant.create({
-        data: { userId: user.id, businessName: `${firstName} ${lastName}`, phone, address: 'Bamako', city: 'Bamako', isApproved: false },
+        data: {
+          userId: user.id,
+          businessName: `${firstName} ${lastName}`,
+          address: '',
+          phone,
+          isApproved: false,
+        },
+      });
+      await db.wallet.create({
+        data: { userId: user.id, balance: 0 },
       });
     } else if (role === 'DRIVER') {
-      await db.driver.create({ data: { userId: user.id, vehicleType: 'MOTO', isVerified: false } });
-      await db.wallet.create({ data: { userId: user.id } });
+      await db.driver.create({
+        data: {
+          userId: user.id,
+          isApproved: false,
+        },
+      });
+      await db.wallet.create({
+        data: { userId: user.id, balance: 0 },
+      });
     }
 
-    // Notify admins about new merchant/driver registration
-    if (role === 'MERCHANT' || role === 'DRIVER') {
-      const admins = await db.user.findMany({ where: { role: 'ADMIN', isActive: true } });
-      for (const admin of admins) {
-        await db.notification.create({
-          data: {
-            userId: admin.id,
-            title: `Nouveau ${role === 'MERCHANT' ? 'commerçant' : 'livreur'}`,
-            message: `${firstName} ${lastName} s'est inscrit et attend validation.`,
-            type: 'SYSTEM',
-          },
-        });
-      }
-    }
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      isSuperAdmin: user.isSuperAdmin,
+    });
 
-    const token = signToken({ userId: user.id, email: user.email, role: user.role });
+    const { password: _, ...safeUser } = user;
 
     return NextResponse.json({
+      user: safeUser,
       token,
-      user: {
-        id: user.id, email: user.email, phone: user.phone,
-        firstName: user.firstName, lastName: user.lastName, role: user.role, isVerified: user.isVerified,
-      },
-    });
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Erreur serveur';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    }, { status: 201 });
+  } catch (error) {
+    console.error('Register error:', error);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
