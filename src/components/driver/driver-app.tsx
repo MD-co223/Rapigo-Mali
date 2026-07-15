@@ -7,22 +7,30 @@ import {
   X, AlertCircle, Loader2, Plus, MessageSquare, FileText, Camera,
   Send, Shield, TrendingUp, CreditCard, CircleDot, ArrowRight,
   Store, UserCircle, CheckCircle2, XCircle, Eye, RefreshCw,
-  Menu, ChevronDown, ChevronUp, Heart, Zap
+  Home, FileUp, Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   useDriverNav, useAuthStore, apiFetch, formatPrice,
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type DriverView
 } from '@/lib/store';
+import { toast } from 'sonner';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -40,10 +48,8 @@ interface DriverProfile {
   vehicleImage: string | null;
   selfieImage: string | null;
   isApproved: boolean;
-  isOnline: boolean;
   isAvailable: boolean;
-  rating: number;
-  totalRatings: number;
+  rating: number | null;
   totalDeliveries: number;
   totalEarnings: number;
   user: {
@@ -63,6 +69,9 @@ interface OrderItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  variants: string | null;
+  supplements: string | null;
+  notes: string | null;
 }
 
 interface Order {
@@ -72,816 +81,891 @@ interface Order {
   subtotal: number;
   deliveryFee: number;
   serviceFee: number;
+  discount: number;
   total: number;
   paymentMethod: string;
   deliveryAddress: string;
   deliveryCity: string;
   deliveryQuartier: string | null;
   notes: string | null;
-  estimatedTime: number | null;
   createdAt: string;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  clientId: string;
+  merchantId: string;
+  driverId: string | null;
   items: OrderItem[];
-  client?: { user: { firstName: string; lastName: string; phone: string; avatar: string | null } };
-  merchant?: { id: string; businessName: string; logo: string | null; address: string; phone?: string; user?: { firstName: string; lastName: string; phone: string } };
-  driver?: { user: { firstName: string; lastName: string; phone: string; avatar: string | null } };
-  delivery?: { id: string; status: string; pickupAddress: string | null; dropoffAddress: string | null };
+  client?: {
+    id: string;
+    userId: string;
+    user: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      avatar: string | null;
+    };
+  };
+  merchant?: {
+    id: string;
+    businessName: string;
+    logo: string | null;
+    address: string;
+    phone?: string;
+    user?: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+    };
+  };
+  driver?: {
+    id: string;
+    userId: string;
+    user: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      avatar: string | null;
+    };
+  };
+  delivery?: {
+    id: string;
+    status: string;
+    pickupAddress: string;
+    dropoffAddress: string;
+  };
+  ratings?: Array<{
+    id: string;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+    client?: {
+      user: { firstName: string; lastName: string; };
+    };
+  }>;
 }
 
 interface WalletData {
   id: string;
+  userId: string;
   balance: number;
-  currency: string;
   transactions: Transaction[];
 }
 
 interface Transaction {
   id: string;
+  walletId: string;
   type: string;
   amount: number;
-  description: string;
+  description: string | null;
+  reference: string | null;
   createdAt: string;
 }
 
 interface Notification {
   id: string;
+  userId: string;
   title: string;
   message: string;
   type: string;
   isRead: boolean;
-  createdAt: string;
   data: string | null;
-}
-
-interface SupportTicket {
-  id: string;
-  subject: string;
-  description: string;
-  status: string;
-  priority: string;
   createdAt: string;
-  resolvedAt: string | null;
 }
 
-// ─── Main Component ─────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-export default function DriverApp() {
-  const { view, navigate, goBack } = useDriverNav();
-  const { user, logout: authLogout } = useAuthStore();
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
-  // Driver state
-  const [driver, setDriver] = useState<DriverProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isOnline, setIsOnline] = useState(false);
+function formatDateShort(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
-  // Notification count
-  const [unreadCount, setUnreadCount] = useState(0);
+function timeAgo(dateStr: string): string {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return 'À l\'instant';
+  if (seconds < 3600) return `Il y a ${Math.floor(seconds / 60)} min`;
+  if (seconds < 86400) return `Il y a ${Math.floor(seconds / 3600)} h`;
+  return `Il y a ${Math.floor(seconds / 86400)} j`;
+}
 
-  const fetchDriver = useCallback(async () => {
-    const { data, error } = await apiFetch<DriverProfile[]>('/api/drivers');
-    if (data && data.length > 0) {
-      setDriver(data[0]);
-      setIsOnline(data[0].isOnline);
-    } else {
-      setDriver(null);
-    }
-    setLoading(false);
-  }, []);
+function StarDisplay({ rating, size = 16 }: { rating: number; size?: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          size={size}
+          className={i <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}
+        />
+      ))}
+      <span className="ml-1 text-sm font-medium">{rating.toFixed(1)}</span>
+    </div>
+  );
+}
 
-  const fetchUnreadCount = useCallback(async () => {
-    const { data } = await apiFetch<{ unreadCount: number }>('/api/notifications?limit=1');
-    if (data) setUnreadCount(data.unreadCount || 0);
-  }, []);
+// ─── Approval Screen ─────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    const init = async () => {
-      const { data: driverData } = await apiFetch<DriverProfile[]>('/api/drivers');
-      if (driverData && driverData.length > 0) {
-        setDriver(driverData[0]);
-        setIsOnline(driverData[0].isOnline);
-      } else {
-        setDriver(null);
-      }
-      setLoading(false);
-      const { data: notifData } = await apiFetch<{ unreadCount: number }>('/api/notifications?limit=1');
-      if (notifData) setUnreadCount(notifData.unreadCount || 0);
-    };
-    init();
-  }, []);
-
-  // ─── Loading ────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-8 animate-spin text-emerald-600" />
-          <p className="text-sm text-muted-foreground">Chargement...</p>
-        </div>
+function ApprovalScreen() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+      <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6">
+        <Clock className="w-10 h-10 text-emerald-500" />
       </div>
-    );
-  }
-
-  // ─── Not Approved Screen ────────────────────────────────────────────────
-  if (driver && !driver.isApproved) {
-    return <NotApprovedScreen driver={driver} onRefresh={fetchDriver} />;
-  }
-
-  // ─── No Driver Profile ──────────────────────────────────────────────────
-  if (!driver) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background p-4">
-        <Card className="w-full max-w-md text-center">
-          <CardContent className="pt-6">
-            <AlertCircle className="size-12 mx-auto text-amber-500 mb-4" />
-            <h2 className="text-lg font-semibold mb-2">Profil non trouvé</h2>
-            <p className="text-sm text-muted-foreground">Aucun profil chauffeur associé à votre compte.</p>
-          </CardContent>
-        </Card>
+      <h2 className="text-xl font-bold mb-2">En attente d&apos;approbation</h2>
+      <p className="text-muted-foreground max-w-sm">
+        Votre profil de livreur est en cours de vérification par notre équipe. 
+        Vous recevrez une notification dès que votre compte sera approuvé.
+      </p>
+      <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+        Vérification en cours...
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  const driverName = `${driver.user.firstName} ${driver.user.lastName}`;
+// ─── Top Bar ─────────────────────────────────────────────────────────────────
 
-  // ─── Logout handler ─────────────────────────────────────────────────────
+function TopBar({ unreadCount }: { unreadCount: number }) {
+  const { view, goBack, navigate } = useDriverNav();
+  const isHome = view === 'home';
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+
   const handleLogout = () => {
-    authLogout();
+    logout();
+    toast.success('Déconnexion réussie');
   };
 
-  // ─── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen bg-background max-w-lg mx-auto relative">
-      {/* Top Bar */}
-      <header className="flex items-center justify-between px-4 py-3 bg-white border-b sticky top-0 z-40">
+    <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b">
+      <div className="flex items-center justify-between h-14 px-4">
         <div className="flex items-center gap-3">
-          {view !== 'home' && (
-            <Button variant="ghost" size="icon" onClick={goBack} className="shrink-0">
-              <ChevronLeft className="size-5" />
+          {!isHome && (
+            <Button variant="ghost" size="icon" onClick={goBack} className="h-9 w-9">
+              <ChevronLeft className="w-5 h-5" />
             </Button>
           )}
-          <div className="min-w-0">
-            <p className="text-sm font-semibold truncate">{driverName}</p>
-            <p className="text-xs text-muted-foreground">{driver.vehicleType === 'MOTO' ? 'Moto' : driver.vehicleType === 'VELO' ? 'Vélo' : 'Voiture'}{driver.vehiclePlate ? ` • ${driver.vehiclePlate}` : ''}</p>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+              <Navigation className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-bold text-base">Rapigo Livreur</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 mr-1">
-            <span className={`text-xs font-medium ${isOnline ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-              {isOnline ? 'En ligne' : 'Hors ligne'}
-            </span>
-            <Switch
-              checked={isOnline}
-              onCheckedChange={(checked) => {
-                setIsOnline(checked);
-                setDriver(prev => prev ? { ...prev, isOnline: checked, isAvailable: checked } : null);
-                apiFetch('/api/drivers', {
-                  method: 'POST',
-                  body: JSON.stringify({ isOnline: checked, isAvailable: checked }),
-                }).catch(() => {});
-              }}
-              className="data-[state=checked]:bg-emerald-600"
-            />
-          </div>
-          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('notifications')}>
-            <Bell className="size-5" />
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 relative"
+            onClick={() => navigate('notifications')}
+          >
+            <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </Button>
-          <Button variant="ghost" size="icon" onClick={handleLogout}>
-            <LogOut className="size-5 text-red-500" />
-          </Button>
+          {user && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={handleLogout}
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          )}
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-20">
-        {view === 'home' && <HomeView driver={driver} onAccept={() => navigate('ride')} />}
-        {view === 'ride' && <RideView driver={driver} />}
-        {view === 'history' && <HistoryView />}
-        {view === 'earnings' && <EarningsView driver={driver} />}
-        {view === 'ratings' && <RatingsView driver={driver} />}
-        {view === 'wallet' && <WalletView />}
-        {view === 'profile' && <ProfileView driver={driver} onRefresh={fetchDriver} />}
-        {view === 'documents' && <DocumentsView driver={driver} onRefresh={fetchDriver} />}
-        {view === 'notifications' && <NotificationsView onBack={() => { goBack(); fetchUnreadCount(); }} />}
-        {view === 'support' && <SupportView />}
-        {view === 'navigation' && <NavigationPlaceholder />}
-        {view === 'chat' && <ChatPlaceholder />}
-      </main>
-
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white border-t z-50 safe-area-bottom">
-        <div className="flex items-center justify-around h-16">
-          <NavItem icon={Radio} label="Disponible" active={view === 'home'} onClick={() => navigate('home')} />
-          <NavItem icon={Navigation} label="Commandes" active={view === 'ride'} onClick={() => navigate('ride')} />
-          <NavItem icon={Clock} label="Historique" active={view === 'history'} onClick={() => navigate('history')} />
-          <NavItem icon={Wallet} label="Gains" active={['earnings', 'wallet', 'ratings'].includes(view)} onClick={() => navigate('earnings')} />
-          <NavItem icon={User} label="Profil" active={['profile', 'documents', 'support', 'notifications'].includes(view)} onClick={() => navigate('profile')} />
-        </div>
-      </nav>
-    </div>
-  );
-}
-
-// ─── Nav Item ─────────────────────────────────────────────────────────────────
-
-function NavItem({ icon: Icon, label, active, onClick }: { icon: React.ElementType; label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
-        active ? 'text-emerald-600' : 'text-muted-foreground hover:text-foreground'
-      }`}
-    >
-      <Icon className="size-5" />
-      <span className="text-[10px] font-medium">{label}</span>
-    </button>
-  );
-}
-
-// ─── Not Approved Screen ──────────────────────────────────────────────────────
-
-function NotApprovedScreen({ driver, onRefresh }: { driver: DriverProfile; onRefresh: () => void }) {
-  const docsStatus = [
-    { label: "Pièce d'identité", uploaded: !!driver.idCardImage },
-    { label: 'Permis de conduire', uploaded: !!driver.licenseImage },
-    { label: 'Photo du véhicule', uploaded: !!driver.vehicleImage },
-    { label: 'Selfie', uploaded: !!driver.selfieImage },
-  ];
-  const allUploaded = docsStatus.every(d => d.uploaded);
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mb-4">
-            <Shield className="size-10 text-amber-600" />
-          </div>
-          <h1 className="text-xl font-bold text-center">En attente d&apos;approbation</h1>
-          <p className="text-sm text-muted-foreground text-center mt-2">
-            Votre profil doit être vérifié par un administrateur avant que vous puissiez commencer à recevoir des commandes.
-          </p>
-        </div>
-
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Documents</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {docsStatus.map(doc => (
-              <div key={doc.label} className="flex items-center justify-between">
-                <span className="text-sm">{doc.label}</span>
-                {doc.uploaded ? (
-                  <div className="flex items-center gap-1.5 text-emerald-600">
-                    <CheckCircle2 className="size-4" />
-                    <span className="text-xs font-medium">Envoyé</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-red-500">
-                    <XCircle className="size-4" />
-                    <span className="text-xs font-medium">Manquant</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {!allUploaded && (
-          <Button
-            variant="outline"
-            className="w-full mb-4"
-            onClick={() => {
-              const nav = useDriverNav.getState();
-              nav.navigate('documents');
-              onRefresh();
-            }}
-          >
-            <Upload className="size-4 mr-2" />
-            Compléter mes documents
-          </Button>
-        )}
-
-        <Button variant="ghost" className="w-full" onClick={onRefresh}>
-          <RefreshCw className="size-4 mr-2" />
-          Actualiser
-        </Button>
-
-        <p className="text-xs text-center text-muted-foreground mt-4">
-          Vos documents doivent être vérifiés par un administrateur.
-        </p>
       </div>
-    </div>
+    </header>
   );
 }
 
-// ─── Home / Available View ────────────────────────────────────────────────────
+// ─── Bottom Navigation ───────────────────────────────────────────────────────
 
-function HomeView({ driver, onAccept }: { driver: DriverProfile; onAccept: () => void }) {
-  const [isOnline, setIsOnline] = useState(driver.isOnline);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+const bottomTabs: { view: DriverView; label: string; icon: typeof Home }[] = [
+  { view: 'home', label: 'Accueil', icon: Home },
+  { view: 'history', label: 'Historique', icon: Clock },
+  { view: 'earnings', label: 'Revenus', icon: Wallet },
+  { view: 'profile', label: 'Profil', icon: User },
+];
 
-  const fetchAvailableOrders = useCallback(async () => {
-    if (!isOnline) return;
-    const { data } = await apiFetch<Order[]>('/api/drivers/available-orders');
-    if (data) setOrders(data);
-  }, [isOnline]);
+function BottomNav() {
+  const { view, navigate } = useDriverNav();
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-md border-t">
+      <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
+        {bottomTabs.map((tab) => {
+          const isActive = view === tab.view || (view === 'ride' && tab.view === 'home');
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.view}
+              onClick={() => navigate(tab.view)}
+              className={`flex flex-col items-center justify-center gap-0.5 px-4 py-1 rounded-lg transition-colors ${
+                isActive
+                  ? 'text-emerald-500'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] font-medium">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+// ─── Home View ───────────────────────────────────────────────────────────────
+
+function HomeView() {
+  const [isOnline, setIsOnline] = useState(false);
+  const [availableOrders, setAvailableOrders] = useState<Order[]>([]);
+  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [accepting, setAccepting] = useState<string | null>(null);
+  const [stats, setStats] = useState({ today: 0, revenue: 0, avgRating: 0 });
+  const { navigate } = useDriverNav();
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchActiveOrder = useCallback(async () => {
+    const res = await apiFetch<Order[]>('/api/orders?limit=50');
+    if (res.data) {
+      const active = (Array.isArray(res.data) ? res.data : (res.data as unknown as { orders: Order[] }).orders || [])
+        .find((o: Order) => ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status));
+      setActiveOrder(active || null);
+    }
+  }, []);
+
+  const fetchAvailable = useCallback(async () => {
+    const res = await apiFetch<Order[]>('/api/drivers/available-orders');
+    if (res.data) {
+      setAvailableOrders(Array.isArray(res.data) ? res.data : []);
+    }
+  }, []);
+
+  const fetchStats = useCallback(async () => {
+    const res = await apiFetch<Order[]>('/api/orders?limit=200');
+    if (res.data) {
+      const orders = Array.isArray(res.data) ? res.data : (res.data as unknown as { orders: Order[] }).orders || [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayOrders = orders.filter(
+        (o: Order) => o.status === 'DELIVERED' && new Date(o.deliveredAt || o.createdAt) >= today
+      );
+      const deliveredOrders = orders.filter((o: Order) => o.status === 'DELIVERED');
+      const totalRevenue = deliveredOrders.reduce((sum: number, o: Order) => sum + o.deliveryFee, 0);
+      const ratings = orders
+        .filter((o: Order) => o.ratings && o.ratings.length > 0)
+        .flatMap((o: Order) => o.ratings || [])
+        .map((r: { rating: number }) => r.rating);
+      const avgRating = ratings.length > 0 ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length : 0;
+      setStats({ today: todayOrders.length, revenue: totalRevenue, avgRating });
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isOnline) return;
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      const { data } = await apiFetch<Order[]>('/api/drivers/available-orders');
-      if (!cancelled && data) setOrders(data);
-      if (!cancelled) setLoading(false);
+    let mounted = true;
+    const init = async () => {
+      const [ordersRes, availableRes, statsRes] = await Promise.all([
+        apiFetch<Order[]>('/api/orders?limit=50'),
+        apiFetch<Order[]>('/api/drivers/available-orders'),
+        apiFetch<Order[]>('/api/orders?limit=200'),
+      ]);
+      if (!mounted) return;
+      if (ordersRes.data) {
+        const list = Array.isArray(ordersRes.data) ? ordersRes.data : (ordersRes.data as unknown as { orders: Order[] }).orders || [];
+        setActiveOrder(list.find((o: Order) => ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)) || null);
+      }
+      if (availableRes.data) {
+        setAvailableOrders(Array.isArray(availableRes.data) ? availableRes.data : []);
+      }
+      if (statsRes.data) {
+        const orders = Array.isArray(statsRes.data) ? statsRes.data : (statsRes.data as unknown as { orders: Order[] }).orders || [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayOrders = orders.filter(
+          (o: Order) => o.status === 'DELIVERED' && new Date(o.deliveredAt || o.createdAt) >= today
+        );
+        const deliveredOrders = orders.filter((o: Order) => o.status === 'DELIVERED');
+        const totalRevenue = deliveredOrders.reduce((sum: number, o: Order) => sum + o.deliveryFee, 0);
+        const ratings = orders
+          .filter((o: Order) => o.ratings && o.ratings.length > 0)
+          .flatMap((o: Order) => o.ratings || [])
+          .map((r: { rating: number }) => r.rating);
+        const avgRating = ratings.length > 0 ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length : 0;
+        setStats({ today: todayOrders.length, revenue: totalRevenue, avgRating });
+      }
+      setLoading(false);
     };
-    load();
-    const id = setInterval(load, 10000);
-    return () => { cancelled = true; clearInterval(id); };
-  }, [isOnline]);
+    init();
+    return () => { mounted = false; };
+  }, []);
 
-  const handleToggle = async (checked: boolean) => {
-    setIsOnline(checked);
-    await apiFetch('/api/drivers', {
-      method: 'POST',
-      body: JSON.stringify({ isOnline: checked, isAvailable: checked }),
-    });
+  useEffect(() => {
+    if (isOnline && !activeOrder) {
+      timerRef.current = setInterval(() => {
+        fetchAvailable();
+        fetchActiveOrder();
+      }, 15000);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isOnline, activeOrder, fetchAvailable, fetchActiveOrder]);
+
+  const handleToggle = () => {
+    const next = !isOnline;
+    setIsOnline(next);
+    toast.success(next ? 'Vous êtes en ligne' : 'Vous êtes hors ligne');
+    if (next) {
+      fetchAvailable();
+    } else {
+      setAvailableOrders([]);
+    }
   };
 
   const handleAccept = async (orderId: string) => {
-    setAcceptingId(orderId);
-    const { data, error } = await apiFetch<Order>(`/api/drivers/${orderId}/accept`, { method: 'POST' });
-    if (!error && data) {
-      setOrders(prev => prev.filter(o => o.id !== orderId));
-      onAccept();
+    setAccepting(orderId);
+    const res = await apiFetch<Order>(`/api/drivers/${orderId}/accept`, { method: 'POST' });
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success('Commande acceptée !');
+      setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId));
+      navigate('ride', { id: orderId });
     }
-    setAcceptingId(null);
+    setAccepting(null);
   };
 
-  // Offline stats
-  const todayDeliveries = driver.totalDeliveries;
-  const todayEarnings = driver.totalEarnings;
-  const avgRating = driver.totalRatings > 0 ? driver.rating : 0;
-
-  return (
-    <div className="p-4 space-y-4">
-      {/* Online Toggle */}
-      <Card className="overflow-hidden">
-        <div className={`p-6 text-center transition-colors ${isOnline ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'bg-gray-50 dark:bg-gray-900/20'}`}>
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
-            <span className="text-lg font-bold">{isOnline ? 'En ligne' : 'Hors ligne'}</span>
-          </div>
-          <Switch
-            checked={isOnline}
-            onCheckedChange={handleToggle}
-            className="data-[state=checked]:bg-emerald-600 mx-auto"
-          />
-          <p className="text-xs text-muted-foreground mt-3">
-            {isOnline ? 'Vous recevrez des commandes附近的' : 'Activez pour recevoir des commandes'}
-          </p>
-        </div>
-      </Card>
-
-      {isOnline ? (
-        <>
-          {/* Waiting / Orders */}
-          {loading && orders.length === 0 ? (
-            <div className="flex flex-col items-center py-12 gap-3">
-              <Loader2 className="size-8 animate-spin text-emerald-600" />
-              <p className="text-sm text-muted-foreground">Recherche de commandes...</p>
-            </div>
-          ) : orders.length === 0 ? (
-            <div className="flex flex-col items-center py-12 gap-3">
-              <div className="relative">
-                <Radio className="size-12 text-emerald-500" />
-                <span className="absolute inset-0 animate-ping bg-emerald-400/20 rounded-full" />
-              </div>
-              <p className="font-medium">En attente de commandes...</p>
-              <p className="text-sm text-muted-foreground">Les nouvelles commandes apparaîtront ici automatiquement</p>
-              <Button variant="outline" size="sm" onClick={fetchAvailableOrders}>
-                <RefreshCw className="size-4 mr-1" />
-                Actualiser
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Commandes disponibles ({orders.length})
-                </h2>
-                <Button variant="ghost" size="sm" onClick={fetchAvailableOrders} disabled={loading}>
-                  <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {orders.map(order => (
-                  <AvailableOrderCard
-                    key={order.id}
-                    order={order}
-                    onAccept={handleAccept}
-                    accepting={acceptingId === order.id}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          {/* Offline Stats */}
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Résumé</h2>
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard label="Livraisons" value={String(todayDeliveries)} icon={Package} color="text-emerald-600" />
-            <StatCard label="Gains" value={formatPrice(todayEarnings)} icon={TrendingUp} color="text-orange-500" />
-            <StatCard label="Note" value={avgRating > 0 ? `${avgRating.toFixed(1)} ★` : '—'} icon={Star} color="text-amber-500" />
-          </div>
-          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" size="lg" onClick={() => handleToggle(true)}>
-            <Zap className="size-5 mr-2" />
-            Me mettre en ligne
-          </Button>
-        </>
-      )}
-    </div>
-  );
-}
-
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: string; icon: React.ElementType; color: string }) {
-  return (
-    <Card className="text-center">
-      <CardContent className="pt-4 pb-4 px-3">
-        <Icon className={`size-5 mx-auto mb-1 ${color}`} />
-        <p className="text-lg font-bold leading-tight">{value}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AvailableOrderCard({ order, onAccept, accepting }: { order: Order; onAccept: (id: string) => void; accepting: boolean }) {
-  const itemCount = order.items?.length || 0;
-  const itemsSummary = order.items?.slice(0, 3).map(i => i.productName).join(', ') + (itemCount > 3 ? `... +${itemCount - 3}` : '');
-
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
-              <Store className="size-5 text-orange-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-sm">{order.merchant?.businessName || 'Marchand'}</p>
-              <p className="text-xs text-muted-foreground">#{order.orderNumber}</p>
-            </div>
-          </div>
-          <p className="font-bold text-emerald-600 text-sm">{formatPrice(order.deliveryFee)}</p>
-        </div>
-
-        <div className="space-y-2 mb-3">
-          <div className="flex items-start gap-2">
-            <MapPin className="size-4 text-emerald-500 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Ramassage</p>
-              <p className="text-xs">{order.merchant?.address || 'Adresse marchand'}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2">
-            <MapPin className="size-4 text-orange-500 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Livraison</p>
-              <p className="text-xs">{order.deliveryAddress}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-xs text-muted-foreground mb-3">
-          <Package className="size-3 inline mr-1" />
-          {itemsSummary || 'Aucun article'}
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {order.estimatedTime && (
-              <Badge variant="outline" className="text-xs">
-                <Clock className="size-3 mr-1" />
-                ~{order.estimatedTime} min
-              </Badge>
-            )}
-            <Badge variant="outline" className="text-xs">
-              {formatPrice(order.total)}
-            </Badge>
-          </div>
-          <Button
-            size="sm"
-            className="bg-orange-500 hover:bg-orange-600 text-white"
-            onClick={() => onAccept(order.id)}
-            disabled={accepting}
-          >
-            {accepting ? <Loader2 className="size-4 animate-spin" /> : <><Check className="size-4 mr-1" /> Accepter</>}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Ride / Active Delivery View ──────────────────────────────────────────────
-
-function RideView({ driver }: { driver: DriverProfile }) {
-  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { navigate } = useDriverNav();
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      const { data } = await apiFetch<{ orders: Order[]; total: number }>('/api/orders?status=ASSIGNED&limit=5');
-      if (cancelled) return;
-      let found: Order | null = null;
-      if (data?.orders && data.orders.length > 0) {
-        found = data.orders.find(o => o.status === 'IN_TRANSIT')
-          || data.orders.find(o => o.status === 'PICKED_UP')
-          || data.orders.find(o => o.status === 'ASSIGNED')
-          || null;
-      }
-      if (!found) {
-        const { data: data2 } = await apiFetch<{ orders: Order[] }>('/api/orders?limit=10');
-        if (!cancelled && data2?.orders) {
-          found = data2.orders.find(o => ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)) || null;
-        }
-      }
-      if (!cancelled) {
-        setActiveOrder(found);
-        setLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, []);
-
-  const updateStatus = async (newStatus: string) => {
-    if (!activeOrder) return;
-    setUpdating(true);
-    setError(null);
-    const { data, error: err } = await apiFetch<Order>(`/api/orders/${activeOrder.id}`, {
+  const handleStatusUpdate = async (order: Order, newStatus: string) => {
+    const res = await apiFetch<Order>(`/api/orders/${order.id}`, {
       method: 'PUT',
       body: JSON.stringify({ status: newStatus }),
     });
-    if (err) {
-      setError(err);
-    } else if (data) {
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success('Statut mis à jour');
+      fetchActiveOrder();
       if (newStatus === 'DELIVERED') {
         navigate('home');
+        fetchStats();
       } else {
-        setActiveOrder(data);
+        fetchActiveOrder();
       }
     }
-    setUpdating(false);
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="size-8 animate-spin text-emerald-600" />
-      </div>
-    );
-  }
-
-  if (!activeOrder) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 px-6 gap-4">
-        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-          <Navigation className="size-8 text-gray-400" />
+      <div className="p-4 space-y-4">
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <div className="grid grid-cols-3 gap-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 rounded-lg" />
+          ))}
         </div>
-        <p className="text-center font-medium">Aucune livraison active</p>
-        <p className="text-sm text-muted-foreground text-center">Acceptez une commande pour commencer une livraison</p>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('home')}>
-          Voir les commandes
-        </Button>
+        <Skeleton className="h-40 w-full rounded-lg" />
       </div>
     );
   }
-
-  const status = activeOrder.status;
-  const isAssigned = status === 'ASSIGNED';
-  const isPickedUp = status === 'PICKED_UP';
-  const isInTransit = status === 'IN_TRANSIT';
-  const merchantPhone = activeOrder.merchant?.phone || activeOrder.merchant?.user?.phone || '';
-  const clientPhone = activeOrder.client?.user?.phone || '';
 
   return (
-    <div className="p-4 space-y-4">
-      {/* Status Steps */}
-      <Card>
+    <div className="p-4 space-y-4 pb-20">
+      {/* Online/Offline Toggle */}
+      <Card className="border-emerald-500/20">
         <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <CircleDot className="size-5 text-emerald-600" />
-            <span className="font-semibold text-sm">
-              {isAssigned && 'Aller au restaurant'}
-              {isPickedUp && 'En route vers le client'}
-              {isInTransit && 'En livraison'}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <StepDot active done={isAssigned || isPickedUp || isInTransit} label="Assigné" />
-            <StepLine done={isPickedUp || isInTransit} />
-            <StepDot active={isPickedUp || isInTransit} done={isPickedUp || isInTransit} label="Récupéré" />
-            <StepLine done={isInTransit} />
-            <StepDot active={isInTransit} done={false} label="Livré" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                isOnline ? 'bg-emerald-500' : 'bg-muted'
+              }`}>
+                <Radio className={`w-5 h-5 ${isOnline ? 'text-white' : 'text-muted-foreground'}`} />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">{isOnline ? 'En ligne' : 'Hors ligne'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {isOnline ? 'Vous recevez des commandes' : 'Passez en ligne pour recevoir des commandes'}
+                </p>
+              </div>
+            </div>
+            <Switch checked={isOnline} onCheckedChange={handleToggle} />
           </div>
         </CardContent>
       </Card>
 
-      {/* Map Placeholder */}
-      <div className="rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-950/40 dark:to-emerald-900/20 h-40 flex items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-8 left-8 w-32 h-1 bg-emerald-600 rounded rotate-12" />
-          <div className="absolute top-16 left-16 w-24 h-1 bg-emerald-600 rounded -rotate-6" />
-          <div className="absolute bottom-12 right-12 w-28 h-1 bg-orange-500 rounded rotate-45" />
-          <div className="absolute bottom-8 right-8 w-20 h-1 bg-orange-500 rounded -rotate-12" />
-        </div>
-        <div className="flex flex-col items-center gap-2 z-10">
-          <MapPin className="size-8 text-emerald-600" />
-          <span className="text-xs text-muted-foreground font-medium">Carte de navigation</span>
-        </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="p-3 text-center">
+          <Package className="w-5 h-5 mx-auto text-emerald-500 mb-1" />
+          <p className="text-lg font-bold">{stats.today}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">Livraisons aujourd&apos;hui</p>
+        </Card>
+        <Card className="p-3 text-center">
+          <TrendingUp className="w-5 h-5 mx-auto text-emerald-500 mb-1" />
+          <p className="text-lg font-bold">{formatPrice(stats.revenue)}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">Revenus</p>
+        </Card>
+        <Card className="p-3 text-center">
+          <Star className="w-5 h-5 mx-auto text-amber-400 mb-1" />
+          <p className="text-lg font-bold">{stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '—'}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">Note moyenne</p>
+        </Card>
       </div>
 
-      {/* Merchant Info */}
-      {isAssigned && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Store className="size-4 text-emerald-600" />
-              Restaurant
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="font-medium">{activeOrder.merchant?.businessName}</p>
-            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-              <MapPin className="size-4 mt-0.5 shrink-0" />
-              <span>{activeOrder.merchant?.address}</span>
+      {/* Active Delivery */}
+      {activeOrder && (
+        <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold">Livraison en cours</CardTitle>
+              <Badge className={ORDER_STATUS_COLORS[activeOrder.status] || ''}>
+                {ORDER_STATUS_LABELS[activeOrder.status] || activeOrder.status}
+              </Badge>
             </div>
-            {merchantPhone && (
-              <a href={`tel:${merchantPhone}`} className="flex items-center gap-2 text-sm text-emerald-600 font-medium">
-                <Phone className="size-4" />
-                {merchantPhone}
-              </a>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-              onClick={() => updateStatus('PICKED_UP')}
-              disabled={updating}
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-3">
+            <button
+              className="w-full text-left"
+              onClick={() => navigate('ride', { id: activeOrder.id })}
             >
-              {updating ? <Loader2 className="size-4 animate-spin mr-2" /> : <Check className="size-4 mr-2" />}
-              J&apos;ai récupéré la commande
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      {/* Client Info (when picked up) */}
-      {(isPickedUp || isInTransit) && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <UserCircle className="size-4 text-orange-500" />
-              Client
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="font-medium">
-              {activeOrder.client?.user?.firstName} {activeOrder.client?.user?.lastName}
-            </p>
-            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-              <MapPin className="size-4 mt-0.5 shrink-0 text-orange-500" />
-              <span>{activeOrder.deliveryAddress}</span>
-            </div>
-            {clientPhone && (
-              <a href={`tel:${clientPhone}`} className="flex items-center gap-2 text-sm text-emerald-600 font-medium">
-                <Phone className="size-4" />
-                {clientPhone}
-              </a>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">{activeOrder.orderNumber}</p>
+                  <p className="text-xs text-muted-foreground">{activeOrder.merchant?.businessName}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <div className="flex items-start gap-2 mt-2">
+                <MapPin className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-muted-foreground line-clamp-1">{activeOrder.deliveryAddress}</p>
+              </div>
+            </button>
+            {activeOrder.status === 'ASSIGNED' && (
+              <Button
+                size="sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => handleStatusUpdate(activeOrder, 'PICKED_UP')}
+              >
+                <Package className="w-4 h-4 mr-2" />
+                Récupérer au marchand
+              </Button>
+            )}
+            {activeOrder.status === 'PICKED_UP' && (
+              <Button
+                size="sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => handleStatusUpdate(activeOrder, 'IN_TRANSIT')}
+              >
+                <Navigation className="w-4 h-4 mr-2" />
+                En route vers le client
+              </Button>
+            )}
+            {activeOrder.status === 'IN_TRANSIT' && (
+              <Button
+                size="sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => handleStatusUpdate(activeOrder, 'DELIVERED')}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Confirmer la livraison
+              </Button>
             )}
           </CardContent>
-          <CardFooter>
-            {isPickedUp && (
-              <Button
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={() => updateStatus('IN_TRANSIT')}
-                disabled={updating}
-              >
-                {updating ? <Loader2 className="size-4 animate-spin mr-2" /> : <Navigation className="size-4 mr-2" />}
-                Démarrer la livraison
-              </Button>
-            )}
-            {isInTransit && (
-              <Button
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => updateStatus('DELIVERED')}
-                disabled={updating}
-              >
-                {updating ? <Loader2 className="size-4 animate-spin mr-2" /> : <CheckCircle2 className="size-4 mr-2" />}
-                J&apos;ai livré
-              </Button>
-            )}
-          </CardFooter>
         </Card>
       )}
 
-      {/* Contact Buttons */}
-      <div className="flex gap-3">
-        {merchantPhone && (
-          <a href={`tel:${merchantPhone}`} className="flex-1">
-            <Button variant="outline" className="w-full">
-              <Phone className="size-4 mr-2" />
-              Appeler le restaurant
+      {/* Available Orders */}
+      {isOnline && !activeOrder && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm">Commandes disponibles</h3>
+            <Button variant="ghost" size="sm" onClick={fetchAvailable} className="h-7 text-xs">
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Actualiser
             </Button>
-          </a>
-        )}
-        {clientPhone && (
-          <a href={`tel:${clientPhone}`} className="flex-1">
-            <Button variant="outline" className="w-full">
-              <Phone className="size-4 mr-2" />
-              Appeler le client
-            </Button>
-          </a>
-        )}
-      </div>
+          </div>
+          {availableOrders.length === 0 ? (
+            <Card className="p-6 text-center">
+              <Package className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+              <p className="text-sm text-muted-foreground">Aucune commande disponible</p>
+              <p className="text-xs text-muted-foreground mt-1">Les nouvelles commandes apparaîtront ici</p>
+            </Card>
+          ) : (
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+              {availableOrders.map((order) => (
+                <Card key={order.id} className="overflow-hidden">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-sm font-semibold text-emerald-600">{order.orderNumber}</span>
+                      <span className="text-sm font-bold">{formatPrice(order.total)}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Store className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                      <p className="text-xs text-muted-foreground">{order.merchant?.businessName}</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                      <p className="text-xs text-muted-foreground line-clamp-2">{order.deliveryAddress}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      {timeAgo(order.createdAt)}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                      disabled={accepting === order.id}
+                      onClick={() => handleAccept(order.id)}
+                    >
+                      {accepting === order.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4 mr-2" />
+                      )}
+                      Accepter
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Order Summary */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Détails de la commande</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Commande</span>
-            <span className="font-mono">#{activeOrder.orderNumber}</span>
+      {/* Offline Message */}
+      {!isOnline && !activeOrder && (
+        <Card className="p-8 text-center">
+          <Radio className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+          <p className="font-semibold">Vous êtes hors ligne</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Passez en ligne pour voir les commandes disponibles
+          </p>
+        </Card>
+      )}
+
+      {/* Quick Links */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card
+          className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+          onClick={() => navigate('wallet')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-emerald-500" />
+            </div>
+            <span className="text-sm font-medium">Portefeuille</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Articles</span>
-            <span>{activeOrder.items?.length || 0}</span>
+        </Card>
+        <Card
+          className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+          onClick={() => navigate('support')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-emerald-500" />
+            </div>
+            <span className="text-sm font-medium">Support</span>
           </div>
-          <Separator />
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ─── Ride View ───────────────────────────────────────────────────────────────
+
+function RideView() {
+  const { data } = useDriverNav();
+  const orderId = data?.id;
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    if (!orderId) return;
+    const fetchOrder = async () => {
+      setLoading(true);
+      const res = await apiFetch<Order>(`/api/orders/${orderId}`);
+      if (res.data) setOrder(res.data);
+      setLoading(false);
+    };
+    fetchOrder();
+  }, [orderId]);
+
+  const handleStatusUpdate = async (newStatus: string) => {
+    if (!order) return;
+    setUpdating(true);
+    const res = await apiFetch<Order>(`/api/orders/${order.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success('Statut mis à jour');
+      if (res.data) setOrder(res.data);
+    }
+    setUpdating(false);
+  };
+
+  const handleCall = (phone: string | undefined, name: string) => {
+    if (phone) {
+      toast.info(`Appeler ${name}: ${phone}`);
+    } else {
+      toast.error('Numéro de téléphone non disponible');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 space-y-4">
+        <Skeleton className="h-20 w-full rounded-lg" />
+        <Skeleton className="h-40 w-full rounded-lg" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="p-4 text-center py-20">
+        <AlertCircle className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+        <p className="text-muted-foreground">Commande non trouvée</p>
+      </div>
+    );
+  }
+
+  const clientPhone = order.client?.user?.phone;
+  const merchantPhone = order.merchant?.user?.phone || order.merchant?.phone;
+
+  return (
+    <div className="p-4 space-y-4 pb-20">
+      {/* Status Badge */}
+      <Card className="overflow-hidden border-emerald-500/20">
+        <div className="bg-emerald-500/10 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <span className="font-mono font-bold text-sm">{order.orderNumber}</span>
+            <Badge className={ORDER_STATUS_COLORS[order.status] || ''}>
+              {ORDER_STATUS_LABELS[order.status] || order.status}
+            </Badge>
+          </div>
+        </div>
+        <CardContent className="p-4 space-y-4">
+          {/* Progress Steps */}
+          <div className="flex items-center gap-1">
+            {['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'].map((s, i) => {
+              const steps = ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'];
+              const currentIdx = steps.indexOf(order.status);
+              const stepIdx = i;
+              const isActive = stepIdx <= currentIdx;
+              const isCurrent = stepIdx === currentIdx;
+              return (
+                <div key={s} className="flex-1 flex items-center">
+                  <div className={`w-full h-1.5 rounded-full transition-colors ${
+                    isActive ? 'bg-emerald-500' : 'bg-muted'
+                  } ${isCurrent ? 'ring-2 ring-emerald-500/30' : ''}`} />
+                  {i < 3 && <div className="w-1" />}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-[9px] text-muted-foreground px-0.5">
+            <span>Assigné</span>
+            <span>Récupéré</span>
+            <span>En route</span>
+            <span>Livré</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pickup Info */}
+      <Card className="p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+          Point de récupération
+        </p>
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+            <Store className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">{order.merchant?.businessName}</p>
+            <p className="text-xs text-muted-foreground">{order.merchant?.address || order.delivery?.pickupAddress}</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Delivery Info */}
+      <Card className="p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+          Adresse de livraison
+        </p>
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+            <MapPin className="w-4 h-4 text-emerald-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">
+              {order.client?.user?.firstName} {order.client?.user?.lastName}
+            </p>
+            <p className="text-xs text-muted-foreground">{order.deliveryAddress}</p>
+            {order.deliveryCity && (
+              <p className="text-xs text-muted-foreground">{order.deliveryCity}{order.deliveryQuartier ? ` — ${order.deliveryQuartier}` : ''}</p>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Client & Merchant Contact */}
+      <Card className="p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Contact
+        </p>
+        <div className="space-y-3">
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => handleCall(clientPhone, 'le client')}
+          >
+            <Phone className="w-4 h-4 mr-3 text-emerald-500" />
+            <div className="text-left">
+              <p className="text-sm font-medium">Appeler le client</p>
+              <p className="text-xs text-muted-foreground">{clientPhone || 'Non disponible'}</p>
+            </div>
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => handleCall(merchantPhone, 'le marchand')}
+          >
+            <Phone className="w-4 h-4 mr-3 text-amber-500" />
+            <div className="text-left">
+              <p className="text-sm font-medium">Appeler le marchand</p>
+              <p className="text-xs text-muted-foreground">{merchantPhone || 'Non disponible'}</p>
+            </div>
+          </Button>
+        </div>
+      </Card>
+
+      {/* Items */}
+      {order.items && order.items.length > 0 && (
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Articles ({order.items.length})
+          </p>
+          <div className="space-y-2.5 max-h-48 overflow-y-auto">
+            {order.items.map((item) => (
+              <div key={item.id} className="flex items-center gap-3">
+                {item.productImage && (
+                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                    <img src={item.productImage} alt="" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{item.productName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.quantity} × {formatPrice(item.unitPrice)}
+                  </p>
+                </div>
+                <span className="text-sm font-medium shrink-0">{formatPrice(item.totalPrice)}</span>
+              </div>
+            ))}
+          </div>
+          <Separator className="my-3" />
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Sous-total</span>
-            <span>{formatPrice(activeOrder.subtotal)}</span>
+            <span>{formatPrice(order.subtotal)}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Frais de livraison</span>
-            <span className="text-emerald-600 font-medium">{formatPrice(activeOrder.deliveryFee)}</span>
+          <div className="flex justify-between text-sm mt-1">
+            <span className="text-muted-foreground">Livraison</span>
+            <span>{formatPrice(order.deliveryFee)}</span>
           </div>
-          <div className="flex justify-between text-sm font-bold">
-            <span>Total</span>
-            <span>{formatPrice(activeOrder.total)}</span>
-          </div>
-          {activeOrder.notes && (
-            <>
-              <Separator />
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium">Note :</span> {activeOrder.notes}
-              </p>
-            </>
+          {order.serviceFee > 0 && (
+            <div className="flex justify-between text-sm mt-1">
+              <span className="text-muted-foreground">Frais de service</span>
+              <span>{formatPrice(order.serviceFee)}</span>
+            </div>
           )}
-        </CardContent>
-      </Card>
-
-      {error && (
-        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        </div>
+          <Separator className="my-2" />
+          <div className="flex justify-between font-bold">
+            <span>Total</span>
+            <span className="text-emerald-600">{formatPrice(order.total)}</span>
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+            <span>Paiement</span>
+            <span>{order.paymentMethod}</span>
+          </div>
+        </Card>
       )}
-    </div>
-  );
-}
 
-function StepDot({ active, done, label }: { active: boolean; done: boolean; label: string }) {
-  return (
-    <div className="flex flex-col items-center">
-      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-        done ? 'bg-emerald-600 text-white' : active ? 'bg-emerald-100 text-emerald-600 ring-2 ring-emerald-600' : 'bg-gray-200 text-gray-400'
-      }`}>
-        {done ? <Check className="size-3" /> : active ? <CircleDot className="size-3" /> : ''}
+      {/* Notes */}
+      {order.notes && (
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            Notes
+          </p>
+          <p className="text-sm text-muted-foreground">{order.notes}</p>
+        </Card>
+      )}
+
+      {/* Action Buttons */}
+      <div className="space-y-3">
+        {order.status === 'ASSIGNED' && (
+          <Button
+            size="lg"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={updating}
+            onClick={() => handleStatusUpdate('PICKED_UP')}
+          >
+            {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Package className="w-5 h-5 mr-2" />}
+            Récupérer au marchand
+          </Button>
+        )}
+        {order.status === 'PICKED_UP' && (
+          <Button
+            size="lg"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={updating}
+            onClick={() => handleStatusUpdate('IN_TRANSIT')}
+          >
+            {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Navigation className="w-5 h-5 mr-2" />}
+            En route vers le client
+          </Button>
+        )}
+        {order.status === 'IN_TRANSIT' && (
+          <Button
+            size="lg"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={updating}
+            onClick={() => handleStatusUpdate('DELIVERED')}
+          >
+            {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5 mr-2" />}
+            Confirmer la livraison
+          </Button>
+        )}
       </div>
-      <span className="text-[9px] text-muted-foreground mt-1">{label}</span>
     </div>
   );
-}
-
-function StepLine({ done }: { done: boolean }) {
-  return <div className={`flex-1 h-0.5 rounded ${done ? 'bg-emerald-600' : 'bg-gray-200'}`} />;
 }
 
 // ─── History View ────────────────────────────────────────────────────────────
@@ -889,122 +973,95 @@ function StepLine({ done }: { done: boolean }) {
 function HistoryView() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'DELIVERED' | 'CANCELLED'>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [filter, setFilter] = useState<string>('ALL');
+  const { navigate } = useDriverNav();
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
+    const fetchOrders = async () => {
       setLoading(true);
-      const statusParam = filter === 'all' ? '' : `&status=${filter}`;
-      const { data } = await apiFetch<{ orders: Order[] }>(`/api/orders?limit=50${statusParam}`);
-      if (!cancelled) {
-        if (data?.orders) setOrders(data.orders.filter(o => ['DELIVERED', 'CANCELLED'].includes(o.status)));
-        setLoading(false);
+      const res = await apiFetch<{ orders: Order[]; total: number }>('/api/orders?limit=100');
+      if (res.data) {
+        const list = res.data.orders || (Array.isArray(res.data) ? res.data : []);
+        setOrders(list);
       }
+      setLoading(false);
     };
-    load();
-    return () => { cancelled = true; };
-  }, [filter]);
+    fetchOrders();
+  }, []);
 
-  const openDetail = async (orderId: string) => {
-    setDetailLoading(true);
-    const { data } = await apiFetch<Order>(`/api/orders/${orderId}`);
-    if (data) setDetailOrder(data);
-    setDetailLoading(false);
-  };
+  const filtered = orders.filter((o) => {
+    if (filter === 'ALL') return ['DELIVERED', 'CANCELLED'].includes(o.status);
+    return o.status === filter;
+  });
+
+  if (loading) {
+    return (
+      <div className="p-4 space-y-3">
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-28 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 pb-20">
       <h2 className="text-lg font-bold">Historique des livraisons</h2>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {[
-          { key: 'all' as const, label: 'Tout' },
-          { key: 'DELIVERED' as const, label: 'Livrées' },
-          { key: 'CANCELLED' as const, label: 'Annulées' },
-        ].map(f => (
+          { value: 'ALL', label: 'Tout' },
+          { value: 'DELIVERED', label: 'Livrées' },
+          { value: 'CANCELLED', label: 'Annulées' },
+        ].map((tab) => (
           <Button
-            key={f.key}
-            variant={filter === f.key ? 'default' : 'outline'}
+            key={tab.value}
+            variant={filter === tab.value ? 'default' : 'outline'}
             size="sm"
-            className={filter === f.key ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
-            onClick={() => setFilter(f.key)}
+            className="shrink-0 text-xs"
+            onClick={() => setFilter(tab.value)}
           >
-            {f.label}
+            {tab.label}
           </Button>
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="size-8 animate-spin text-emerald-600" />
-        </div>
-      ) : orders.length === 0 ? (
-        <div className="text-center py-12">
-          <Clock className="size-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-muted-foreground">Aucune livraison trouvée</p>
-        </div>
+      {filtered.length === 0 ? (
+        <Card className="p-8 text-center">
+          <Clock className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">Aucune livraison trouvée</p>
+        </Card>
       ) : (
         <div className="space-y-3">
-          {orders.map(order => (
-            <Card key={order.id} className="cursor-pointer hover:border-emerald-200 transition-colors" onClick={() => { setExpandedId(expandedId === order.id ? null : order.id); openDetail(order.id); }}>
+          {filtered.map((order) => (
+            <Card
+              key={order.id}
+              className="overflow-hidden cursor-pointer hover:bg-accent/30 transition-colors"
+              onClick={() => navigate('ride', { id: order.id })}
+            >
               <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold text-sm">#{order.orderNumber}</p>
-                    <p className="text-xs text-muted-foreground">{order.merchant?.businessName}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{order.deliveryAddress}</p>
-                  </div>
-                  <div className="text-right">
-                    <Badge className={ORDER_STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-800'}>
-                      {ORDER_STATUS_LABELS[order.status] || order.status}
-                    </Badge>
-                    <p className="text-xs font-medium mt-1">{formatPrice(order.deliveryFee)}</p>
-                  </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-sm font-semibold">{order.orderNumber}</span>
+                  <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[order.status] || ''}`}>
+                    {ORDER_STATUS_LABELS[order.status] || order.status}
+                  </Badge>
                 </div>
-                <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
-                  <span>{new Date(order.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                  <ChevronDown className={`size-4 transition-transform ${expandedId === order.id ? 'rotate-180' : ''}`} />
+                <div className="flex items-start gap-2 mb-1.5">
+                  <Store className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                  <p className="text-xs text-muted-foreground">{order.merchant?.businessName}</p>
                 </div>
-
-                {expandedId === order.id && detailOrder && (
-                  <div className="mt-3 pt-3 border-t space-y-2">
-                    {detailLoading && !detailOrder ? (
-                      <Loader2 className="size-4 animate-spin mx-auto" />
-                    ) : (
-                      <>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Sous-total</span>
-                          <span>{formatPrice(detailOrder.subtotal)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Frais de livraison</span>
-                          <span className="text-emerald-600">{formatPrice(detailOrder.deliveryFee)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm font-bold">
-                          <span>Total</span>
-                          <span>{formatPrice(detailOrder.total)}</span>
-                        </div>
-                        {detailOrder.items?.length > 0 && (
-                          <>
-                            <Separator />
-                            <p className="text-xs font-medium text-muted-foreground">Articles :</p>
-                            {detailOrder.items.map(item => (
-                              <div key={item.id} className="flex justify-between text-xs text-muted-foreground">
-                                <span>{item.quantity}x {item.productName}</span>
-                                <span>{formatPrice(item.totalPrice)}</span>
-                              </div>
-                            ))}
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
+                <div className="flex items-start gap-2 mb-2">
+                  <User className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                  <p className="text-xs text-muted-foreground">
+                    {order.client?.user?.firstName} {order.client?.user?.lastName}
+                  </p>
+                </div>
+                <Separator className="my-2" />
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">{formatDateShort(order.createdAt)}</span>
+                  <span className="text-sm font-bold text-emerald-600">{formatPrice(order.total)}</span>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -1014,937 +1071,981 @@ function HistoryView() {
   );
 }
 
-// ─── Earnings View ────────────────────────────────────────────────────────────
+// ─── Earnings View ───────────────────────────────────────────────────────────
 
-function EarningsView({ driver }: { driver: DriverProfile }) {
+function EarningsView() {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'earnings' | 'wallet'>('earnings');
+  const { navigate } = useDriverNav();
 
   useEffect(() => {
-    async function load() {
+    const fetchData = async () => {
       setLoading(true);
       const [walletRes, ordersRes] = await Promise.all([
         apiFetch<WalletData>('/api/wallet'),
-        apiFetch<{ orders: Order[] }>('/api/orders?limit=100'),
+        apiFetch<{ orders: Order[] }>('/api/orders?limit=200'),
       ]);
       if (walletRes.data) setWallet(walletRes.data);
-      if (ordersRes.data?.orders) {
-        setOrders(ordersRes.data.orders.filter(o => o.status === 'DELIVERED'));
+      if (ordersRes.data) {
+        const list = ordersRes.data.orders || (Array.isArray(ordersRes.data) ? ordersRes.data : []);
+        setOrders(list);
       }
       setLoading(false);
-    }
-    load();
+    };
+    fetchData();
   }, []);
 
-  const deliveredOrders = orders.filter(o => o.status === 'DELIVERED');
-
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const weekStart = new Date(todayStart - now.getDay() * 86400000).getTime();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-
-  const todayEarnings = deliveredOrders
-    .filter(o => new Date(o.createdAt).getTime() >= todayStart)
-    .reduce((sum, o) => sum + o.deliveryFee, 0);
-  const weekEarnings = deliveredOrders
-    .filter(o => new Date(o.createdAt).getTime() >= weekStart)
-    .reduce((sum, o) => sum + o.deliveryFee, 0);
-  const monthEarnings = deliveredOrders
-    .filter(o => new Date(o.createdAt).getTime() >= monthStart)
-    .reduce((sum, o) => sum + o.deliveryFee, 0);
+  const deliveredOrders = orders.filter((o) => o.status === 'DELIVERED');
   const totalEarnings = deliveredOrders.reduce((sum, o) => sum + o.deliveryFee, 0);
+  const todayEarnings = deliveredOrders
+    .filter((o) => {
+      const d = new Date(o.deliveredAt || o.createdAt);
+      const today = new Date();
+      return d.toDateString() === today.toDateString();
+    })
+    .reduce((sum, o) => sum + o.deliveryFee, 0);
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="size-8 animate-spin text-emerald-600" />
+      <div className="p-4 space-y-4">
+        <Skeleton className="h-36 w-full rounded-lg" />
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-20 rounded-lg" />
+          <Skeleton className="h-20 rounded-lg" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <h2 className="text-lg font-bold">Mes gains</h2>
+    <div className="p-4 space-y-4 pb-20">
+      <h2 className="text-lg font-bold">Revenus</h2>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'earnings' | 'wallet')}>
-        <TabsList className="w-full">
-          <TabsTrigger value="earnings" className="flex-1">Gains</TabsTrigger>
-          <TabsTrigger value="wallet" className="flex-1">Portefeuille</TabsTrigger>
-          <TabsTrigger value="ratings" className="flex-1" onClick={() => useDriverNav.getState().navigate('ratings')}>Notes</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="earnings" className="space-y-4 mt-4">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <EarningsCard label="Aujourd&apos;hui" value={formatPrice(todayEarnings)} icon={Zap} color="bg-emerald-100 text-emerald-700" />
-            <EarningsCard label="Cette semaine" value={formatPrice(weekEarnings)} icon={TrendingUp} color="bg-orange-100 text-orange-700" />
-            <EarningsCard label="Ce mois" value={formatPrice(monthEarnings)} icon={CreditCard} color="bg-amber-100 text-amber-700" />
-            <EarningsCard label="Total" value={formatPrice(totalEarnings)} icon={Wallet} color="bg-emerald-100 text-emerald-700" />
+      {/* Balance Card */}
+      <Card className="overflow-hidden border-emerald-500/20">
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 p-5 text-white">
+          <p className="text-sm opacity-80">Solde du portefeuille</p>
+          <p className="text-3xl font-bold mt-1">
+            {wallet ? formatPrice(wallet.balance) : '0 FCFA'}
+          </p>
+        </div>
+        <CardContent className="p-4">
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => toast.info('Fonctionnalité de retrait bientôt disponible')}
+            >
+              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+              Retirer
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => navigate('wallet')}
+            >
+              <Wallet className="w-3.5 h-3.5 mr-1.5" />
+              Détails
+            </Button>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Breakdown */}
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Détail des gains</h3>
-          {deliveredOrders.length === 0 ? (
-            <div className="text-center py-8">
-              <Wallet className="size-12 mx-auto text-gray-300 mb-3" />
-              <p className="text-muted-foreground">Aucun gain pour le moment</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {deliveredOrders.slice(0, 20).map(order => {
-                const commission = Math.round(order.deliveryFee * 0.1);
-                const net = order.deliveryFee - commission;
-                return (
-                  <Card key={order.id}>
-                    <CardContent className="p-3 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">#{order.orderNumber}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {order.merchant?.businessName} • {new Date(order.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-emerald-600">{formatPrice(net)}</p>
-                        <p className="text-[10px] text-muted-foreground">Frais: {formatPrice(order.deliveryFee)}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
+      {/* Earnings Summary */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground mb-1">Aujourd&apos;hui</p>
+          <p className="text-lg font-bold text-emerald-600">{formatPrice(todayEarnings)}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground mb-1">Total gagné</p>
+          <p className="text-lg font-bold">{formatPrice(totalEarnings)}</p>
+        </Card>
+      </div>
 
-        <TabsContent value="wallet" className="space-y-4 mt-4">
-          <Card className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white">
-            <CardContent className="p-6">
-              <p className="text-sm opacity-80">Solde du portefeuille</p>
-              <p className="text-3xl font-bold mt-1">{formatPrice(wallet?.balance || 0)}</p>
-              <p className="text-xs opacity-60 mt-2">
-                {wallet?.transactions?.length || 0} transactions récentes
-              </p>
-            </CardContent>
-          </Card>
-
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Transactions récentes</h3>
-          {(!wallet?.transactions || wallet.transactions.length === 0) ? (
-            <div className="text-center py-8">
-              <CreditCard className="size-12 mx-auto text-gray-300 mb-3" />
-              <p className="text-muted-foreground">Aucune transaction</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {wallet.transactions.map(tx => (
-                <Card key={tx.id}>
-                  <CardContent className="p-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{tx.description}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </p>
+      {/* Recent Transactions */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Transactions récentes</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          {wallet && wallet.transactions.length > 0 ? (
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {wallet.transactions.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      tx.type === 'CREDIT' ? 'bg-emerald-500/10' : 'bg-red-500/10'
+                    }`}>
+                      {tx.type === 'CREDIT' ? (
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <TrendingUp className="w-3.5 h-3.5 text-red-500 rotate-180" />
+                      )}
                     </div>
-                    <Badge variant={tx.type === 'CREDIT' ? 'default' : 'destructive'} className={tx.type === 'CREDIT' ? 'bg-emerald-100 text-emerald-700' : ''}>
-                      {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
-                    </Badge>
-                  </CardContent>
-                </Card>
+                    <div>
+                      <p className="text-sm font-medium">{tx.description || 'Transaction'}</p>
+                      <p className="text-[10px] text-muted-foreground">{formatDateShort(tx.createdAt)}</p>
+                    </div>
+                  </div>
+                  <span className={`text-sm font-semibold ${
+                    tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-500'
+                  }`}>
+                    {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
+                  </span>
+                </div>
               ))}
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">Aucune transaction</p>
           )}
-        </TabsContent>
-
-        <TabsContent value="ratings" />
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function EarningsCard({ label, value, icon: Icon, color }: { label: string; value: string; icon: React.ElementType; color: string }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className={`w-8 h-8 rounded-lg ${color} flex items-center justify-center mb-2`}>
-          <Icon className="size-4" />
-        </div>
-        <p className="text-lg font-bold">{value}</p>
-        <p className="text-[10px] text-muted-foreground">{label}</p>
-      </CardContent>
-    </Card>
-  );
-}
+// ─── Ratings View ────────────────────────────────────────────────────────────
 
-// ─── Ratings View ─────────────────────────────────────────────────────────────
-
-function RatingsView({ driver }: { driver: DriverProfile }) {
+function RatingsView() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
+    const fetchOrders = async () => {
       setLoading(true);
-      const { data } = await apiFetch<{ orders: Order[] }>('/api/orders?limit=50');
-      if (data?.orders) {
-        setOrders(data.orders.filter(o => o.status === 'DELIVERED' && o.ratings && o.ratings.length > 0) as (Order & { ratings: { score: number; comment: string | null; createdAt: string; client: { user: { firstName: string } } }[] })[]);
+      const res = await apiFetch<{ orders: Order[] }>('/api/orders?limit=200');
+      if (res.data) {
+        const list = res.data.orders || (Array.isArray(res.data) ? res.data : []);
+        setOrders(list);
       }
       setLoading(false);
-    }
-    load();
+    };
+    fetchOrders();
   }, []);
 
-  // Flatten ratings from orders
-  interface FlatRating { score: number; comment: string | null; date: string; clientName: string }
-  const ratings: FlatRating[] = [];
-  orders.forEach((o) => {
-    if (o.ratings && Array.isArray(o.ratings)) {
-      o.ratings.forEach((rating: { score: number; comment: string | null; createdAt: string; client: { user: { firstName: string; lastName: string } } }) => {
-        ratings.push({
-          score: rating.score,
-          comment: rating.comment,
-          date: rating.createdAt,
-          clientName: rating.client?.user ? `${rating.client.user.firstName} ${rating.client.user.lastName}` : 'Client',
-        });
-      });
-    }
-  });
+  const ratedOrders = orders.filter((o) => o.ratings && o.ratings.length > 0);
+  const allRatings = ratedOrders.flatMap((o) => o.ratings || []);
+  const avgRating = allRatings.length > 0
+    ? allRatings.reduce((s, r) => s + r.rating, 0) / allRatings.length
+    : 0;
 
-  const avgRating = driver.rating;
-  const totalRatings = driver.totalRatings;
+  const distribution = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: allRatings.filter((r) => r.rating === star).length,
+  }));
+  const maxCount = Math.max(...distribution.map((d) => d.count), 1);
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="size-8 animate-spin text-emerald-600" />
+      <div className="p-4 space-y-4">
+        <Skeleton className="h-32 w-full rounded-lg" />
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
       </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <h2 className="text-lg font-bold">Mes notes</h2>
+    <div className="p-4 space-y-4 pb-20">
+      <h2 className="text-lg font-bold">Évaluations</h2>
 
-      {/* Average Rating Card */}
-      <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20">
-        <CardContent className="p-6 flex flex-col items-center">
-          <p className="text-5xl font-bold text-amber-600">{avgRating > 0 ? avgRating.toFixed(1) : '—'}</p>
-          <div className="flex gap-1 my-2">
-            {[1, 2, 3, 4, 5].map(i => (
-              <Star
-                key={i}
-                className={`size-6 ${i <= Math.round(avgRating) ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`}
-              />
-            ))}
-          </div>
-          <p className="text-sm text-muted-foreground">{totalRatings} évaluation{totalRatings > 1 ? 's' : ''}</p>
-        </CardContent>
+      {/* Average Rating */}
+      <Card className="p-5 text-center">
+        <p className="text-4xl font-bold text-emerald-600">{avgRating > 0 ? avgRating.toFixed(1) : '—'}</p>
+        {avgRating > 0 && <StarDisplay rating={avgRating} size={20} />}
+        <p className="text-sm text-muted-foreground mt-1">
+          {allRatings.length} évaluation{allRatings.length > 1 ? 's' : ''}
+        </p>
       </Card>
 
-      {/* Recent Ratings */}
-      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Évaluations récentes</h3>
-      {ratings.length === 0 ? (
-        <div className="text-center py-8">
-          <Star className="size-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-muted-foreground">Aucune évaluation pour le moment</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {ratings.map((r, i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <p className="text-sm font-medium">{r.clientName}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {new Date(r.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </p>
-                  </div>
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map(i => (
-                      <Star key={i} className={`size-3 ${i <= r.score ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`} />
-                    ))}
-                  </div>
-                </div>
-                {r.comment && (
-                  <p className="text-sm text-muted-foreground italic">&ldquo;{r.comment}&rdquo;</p>
-                )}
-              </CardContent>
-            </Card>
+      {/* Distribution */}
+      <Card className="p-4">
+        <p className="text-sm font-semibold mb-3">Répartition des notes</p>
+        <div className="space-y-2">
+          {distribution.map((d) => (
+            <div key={d.star} className="flex items-center gap-2">
+              <span className="text-xs w-3 text-right">{d.star}</span>
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+              <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-amber-400 rounded-full transition-all"
+                  style={{ width: `${(d.count / maxCount) * 100}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground w-6 text-right">{d.count}</span>
+            </div>
           ))}
         </div>
-      )}
+      </Card>
 
-      <div className="pt-2">
-        <Button variant="outline" className="w-full" onClick={() => useDriverNav.getState().navigate('earnings')}>
-          <ChevronLeft className="size-4 mr-2" />
-          Retour aux gains
-        </Button>
-      </div>
+      {/* Rating List */}
+      {ratedOrders.length > 0 ? (
+        <div className="space-y-3">
+          {ratedOrders.map((order) =>
+            (order.ratings || []).map((rating) => (
+              <Card key={rating.id} className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <StarDisplay rating={rating.rating} size={14} />
+                    <span className="text-xs text-muted-foreground">
+                      {rating.client?.user
+                        ? `${rating.client.user.firstName} ${rating.client.user.lastName}`
+                        : 'Client'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">{formatDateShort(rating.createdAt)}</span>
+                </div>
+                {rating.comment && (
+                  <p className="text-sm text-muted-foreground">{rating.comment}</p>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-1.5">{order.orderNumber}</p>
+              </Card>
+            ))
+          )}
+        </div>
+      ) : (
+        <Card className="p-8 text-center">
+          <Star className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">Aucune évaluation pour le moment</p>
+        </Card>
+      )}
     </div>
   );
 }
 
-// ─── Wallet View (Standalone) ────────────────────────────────────────────────
+// ─── Wallet View ─────────────────────────────────────────────────────────────
 
 function WalletView() {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch<WalletData>('/api/wallet').then(({ data }) => {
-      if (data) setWallet(data);
-      setLoading(false);
-    });
+    let mounted = true;
+    const load = async () => {
+      const res = await apiFetch<WalletData>('/api/wallet');
+      if (mounted) {
+        if (res.data) setWallet(res.data);
+        setLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
   }, []);
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="size-8 animate-spin text-emerald-600" />
+      <div className="p-4 space-y-4">
+        <Skeleton className="h-36 w-full rounded-lg" />
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
       </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 pb-20">
       <h2 className="text-lg font-bold">Portefeuille</h2>
 
-      <Card className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white">
-        <CardContent className="p-6">
-          <p className="text-sm opacity-80">Solde disponible</p>
-          <p className="text-4xl font-bold mt-1">{formatPrice(wallet?.balance || 0)}</p>
+      {/* Balance */}
+      <Card className="overflow-hidden border-emerald-500/20">
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 p-6 text-white text-center">
+          <p className="text-sm opacity-80 mb-1">Solde disponible</p>
+          <p className="text-3xl font-bold">
+            {wallet ? formatPrice(wallet.balance) : '0 FCFA'}
+          </p>
+        </div>
+        <CardContent className="p-4">
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => toast.info('Le dépôt sera bientôt disponible')}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Dépôt
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => toast.info('Fonctionnalité de retrait bientôt disponible')}
+            >
+              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+              Retrait
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Historique des transactions</h3>
-      {(!wallet?.transactions || wallet.transactions.length === 0) ? (
-        <div className="text-center py-8">
-          <CreditCard className="size-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-muted-foreground">Aucune transaction</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {wallet.transactions.map(tx => (
-            <Card key={tx.id}>
-              <CardContent className="p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{tx.description}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-                <span className={`text-sm font-bold ${tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
-                </span>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Notifications View ──────────────────────────────────────────────────────
-
-function NotificationsView({ onBack }: { onBack?: () => void }) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      const { data } = await apiFetch<{ notifications: Notification[]; total: number }>('/api/notifications?limit=50');
-      if (!cancelled) {
-        if (data) { setNotifications(data.notifications); setTotal(data.total); }
-        setLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, []);
-
-  const markRead = async (id: string) => {
-    await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-  };
-
-  const markAllRead = async () => {
-    await apiFetch('/api/notifications', { method: 'PUT' });
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  };
-
-  const typeIcon: Record<string, React.ElementType> = {
-    ORDER: Package,
-    DELIVERY: Navigation,
-    PAYMENT: CreditCard,
-    INFO: Bell,
-    SYSTEM: AlertCircle,
-    PROMO: Zap,
-    SUPPORT: MessageSquare,
-  };
-
-  return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">Notifications</h2>
-        {notifications.some(n => !n.isRead) && (
-          <Button variant="ghost" size="sm" onClick={markAllRead}>
-            Tout marquer comme lu
-          </Button>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="size-8 animate-spin text-emerald-600" />
-        </div>
-      ) : notifications.length === 0 ? (
-        <div className="text-center py-12">
-          <Bell className="size-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-muted-foreground">Aucune notification</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {notifications.map(n => {
-            const Icon = typeIcon[n.type] || Bell;
-            return (
-              <Card
-                key={n.id}
-                className={`cursor-pointer transition-colors ${!n.isRead ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-200' : ''}`}
-                onClick={() => { if (!n.isRead) markRead(n.id); }}
-              >
-                <CardContent className="p-3 flex gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                    !n.isRead ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                  }`}>
-                    <Icon className="size-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm ${!n.isRead ? 'font-semibold' : 'font-medium'}`}>{n.title}</p>
-                      {!n.isRead && <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 mt-1.5" />}
+      {/* Transactions */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Historique des transactions</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          {wallet && wallet.transactions.length > 0 ? (
+            <div className="space-y-1 max-h-96 overflow-y-auto">
+              {wallet.transactions.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between py-2.5 border-b last:border-b-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                      tx.type === 'CREDIT' ? 'bg-emerald-500/10' : 'bg-red-500/10'
+                    }`}>
+                      {tx.type === 'CREDIT' ? (
+                        <ArrowRight className="w-4 h-4 text-emerald-500" />
+                      ) : (
+                        <ArrowRight className="w-4 h-4 text-red-500 rotate-180" />
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      {new Date(n.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{tx.description || 'Transaction'}</p>
+                      <p className="text-[10px] text-muted-foreground">{formatDate(tx.createdAt)}</p>
+                      {tx.reference && (
+                        <p className="text-[10px] text-muted-foreground">Réf: {tx.reference}</p>
+                      )}
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Support View ─────────────────────────────────────────────────────────────
-
-function SupportView() {
-  const [tickets, setTickets] = useState<SupportTicket[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [subject, setSubject] = useState('');
-  const [description, setDescription] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  const fetchTickets = useCallback(async () => {
-    setLoading(true);
-    const { data } = await apiFetch<SupportTicket[]>('/api/support');
-    if (data) setTickets(data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      const { data } = await apiFetch<SupportTicket[]>('/api/support');
-      if (!cancelled) { if (data) setTickets(data); setLoading(false); }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, []);
-
-  const handleSubmit = async () => {
-    if (!subject.trim() || !description.trim()) return;
-    setSubmitting(true);
-    setError(null);
-    setSuccess(false);
-    const { error: err } = await apiFetch('/api/support', {
-      method: 'POST',
-      body: JSON.stringify({ subject, description }),
-    });
-    if (err) {
-      setError(err);
-    } else {
-      setSuccess(true);
-      setSubject('');
-      setDescription('');
-      setShowForm(false);
-      fetchTickets();
-    }
-    setSubmitting(false);
-  };
-
-  const statusLabel: Record<string, string> = {
-    OPEN: 'Ouvert',
-    IN_PROGRESS: 'En cours',
-    RESOLVED: 'Résolu',
-    CLOSED: 'Fermé',
-  };
-  const statusColor: Record<string, string> = {
-    OPEN: 'bg-blue-100 text-blue-800',
-    IN_PROGRESS: 'bg-orange-100 text-orange-800',
-    RESOLVED: 'bg-emerald-100 text-emerald-800',
-    CLOSED: 'bg-gray-100 text-gray-800',
-  };
-
-  return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">Support</h2>
-        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setShowForm(true)}>
-          <Plus className="size-4 mr-1" />
-          Nouveau ticket
-        </Button>
-      </div>
-
-      {/* New Ticket Dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nouveau ticket de support</DialogTitle>
-            <DialogDescription>Décrivez votre problème et nous vous répondrons rapidement.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="subject">Sujet</Label>
-              <Input id="subject" placeholder="Sujet de votre demande" value={subject} onChange={e => setSubject(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea id="description" placeholder="Décrivez votre problème en détail..." value={description} onChange={e => setDescription(e.target.value)} rows={4} />
-            </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            {success && <p className="text-sm text-emerald-600">Ticket envoyé avec succès !</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowForm(false)}>Annuler</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSubmit} disabled={submitting || !subject.trim() || !description.trim()}>
-              {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : <Send className="size-4 mr-2" />}
-              Envoyer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="size-8 animate-spin text-emerald-600" />
-        </div>
-      ) : tickets.length === 0 ? (
-        <div className="text-center py-12">
-          <MessageSquare className="size-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-muted-foreground">Aucun ticket de support</p>
-          <p className="text-xs text-muted-foreground mt-1">Créez un ticket si vous avez besoin d&apos;aide</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {tickets.map(ticket => (
-            <Card key={ticket.id}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold text-sm">{ticket.subject}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{ticket.description}</p>
-                  </div>
-                  <Badge className={statusColor[ticket.status] || 'bg-gray-100'}>
-                    {statusLabel[ticket.status] || ticket.status}
-                  </Badge>
+                  <span className={`text-sm font-semibold shrink-0 ml-2 ${
+                    tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-500'
+                  }`}>
+                    {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
+                  </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-2">
-                  {new Date(ticket.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-6">Aucune transaction</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 // ─── Profile View ────────────────────────────────────────────────────────────
 
-function ProfileView({ driver, onRefresh }: { driver: DriverProfile; onRefresh: () => void }) {
-  const [editing, setEditing] = useState(false);
+function ProfileView() {
+  const [profile, setProfile] = useState<DriverProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const user = useAuthStore((s) => s.user);
+  const { navigate } = useDriverNav();
 
   const [form, setForm] = useState({
-    vehicleType: driver.vehicleType,
-    vehiclePlate: driver.vehiclePlate || '',
-    vehicleBrand: driver.vehicleBrand || '',
-    vehicleColor: driver.vehicleColor || '',
+    vehicleType: 'MOTO',
+    vehiclePlate: '',
+    vehicleBrand: '',
+    vehicleColor: '',
   });
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setLoading(true);
+      const res = await apiFetch<DriverProfile[]>('/api/drivers');
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        const p = res.data[0];
+        setProfile(p);
+        setForm({
+          vehicleType: p.vehicleType || 'MOTO',
+          vehiclePlate: p.vehiclePlate || '',
+          vehicleBrand: p.vehicleBrand || '',
+          vehicleColor: p.vehicleColor || '',
+        });
+      }
+      setLoading(false);
+    };
+    fetchProfile();
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
-    setError(null);
-    setSuccess(false);
-    const { error: err } = await apiFetch('/api/drivers', {
+    const res = await apiFetch<DriverProfile>('/api/drivers', {
       method: 'POST',
       body: JSON.stringify(form),
     });
-    if (err) {
-      setError(err);
+    if (res.error) {
+      toast.error(res.error);
     } else {
-      setSuccess(true);
-      setEditing(false);
-      onRefresh();
-      setTimeout(() => setSuccess(false), 3000);
+      toast.success('Profil mis à jour');
+      if (res.data) setProfile(res.data);
     }
     setSaving(false);
   };
 
-  const vehicleTypeLabel: Record<string, string> = {
-    MOTO: 'Moto',
-    VELO: 'Vélo',
-    VOITURE: 'Voiture',
-  };
+  if (loading) {
+    return (
+      <div className="p-4 space-y-4">
+        <Skeleton className="h-24 w-full rounded-lg" />
+        <Skeleton className="h-48 w-full rounded-lg" />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 space-y-4">
-      <h2 className="text-lg font-bold">Mon profil</h2>
+    <div className="p-4 space-y-4 pb-20">
+      <h2 className="text-lg font-bold">Profil</h2>
 
-      {/* Profile Header */}
-      <Card>
-        <CardContent className="p-6 flex flex-col items-center">
-          <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
-            {driver.user.avatar ? (
-              <img src={driver.user.avatar} alt="" className="w-20 h-20 rounded-full object-cover" />
+      {/* User Info */}
+      <Card className="p-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center">
+            {user?.avatar ? (
+              <img src={user.avatar} alt="" className="w-14 h-14 rounded-full object-cover" />
             ) : (
-              <User className="size-10 text-emerald-600" />
+              <User className="w-7 h-7 text-emerald-500" />
             )}
           </div>
-          <h3 className="font-bold text-lg">{driver.user.firstName} {driver.user.lastName}</h3>
-          <p className="text-sm text-muted-foreground">{driver.user.phone}</p>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="flex items-center gap-1">
-              <Star className="size-4 fill-amber-400 text-amber-400" />
-              <span className="text-sm font-medium">{driver.rating > 0 ? driver.rating.toFixed(1) : 'Nouveau'}</span>
-            </div>
-            <span className="text-muted-foreground">•</span>
-            <span className="text-sm text-muted-foreground">{driver.totalDeliveries} livraisons</span>
+          <div>
+            <p className="font-semibold">{user?.firstName} {user?.lastName}</p>
+            <p className="text-sm text-muted-foreground">{user?.phone}</p>
+            <p className="text-xs text-muted-foreground">{user?.email}</p>
           </div>
-        </CardContent>
+        </div>
+        {profile && (
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="bg-muted/50 rounded-lg p-3 text-center">
+              <p className="text-lg font-bold">{profile.totalDeliveries}</p>
+              <p className="text-[10px] text-muted-foreground">Livraisons</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3 text-center">
+              <p className="text-lg font-bold">{profile.rating?.toFixed(1) || '—'}</p>
+              <p className="text-[10px] text-muted-foreground">Note</p>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Vehicle Info */}
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm">Informations du véhicule</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => setEditing(!editing)}>
-              {editing ? 'Annuler' : 'Modifier'}
-            </Button>
-          </div>
+          <CardTitle className="text-sm">Informations du véhicule</CardTitle>
         </CardHeader>
-        <CardContent>
-          {editing ? (
-            <div className="space-y-3">
-              <div>
-                <Label>Type de véhicule</Label>
-                <div className="flex gap-2 mt-1">
-                  {['MOTO', 'VELO', 'VOITURE'].map(type => (
-                    <Button
-                      key={type}
-                      variant={form.vehicleType === type ? 'default' : 'outline'}
-                      size="sm"
-                      className={form.vehicleType === type ? 'bg-emerald-600' : ''}
-                      onClick={() => setForm(prev => ({ ...prev, vehicleType: type }))}
-                    >
-                      {vehicleTypeLabel[type]}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="plate">Immatriculation</Label>
-                <Input id="plate" value={form.vehiclePlate} onChange={e => setForm(prev => ({ ...prev, vehiclePlate: e.target.value }))} placeholder="Ex: AK-1234-BC" />
-              </div>
-              <div>
-                <Label htmlFor="brand">Marque</Label>
-                <Input id="brand" value={form.vehicleBrand} onChange={e => setForm(prev => ({ ...prev, vehicleBrand: e.target.value }))} placeholder="Ex: Yamaha, Honda..." />
-              </div>
-              <div>
-                <Label htmlFor="color">Couleur</Label>
-                <Input id="color" value={form.vehicleColor} onChange={e => setForm(prev => ({ ...prev, vehicleColor: e.target.value }))} placeholder="Ex: Rouge, Noir..." />
-              </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              {success && <p className="text-sm text-emerald-600">Profil mis à jour !</p>}
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : <Check className="size-4 mr-2" />}
-                Enregistrer
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <ProfileRow label="Type" value={vehicleTypeLabel[driver.vehicleType] || driver.vehicleType} />
-              {driver.vehiclePlate && <ProfileRow label="Immatriculation" value={driver.vehiclePlate} />}
-              {driver.vehicleBrand && <ProfileRow label="Marque" value={driver.vehicleBrand} />}
-              {driver.vehicleColor && <ProfileRow label="Couleur" value={driver.vehicleColor} />}
-              {!driver.vehiclePlate && !driver.vehicleBrand && !driver.vehicleColor && (
-                <p className="text-sm text-muted-foreground text-center py-2">Aucune information véhicule renseignée</p>
-              )}
-            </div>
-          )}
+        <CardContent className="p-4 pt-0 space-y-4">
+          <div>
+            <Label className="text-xs">Type de véhicule</Label>
+            <Select
+              value={form.vehicleType}
+              onValueChange={(val) => setForm({ ...form, vehicleType: val })}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MOTO">Moto</SelectItem>
+                <SelectItem value="VELO">Vélo</SelectItem>
+                <SelectItem value="VOITURE">Voiture</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Immatriculation</Label>
+            <Input
+              className="mt-1"
+              placeholder="Ex: AK-1234-BJ"
+              value={form.vehiclePlate}
+              onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Marque</Label>
+            <Input
+              className="mt-1"
+              placeholder="Ex: Yamaha, Honda..."
+              value={form.vehicleBrand}
+              onChange={(e) => setForm({ ...form, vehicleBrand: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Couleur</Label>
+            <Input
+              className="mt-1"
+              placeholder="Ex: Rouge, Noir..."
+              value={form.vehicleColor}
+              onChange={(e) => setForm({ ...form, vehicleColor: e.target.value })}
+            />
+          </div>
+          <Button
+            size="sm"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={saving}
+            onClick={handleSave}
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
+            Enregistrer
+          </Button>
         </CardContent>
       </Card>
 
       {/* Quick Links */}
       <Card>
         <CardContent className="p-0">
-          <QuickLink icon={FileText} label="Mes documents" onClick={() => useDriverNav.getState().navigate('documents')} />
-          <Separator />
-          <QuickLink icon={Star} label="Mes notes" onClick={() => useDriverNav.getState().navigate('ratings')} />
-          <Separator />
-          <QuickLink icon={CreditCard} label="Portefeuille" onClick={() => useDriverNav.getState().navigate('wallet')} />
-          <Separator />
-          <QuickLink icon={MessageSquare} label="Support" onClick={() => useDriverNav.getState().navigate('support')} />
-          <Separator />
-          <QuickLink icon={Bell} label="Notifications" onClick={() => useDriverNav.getState().navigate('notifications')} />
+          <button
+            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors border-b"
+            onClick={() => navigate('documents')}
+          >
+            <div className="flex items-center gap-3">
+              <FileText className="w-4 h-4 text-emerald-500" />
+              <span className="text-sm font-medium">Mes documents</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </button>
+          <button
+            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors border-b"
+            onClick={() => navigate('ratings')}
+          >
+            <div className="flex items-center gap-3">
+              <Star className="w-4 h-4 text-amber-400" />
+              <span className="text-sm font-medium">Mes évaluations</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </button>
+          <button
+            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors border-b"
+            onClick={() => navigate('wallet')}
+          >
+            <div className="flex items-center gap-3">
+              <Wallet className="w-4 h-4 text-emerald-500" />
+              <span className="text-sm font-medium">Portefeuille</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </button>
+          <button
+            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors"
+            onClick={() => navigate('support')}
+          >
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-4 h-4 text-emerald-500" />
+              <span className="text-sm font-medium">Support</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </button>
         </CardContent>
       </Card>
-
-      {/* Logout */}
-      <Button
-        variant="destructive"
-        className="w-full"
-        onClick={() => useAuthStore.getState().logout()}
-      >
-        <LogOut className="size-4 mr-2" />
-        Se déconnecter
-      </Button>
     </div>
   );
 }
 
-function ProfileRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm font-medium">{value}</span>
-    </div>
-  );
-}
+// ─── Notifications View ──────────────────────────────────────────────────────
 
-function QuickLink({ icon: Icon, label, onClick }: { icon: React.ElementType; label: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center justify-between w-full p-4 hover:bg-muted/50 transition-colors"
-    >
-      <div className="flex items-center gap-3">
-        <Icon className="size-5 text-muted-foreground" />
-        <span className="text-sm font-medium">{label}</span>
+function NotificationsView() {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      const res = await apiFetch<{ notifications: Notification[]; total: number; unreadCount: number }>(
+        '/api/notifications?limit=50'
+      );
+      if (mounted) {
+        if (res.data) {
+          setNotifications(res.data.notifications || []);
+          setTotal(res.data.total || 0);
+        }
+        setLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, []);
+
+  const markAllRead = async () => {
+    const res = await apiFetch('/api/notifications', { method: 'PUT' });
+    if (!res.error) {
+      toast.success('Toutes les notifications marquées comme lues');
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    }
+  };
+
+  const markOneRead = async (id: string) => {
+    const res = await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+    if (!res.error) {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      );
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  if (loading) {
+    return (
+      <div className="p-4 space-y-3">
+        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
       </div>
-      <ChevronRight className="size-4 text-muted-foreground" />
-    </button>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-4 pb-20">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold">Notifications</h2>
+        {unreadCount > 0 && (
+          <Button variant="ghost" size="sm" className="text-xs text-emerald-600" onClick={markAllRead}>
+            Tout marquer comme lu
+          </Button>
+        )}
+      </div>
+
+      {notifications.length === 0 ? (
+        <Card className="p-8 text-center">
+          <Bell className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">Aucune notification</p>
+        </Card>
+      ) : (
+        <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+          {notifications.map((notif) => (
+            <Card
+              key={notif.id}
+              className={`p-4 cursor-pointer transition-colors ${
+                notif.isRead ? 'opacity-60' : 'border-emerald-500/20 bg-emerald-500/5'
+              }`}
+              onClick={() => {
+                if (!notif.isRead) markOneRead(notif.id);
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                  notif.isRead ? 'bg-muted' : 'bg-emerald-500/10'
+                }`}>
+                  <Bell className={`w-3.5 h-3.5 ${notif.isRead ? 'text-muted-foreground' : 'text-emerald-500'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`text-sm ${notif.isRead ? 'font-medium' : 'font-semibold'}`}>
+                      {notif.title}
+                    </p>
+                    {!notif.isRead && <CircleDot className="w-2 h-2 text-emerald-500 shrink-0" />}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{notif.message}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{timeAgo(notif.createdAt)}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
-// ─── Documents View ───────────────────────────────────────────────────────────
+// ─── Support View ────────────────────────────────────────────────────────────
 
-function DocumentsView({ driver, onRefresh }: { driver: DriverProfile; onRefresh: () => void }) {
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+function SupportView() {
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
-  const docs = [
-    { key: 'idCardImage', label: "Pièce d'identité", field: 'idCardImage', value: driver.idCardImage },
-    { key: 'licenseImage', label: 'Permis de conduire', field: 'licenseImage', value: driver.licenseImage },
-    { key: 'vehicleImage', label: 'Photo du véhicule', field: 'vehicleImage', value: driver.vehicleImage },
-    { key: 'selfieImage', label: 'Selfie', field: 'selfieImage', value: driver.selfieImage },
-  ];
-
-  const handleUpload = async (field: string, file: File) => {
-    setUploading(field);
-    setError(null);
-    setSuccess(null);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const res = await fetch('/api/upload', {
+  const handleSubmit = async () => {
+    if (!subject.trim() || !description.trim()) {
+      toast.error('Veuillez remplir tous les champs');
+      return;
+    }
+    setSending(true);
+    const res = await apiFetch('/api/support', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${useAuthStore.getState().token}` },
-      body: formData,
+      body: JSON.stringify({ subject: subject.trim(), description: description.trim() }),
     });
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success('Ticket envoyé avec succès !');
+      setSubject('');
+      setDescription('');
+      setSent(true);
+    }
+    setSending(false);
+  };
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ error: 'Erreur d\'upload' }));
-      setError(errData.error || 'Erreur d\'upload');
-      setUploading(null);
+  return (
+    <div className="p-4 space-y-4 pb-20">
+      <h2 className="text-lg font-bold">Support</h2>
+
+      <Card className="p-6 text-center">
+        <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-3">
+          <MessageSquare className="w-7 h-7 text-emerald-500" />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Notre équipe est là pour vous aider. Décrivez votre problème et nous vous répondrons rapidement.
+        </p>
+      </Card>
+
+      {sent ? (
+        <Card className="p-6 text-center">
+          <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
+          <p className="font-semibold">Ticket envoyé !</p>
+          <p className="text-sm text-muted-foreground mt-1">Nous vous répondrons dans les plus brefs délais.</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => setSent(false)}
+          >
+            Envoyer un autre ticket
+          </Button>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-4 space-y-4">
+            <div>
+              <Label>Sujet</Label>
+              <Input
+                className="mt-1.5"
+                placeholder="Sujet de votre demande"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                className="mt-1.5"
+                placeholder="Décrivez votre problème en détail..."
+                rows={5}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              disabled={sending}
+              onClick={handleSubmit}
+            >
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+              Envoyer
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Documents View ──────────────────────────────────────────────────────────
+
+const DOC_FIELDS = [
+  { key: 'idCardImage' as const, label: "Carte d'identité", icon: FileText },
+  { key: 'licenseImage' as const, label: 'Permis de conduire', icon: Shield },
+  { key: 'vehicleImage' as const, label: "Carte grise du véhicule", icon: FileUp },
+  { key: 'selfieImage' as const, label: 'Selfie', icon: UserCircle },
+];
+
+function DocumentsView() {
+  const [profile, setProfile] = useState<DriverProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setLoading(true);
+      const res = await apiFetch<DriverProfile[]>('/api/drivers');
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        setProfile(res.data[0]);
+      }
+      setLoading(false);
+    };
+    fetchProfile();
+  }, []);
+
+  const handleUpload = async (field: string) => {
+    const input = fileRefs.current[field];
+    if (!input || !input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Fichier trop volumineux (max 5 Mo)');
       return;
     }
 
-    const uploadData = await res.json();
-    const url = uploadData.url;
+    setUploading(field);
+    const formData = new FormData();
+    formData.append('file', file);
 
-    // Save to driver profile
-    const { error: saveErr } = await apiFetch('/api/drivers', {
-      method: 'POST',
-      body: JSON.stringify({ [field]: url }),
-    });
+    try {
+      const token = useAuthStore.getState().token;
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const uploadData = await uploadRes.json();
 
-    if (saveErr) {
-      setError(saveErr);
-    } else {
-      setSuccess(field);
-      onRefresh();
-      setTimeout(() => setSuccess(null), 3000);
+      if (!uploadRes.ok || !uploadData.url) {
+        toast.error(uploadData.error || 'Erreur lors du téléchargement');
+        setUploading(null);
+        return;
+      }
+
+      const updateRes = await apiFetch<DriverProfile>('/api/drivers', {
+        method: 'POST',
+        body: JSON.stringify({ [field]: uploadData.url }),
+      });
+
+      if (updateRes.error) {
+        toast.error(updateRes.error);
+      } else {
+        toast.success('Document téléchargé avec succès');
+        if (updateRes.data) setProfile(updateRes.data);
+      }
+    } catch {
+      toast.error('Erreur lors du téléchargement');
     }
     setUploading(null);
+    input.value = '';
   };
 
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  if (loading) {
+    return (
+      <div className="p-4 space-y-4">
+        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => useDriverNav.getState().goBack()}>
-          <ChevronLeft className="size-5" />
-        </Button>
-        <h2 className="text-lg font-bold">Mes documents</h2>
-      </div>
+    <div className="p-4 space-y-4 pb-20">
+      <h2 className="text-lg font-bold">Documents</h2>
 
-      <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/10">
-        <CardContent className="p-4 flex items-start gap-3">
-          <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-400">Vérification requise</p>
-            <p className="text-xs text-amber-700 dark:text-amber-500 mt-0.5">
-              Vos documents doivent être vérifiés par un administrateur avant que vous puissiez commencer à livrer.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {error && (
-        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-lg p-3">
-          <p className="text-sm text-red-600">{error}</p>
-        </div>
-      )}
+      <p className="text-sm text-muted-foreground">
+        Veuillez télécharger les documents requis pour vérifier votre compte.
+      </p>
 
       <div className="space-y-3">
-        {docs.map(doc => (
-          <Card key={doc.key}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    doc.value ? 'bg-emerald-100' : 'bg-red-100'
+        {DOC_FIELDS.map((doc) => {
+          const hasImage = !!(profile as Record<string, unknown> | null)?.[doc.key];
+          const Icon = doc.icon;
+          return (
+            <Card key={doc.key} className="overflow-hidden">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                    hasImage ? 'bg-emerald-500/10' : 'bg-muted'
                   }`}>
-                    {doc.value ? (
-                      <CheckCircle2 className="size-5 text-emerald-600" />
-                    ) : (
-                      <XCircle className="size-5 text-red-500" />
-                    )}
+                    <Icon className={`w-4 h-4 ${hasImage ? 'text-emerald-500' : 'text-muted-foreground'}`} />
                   </div>
-                  <div>
-                    <p className="font-medium text-sm">{doc.label}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {doc.value ? 'Document envoyé' : 'Document manquant'}
-                    </p>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{doc.label}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {hasImage ? (
+                        <>
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                          <span className="text-[10px] text-emerald-600">Téléchargé</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-3 h-3 text-red-400" />
+                          <span className="text-[10px] text-muted-foreground">Manquant</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <Badge variant={doc.value ? 'default' : 'destructive'} className={doc.value ? 'bg-emerald-100 text-emerald-700' : ''}>
-                  {doc.value ? 'Envoyé' : 'Manquant'}
-                </Badge>
-              </div>
 
-              {doc.value && (
-                <div className="mb-3 rounded-lg border overflow-hidden bg-gray-50 dark:bg-gray-900/50">
-                  <img
-                    src={doc.value}
-                    alt={doc.label}
-                    className="w-full h-40 object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                </div>
-              )}
-
-              <input
-                type="file"
-                ref={el => { fileInputRefs.current[doc.key] = el; }}
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleUpload(doc.field, file);
-                  e.target.value = '';
-                }}
-              />
-
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => fileInputRefs.current[doc.key]?.click()}
-                disabled={uploading === doc.field}
-              >
-                {uploading === doc.field ? (
-                  <><Loader2 className="size-4 animate-spin mr-2" /> Envoi en cours...</>
-                ) : success === doc.field ? (
-                  <><Check className="size-4 mr-2 text-emerald-600" /> Mis à jour !</>
-                ) : doc.value ? (
-                  <><RefreshCw className="size-4 mr-2" /> Remplacer</>
-                ) : (
-                  <><Upload className="size-4 mr-2" /> Téléverser</>
+                {/* Preview */}
+                {hasImage && (
+                  <div className="mb-3 rounded-lg overflow-hidden bg-muted/50 border max-h-48">
+                    <img
+                      src={(profile as Record<string, unknown> | null)?.[doc.key] as string}
+                      alt={doc.label}
+                      className="w-full h-full object-contain max-h-48"
+                    />
+                  </div>
                 )}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+
+                <input
+                  ref={(el) => { fileRefs.current[doc.key] = el; }}
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={() => handleUpload(doc.key)}
+                />
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  disabled={uploading === doc.key}
+                  onClick={() => fileRefs.current[doc.key]?.click()}
+                >
+                  {uploading === doc.key ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                  ) : hasImage ? (
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                  )}
+                  {uploading === doc.key
+                    ? 'Téléchargement...'
+                    : hasImage
+                      ? 'Remplacer'
+                      : 'Télécharger'}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ─── Navigation Placeholder ──────────────────────────────────────────────────
+// ─── Main Driver App ─────────────────────────────────────────────────────────
 
-function NavigationPlaceholder() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 gap-4">
-      <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
-        <Navigation className="size-8 text-emerald-600" />
+export default function DriverApp() {
+  const { view } = useDriverNav();
+  const [isApproved, setIsApproved] = useState<boolean | null>(null);
+  const [profileChecked, setProfileChecked] = useState(false);
+
+  useEffect(() => {
+    const checkApproval = async () => {
+      const res = await apiFetch<DriverProfile[]>('/api/drivers');
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        setIsApproved(res.data[0].isApproved);
+      } else {
+        // No driver profile yet — show approval screen
+        setIsApproved(false);
+      }
+      setProfileChecked(true);
+    };
+    checkApproval();
+  }, []);
+
+  if (!profileChecked) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
       </div>
-      <h3 className="font-semibold">Navigation</h3>
-      <p className="text-sm text-muted-foreground text-center">La navigation en temps réel sera bientôt disponible.</p>
-    </div>
-  );
-}
+    );
+  }
 
-// ─── Chat Placeholder ─────────────────────────────────────────────────────────
+  if (isApproved === false) {
+    return <ApprovalScreen />;
+  }
 
-function ChatPlaceholder() {
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 gap-4">
-      <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
-        <MessageSquare className="size-8 text-emerald-600" />
-      </div>
-      <h3 className="font-semibold">Chat</h3>
-      <p className="text-sm text-muted-foreground text-center">La messagerie sera bientôt disponible.</p>
+    <div className="min-h-screen flex flex-col bg-background">
+      <TopBar unreadCount={0} />
+      <main className="flex-1">
+        {view === 'home' && <HomeView />}
+        {view === 'ride' && <RideView />}
+        {view === 'history' && <HistoryView />}
+        {view === 'earnings' && <EarningsView />}
+        {view === 'ratings' && <RatingsView />}
+        {view === 'wallet' && <WalletView />}
+        {view === 'profile' && <ProfileView />}
+        {view === 'notifications' && <NotificationsView />}
+        {view === 'support' && <SupportView />}
+        {view === 'documents' && <DocumentsView />}
+        {view === 'navigation' && <RideView />}
+        {view === 'chat' && <SupportView />}
+      </main>
+      <BottomNav />
     </div>
   );
 }

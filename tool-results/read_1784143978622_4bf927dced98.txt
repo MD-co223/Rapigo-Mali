@@ -1,0 +1,692 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import React, { lazy, Suspense, useEffect, useState, useCallback, useSyncExternalStore } from 'react';
+     4→     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→     5→import { useTheme } from 'next-themes';
+     6→     6→import { toast } from 'sonner';
+     7→     7→import {
+     8→     8→  Sun, Moon, LogOut, Truck, Store, User, ShieldCheck,
+     9→     9→  ArrowRight, MapPin, Clock, Star, Smartphone, Wallet,
+    10→    10→  Package, Pill, ShoppingBag, Zap, Users,
+    11→    11→  Eye, EyeOff, Mail, Phone, Lock, UserPlus, Loader2,
+    12→    12→  Download, ChevronRight, UtensilsCrossed, Laptop,
+    13→    13→  Shield, Headphones, CreditCard, Leaf,
+    14→    14→} from 'lucide-react';
+    15→    15→import { Button } from '@/components/ui/button';
+    16→    16→import { Input } from '@/components/ui/input';
+    17→    17→import { Label } from '@/components/ui/label';
+    18→    18→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+    19→    19→import { Badge } from '@/components/ui/badge';
+    20→    20→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    21→    21→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+    22→    22→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+    23→    23→import { Separator } from '@/components/ui/separator';
+    24→    24→import { useAuthStore, useSpaceStore, AppSpace, apiFetch, AuthUser } from '@/lib/store';
+    25→    25→
+    26→    26→// ============================================
+    27→    27→// Lazy-loaded space components
+    28→    28→// ============================================
+    29→    29→const AdminApp = lazy(() => import('@/components/admin/admin-app'));
+    30→    30→const ClientApp = lazy(() => import('@/components/client/client-app'));
+    31→    31→const MerchantApp = lazy(() => import('@/components/merchant/merchant-app'));
+    32→    32→const DriverApp = lazy(() => import('@/components/driver/driver-app'));
+    33→    33→
+    34→    34→// ============================================
+    35→    35→// Space loading fallback
+    36→    36→// ============================================
+    37→    37→function SpaceLoader() {
+    38→    38→  return (
+    39→    39→    <div className="flex items-center justify-center h-full">
+    40→    40→      <div className="flex flex-col items-center gap-3">
+    41→    41→        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+    42→    42→        <p className="text-sm text-muted-foreground">Chargement…</p>
+    43→    43→      </div>
+    44→    44→    </div>
+    45→    45→  );
+    46→    46→}
+    47→    47→
+    48→    48→// ============================================
+    49→    49→// MAIN PAGE COMPONENT
+    50→    50→// ============================================
+    51→    51→export default function Page() {
+    52→    52→  const { theme, setTheme } = useTheme();
+    53→    53→  const { user, isAuthenticated, token, login, logout } = useAuthStore();
+    54→    54→  const { currentSpace, setSpace } = useSpaceStore();
+    55→    55→  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+    56→    56→  const [showAuth, setShowAuth] = useState(false);
+    57→    57→  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+    58→    58→  // Only show init loader if there's a stored token to verify
+    59→    59→  const initializing = !!token && !isAuthenticated;
+    60→    60→
+    61→    61→  // Derive effective space from auth state
+    62→    62→  const effectiveSpace = isAuthenticated && user
+    63→    63→    ? (user.role === 'ADMIN'
+    64→    64→        ? currentSpace
+    65→    65→        : ({ CLIENT: 'client' as const, MERCHANT: 'merchant' as const, DRIVER: 'driver' as const, ADMIN: 'admin' as const })[user.role] || 'landing')
+    66→    66→    : currentSpace;
+    67→    67→
+    68→    68→  // Check session on mount when token exists
+    69→    69→  useEffect(() => {
+    70→    70→    if (!token) return;
+    71→    71→    let cancelled = false;
+    72→    72→    (async () => {
+    73→    73→      const { data, error } = await apiFetch<AuthUser>('/api/auth/me');
+    74→    74→      if (cancelled) return;
+    75→    75→      if (error || !data) {
+    76→    76→        logout();
+    77→    77→      } else {
+    78→    78→        login(data, token);
+    79→    79→        const spaceMap: Record<string, AppSpace> = {
+    80→    80→          CLIENT: 'client', MERCHANT: 'merchant', DRIVER: 'driver', ADMIN: 'admin',
+    81→    81→        };
+    82→    82→        setSpace(spaceMap[data.role] || 'landing');
+    83→    83→      }
+    84→    84→    })();
+    85→    85→    return () => { cancelled = true; };
+    86→    86→  }, []);
+    87→    87→
+    88→    88→  // Auto-switch space on login
+    89→    89→  useEffect(() => {
+    90→    90→    if (isAuthenticated && user) {
+    91→    91→      const spaceMap: Record<string, AppSpace> = {
+    92→    92→        CLIENT: 'client', MERCHANT: 'merchant', DRIVER: 'driver', ADMIN: 'admin',
+    93→    93→      };
+    94→    94→      setSpace(spaceMap[user.role] || 'landing');
+    95→    95→    }
+    96→    96→  }, [isAuthenticated, user?.id, setSpace]);
+    97→    97→
+    98→    98→  const handleLogin = useCallback(async (email: string, password: string) => {
+    99→    99→    const { data, error } = await apiFetch<{ user: AuthUser; token: string }>('/api/auth/login', {
+   100→   100→      method: 'POST',
+   101→   101→      body: JSON.stringify({ email, password }),
+   102→   102→    });
+   103→   103→    if (error) { toast.error(error); return false; }
+   104→   104→    if (data) {
+   105→   105→      login(data.user, data.token);
+   106→   106→      toast.success(`Bienvenue ${data.user.firstName} !`);
+   107→   107→      return true;
+   108→   108→    }
+   109→   109→    return false;
+   110→   110→  }, [login]);
+   111→   111→
+   112→   112→  const handleRegister = useCallback(async (formData: Record<string, string>) => {
+   113→   113→    const { data, error } = await apiFetch<{ user: AuthUser; token: string }>('/api/auth/register', {
+   114→   114→      method: 'POST',
+   115→   115→      body: JSON.stringify(formData),
+   116→   116→    });
+   117→   117→    if (error) { toast.error(error); return false; }
+   118→   118→    if (data) {
+   119→   119→      login(data.user, data.token);
+   120→   120→      toast.success('Compte créé avec succès !');
+   121→   121→      return true;
+   122→   122→    }
+   123→   123→    return false;
+   124→   124→  }, [login]);
+   125→   125→
+   126→   126→  const handleLogout = useCallback(() => {
+   127→   127→    logout();
+   128→   128→    setSpace('landing');
+   129→   129→  }, [logout, setSpace]);
+   130→   130→
+   131→   131→  // Initialization screen
+   132→   132→  if (initializing) {
+   133→   133→    return (
+   134→   134→      <div className="min-h-screen flex items-center justify-center bg-background">
+   135→   135→        <div className="flex flex-col items-center gap-4">
+   136→   136→          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-600/25">
+   137→   137→            <Truck className="w-7 h-7 text-white" />
+   138→   138→          </div>
+   139→   139→          <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+   140→   140→        </div>
+   141→   141→      </div>
+   142→   142→    );
+   143→   143→  }
+   144→   144→
+   145→   145→  // Authenticated space view
+   146→   146→  if (isAuthenticated && user && effectiveSpace !== 'landing') {
+   147→   147→    return (
+   148→   148→      <div className="h-screen flex flex-col overflow-hidden">
+   149→   149→        <TopBar user={user} onLogout={handleLogout} />
+   150→   150→        <div className="flex-1 min-h-0 overflow-hidden">
+   151→   151→          <AnimatePresence mode="wait">
+   152→   152→            <motion.div
+   153→   153→              key={effectiveSpace}
+   154→   154→              initial={{ opacity: 0, y: 10 }}
+   155→   155→              animate={{ opacity: 1, y: 0 }}
+   156→   156→              exit={{ opacity: 0, y: -10 }}
+   157→   157→              transition={{ duration: 0.2 }}
+   158→   158→              className="h-full"
+   159→   159→            >
+   160→   160→              <Suspense fallback={<SpaceLoader />}>
+   161→   161→                {effectiveSpace === 'admin' && <AdminApp />}
+   162→   162→                {effectiveSpace === 'client' && <ClientApp />}
+   163→   163→                {effectiveSpace === 'merchant' && <MerchantApp />}
+   164→   164→                {effectiveSpace === 'driver' && <DriverApp />}
+   165→   165→              </Suspense>
+   166→   166→            </motion.div>
+   167→   167→          </AnimatePresence>
+   168→   168→        </div>
+   169→   169→      </div>
+   170→   170→    );
+   171→   171→  }
+   172→   172→
+   173→   173→  // ============================================
+   174→   174→  // LANDING PAGE
+   175→   175→  // ============================================
+   176→   176→  return (
+   177→   177→    <div className="min-h-screen flex flex-col bg-background" suppressHydrationWarning>
+   178→   178→      {/* ── Navbar ── */}
+   179→   179→      <nav className="fixed top-0 left-0 right-0 z-50 glass-strong">
+   180→   180→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   181→   181→          <div className="flex items-center justify-between h-16">
+   182→   182→            <div className="flex items-center gap-2.5">
+   183→   183→              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center shadow-md shadow-emerald-600/20">
+   184→   184→                <Truck className="w-5 h-5 text-white" />
+   185→   185→              </div>
+   186→   186→              <span className="text-xl font-bold gradient-text">Rapigo</span>
+   187→   187→              <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] px-1.5 py-0 h-5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+   188→   188→                V2.0
+   189→   189→              </Badge>
+   190→   190→            </div>
+   191→   191→            <div className="flex items-center gap-2">
+   192→   192→              {mounted && (
+   193→   193→                <Button variant="ghost" size="icon" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="rounded-full">
+   194→   194→                  {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+   195→   195→                </Button>
+   196→   196→              )}
+   197→   197→              <Button
+   198→   198→                onClick={() => { setAuthTab('login'); setShowAuth(true); }}
+   199→   199→                className="rounded-full px-5 bg-emerald-600 hover:bg-emerald-700 text-white"
+   200→   200→              >
+   201→   201→                Connexion
+   202→   202→              </Button>
+   203→   203→              <Button
+   204→   204→                variant="outline"
+   205→   205→                onClick={() => { setAuthTab('register'); setShowAuth(true); }}
+   206→   206→                className="rounded-full px-5 hidden sm:flex border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+   207→   207→              >
+   208→   208→                Inscription
+   209→   209→              </Button>
+   210→   210→            </div>
+   211→   211→          </div>
+   212→   212→        </div>
+   213→   213→      </nav>
+   214→   214→
+   215→   215→      {/* ── Hero Section ── */}
+   216→   216→      <section className="relative pt-28 pb-20 sm:pt-36 sm:pb-28 overflow-hidden">
+   217→   217→        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/80 via-transparent to-amber-50/50 dark:from-emerald-950/20 dark:via-transparent dark:to-amber-950/10" />
+   218→   218→        <div className="absolute top-20 -right-32 w-[500px] h-[500px] bg-emerald-400/15 rounded-full blur-3xl" />
+   219→   219→        <div className="absolute bottom-0 -left-32 w-[400px] h-[400px] bg-amber-400/10 rounded-full blur-3xl" />
+   220→   220→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+   221→   221→          <motion.div
+   222→   222→            initial={{ opacity: 0, y: 24 }}
+   223→   223→            animate={{ opacity: 1, y: 0 }}
+   224→   224→            transition={{ duration: 0.6 }}
+   225→   225→            className="text-center max-w-4xl mx-auto"
+   226→   226→          >
+   227→   227→            <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-sm font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+   228→   228→              <Zap className="w-3.5 h-3.5 mr-1.5" />
+   229→   229→              La livraison N°1 au Mali
+   230→   230→            </Badge>
+   231→   231→            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 leading-[1.1]">
+   232→   232→              Tout livré
+   233→   233→              <span className="gradient-text"> chez vous</span>
+   234→   234→              <br />
+   235→   235→              en quelques minutes
+   236→   236→            </h1>
+   237→   237→            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+   238→   238→              Restaurants, supermarchés, pharmacies, boutiques et colis — Rapigo vous livre tout à Bamako, rapidement et en toute sécurité.
+   239→   239→            </p>
+   240→   240→            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+   241→   241→              <Button
+   242→   242→                size="lg"
+   243→   243→                className="rounded-full px-8 h-13 text-base font-semibold shadow-lg shadow-emerald-600/25 bg-emerald-600 hover:bg-emerald-700 text-white"
+   244→   244→                onClick={() => { setAuthTab('register'); setShowAuth(true); }}
+   245→   245→              >
+   246→   246→                Commander maintenant <ArrowRight className="w-4 h-4 ml-2" />
+   247→   247→              </Button>
+   248→   248→              <Button
+   249→   249→                size="lg"
+   250→   250→                variant="outline"
+   251→   251→                className="rounded-full px-8 h-13 text-base border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+   252→   252→                onClick={() => { setAuthTab('register'); setShowAuth(true); }}
+   253→   253→              >
+   254→   254→                Devenir livreur
+   255→   255→              </Button>
+   256→   256→            </div>
+   257→   257→          </motion.div>
+   258→   258→        </div>
+   259→   259→      </section>
+   260→   260→
+   261→   261→      {/* ── Feature Cards ── */}
+   262→   262→      <section className="py-20">
+   263→   263→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   264→   264→          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
+   265→   265→            <div className="text-center mb-14">
+   266→   266→              <h2 className="text-2xl sm:text-3xl font-bold mb-3">Pourquoi Rapigo ?</h2>
+   267→   267→              <p className="text-muted-foreground max-w-xl mx-auto">Une expérience de livraison pensée pour le Mali, avec des solutions de paiement locales.</p>
+   268→   268→            </div>
+   269→   269→            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+   270→   270→              {[
+   271→   271→                { icon: Clock, title: 'Livraison rapide', desc: 'En moyenne 30 minutes pour vos commandes alimentaires' },
+   272→   272→                { icon: Smartphone, title: 'Commande en ligne', desc: 'Interface simple pour passer vos commandes en quelques clics' },
+   273→   273→                { icon: CreditCard, title: 'Paiement mobile', desc: 'Orange Money, Moov Money, Wave, espèces et portefeuille' },
+   274→   274→                { icon: MapPin, title: 'Suivi GPS', desc: 'Suivez votre livreur en temps réel sur la carte' },
+   275→   275→              ].map((feat, i) => (
+   276→   276→                <motion.div
+   277→   277→                  key={feat.title}
+   278→   278→                  initial={{ opacity: 0, y: 20 }}
+   279→   279→                  whileInView={{ opacity: 1, y: 0 }}
+   280→   280→                  viewport={{ once: true }}
+   281→   281→                  transition={{ delay: i * 0.08 }}
+   282→   282→                >
+   283→   283→                  <Card className="h-full hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-border/50 group">
+   284→   284→                    <CardContent className="p-6">
+   285→   285→                      <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+   286→   286→                        <feat.icon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+   287→   287→                      </div>
+   288→   288→                      <h3 className="font-semibold mb-2">{feat.title}</h3>
+   289→   289→                      <p className="text-sm text-muted-foreground leading-relaxed">{feat.desc}</p>
+   290→   290→                    </CardContent>
+   291→   291→                  </Card>
+   292→   292→                </motion.div>
+   293→   293→              ))}
+   294→   294→            </div>
+   295→   295→          </motion.div>
+   296→   296→        </div>
+   297→   297→      </section>
+   298→   298→
+   299→   299→      {/* ── Business Types ── */}
+   300→   300→      <section className="py-20 bg-muted/40">
+   301→   301→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   302→   302→          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
+   303→   303→            <div className="text-center mb-14">
+   304→   304→              <h2 className="text-2xl sm:text-3xl font-bold mb-3">Que souhaitez-vous ?</h2>
+   305→   305→              <p className="text-muted-foreground max-w-xl mx-auto">Explorez nos catégories et trouvez ce dont vous avez besoin.</p>
+   306→   306→            </div>
+   307→   307→            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+   308→   308→              {[
+   309→   309→                { icon: UtensilsCrossed, label: 'Restaurants', desc: 'Plats délicieux', gradient: 'from-orange-500 to-red-500' },
+   310→   310→                { icon: ShoppingBag, label: 'Supermarchés', desc: 'Courses quotidiennes', gradient: 'from-emerald-500 to-green-600' },
+   311→   311→                { icon: Pill, label: 'Pharmacies', desc: 'Santé & bien-être', gradient: 'from-teal-500 to-cyan-500' },
+   312→   312→                { icon: Laptop, label: 'Électronique', desc: 'High-tech & gadgets', gradient: 'from-violet-500 to-purple-500' },
+   313→   313→                { icon: Package, label: 'Colis', desc: 'Envois & retraits', gradient: 'from-amber-500 to-yellow-500' },
+   314→   314→              ].map((cat, i) => (
+   315→   315→                <motion.div
+   316→   316→                  key={cat.label}
+   317→   317→                  initial={{ opacity: 0, y: 20 }}
+   318→   318→                  whileInView={{ opacity: 1, y: 0 }}
+   319→   319→                  viewport={{ once: true }}
+   320→   320→                  transition={{ delay: i * 0.08 }}
+   321→   321→                >
+   322→   322→                  <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-border/50 overflow-hidden">
+   323→   323→                    <CardContent className="p-5 text-center">
+   324→   324→                      <div className={`w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br ${cat.gradient} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
+   325→   325→                        <cat.icon className="w-7 h-7 text-white" />
+   326→   326→                      </div>
+   327→   327→                      <h3 className="font-semibold text-sm mb-1">{cat.label}</h3>
+   328→   328→                      <p className="text-xs text-muted-foreground">{cat.desc}</p>
+   329→   329→                    </CardContent>
+   330→   330→                  </Card>
+   331→   331→                </motion.div>
+   332→   332→              ))}
+   333→   333→            </div>
+   334→   334→          </motion.div>
+   335→   335→        </div>
+   336→   336→      </section>
+   337→   337→
+   338→   338→      {/* ── Trust / Stats Section ── */}
+   339→   339→      <section className="py-20">
+   340→   340→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   341→   341→          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+   342→   342→            {[
+   343→   343→              { icon: Users, label: 'Utilisateurs actifs', value: '10 000+' },
+   344→   344→              { icon: Store, label: 'Commerçants', value: '500+' },
+   345→   345→              { icon: Truck, label: 'Livreurs', value: '300+' },
+   346→   346→              { icon: Star, label: 'Note moyenne', value: '4.8/5' },
+   347→   347→            ].map((stat, i) => (
+   348→   348→              <motion.div
+   349→   349→                key={stat.label}
+   350→   350→                initial={{ opacity: 0, y: 16 }}
+   351→   351→                whileInView={{ opacity: 1, y: 0 }}
+   352→   352→                viewport={{ once: true }}
+   353→   353→                transition={{ delay: i * 0.08 }}
+   354→   354→              >
+   355→   355→                <Card className="text-center border-border/50">
+   356→   356→                  <CardContent className="p-6">
+   357→   357→                    <stat.icon className="w-7 h-7 mx-auto mb-3 text-emerald-600 dark:text-emerald-400" />
+   358→   358→                    <div className="text-2xl sm:text-3xl font-extrabold mb-1">{stat.value}</div>
+   359→   359→                    <div className="text-sm text-muted-foreground">{stat.label}</div>
+   360→   360→                  </CardContent>
+   361→   361→                </Card>
+   362→   362→              </motion.div>
+   363→   363→            ))}
+   364→   364→          </div>
+   365→   365→        </div>
+   366→   366→      </section>
+   367→   367→
+   368→   368→      {/* ── CTA / Download Section ── */}
+   369→   369→      <section className="py-20">
+   370→   370→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   371→   371→          <motion.div
+   372→   372→            initial={{ opacity: 0, y: 20 }}
+   373→   373→            whileInView={{ opacity: 1, y: 0 }}
+   374→   374→            viewport={{ once: true }}
+   375→   375→          >
+   376→   376→            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-emerald-600 to-emerald-700 dark:from-emerald-700 dark:to-emerald-900">
+   377→   377→              <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+   378→   378→              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+   379→   379→              <CardContent className="relative p-8 sm:p-12 text-center">
+   380→   380→                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+   381→   381→                  Prêt à simplifier vos livraisons ?
+   382→   382→                </h2>
+   383→   383→                <p className="text-emerald-100 max-w-xl mx-auto mb-8 leading-relaxed">
+   384→   384→                  Rejoignez des milliers de Maliens qui font confiance à Rapigo pour leurs livraisons quotidiennes.
+   385→   385→                </p>
+   386→   386→                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+   387→   387→                  <Button
+   388→   388→                    size="lg"
+   389→   389→                    className="rounded-full px-8 h-12 bg-white text-emerald-700 hover:bg-emerald-50 font-semibold shadow-lg"
+   390→   390→                    onClick={() => { setAuthTab('register'); setShowAuth(true); }}
+   391→   391→                  >
+   392→   392→                    Créer un compte gratuit <ChevronRight className="w-4 h-4 ml-1" />
+   393→   393→                  </Button>
+   394→   394→                  <Button
+   395→   395→                    size="lg"
+   396→   396→                    variant="outline"
+   397→   397→                    className="rounded-full px-8 h-12 border-white/30 text-white hover:bg-white/10 bg-transparent"
+   398→   398→                    onClick={() => { setAuthTab('login'); setShowAuth(true); }}
+   399→   399→                  >
+   400→   400→                    Se connecter
+   401→   401→                  </Button>
+   402→   402→                </div>
+   403→   403→              </CardContent>
+   404→   404→            </Card>
+   405→   405→          </motion.div>
+   406→   406→        </div>
+   407→   407→      </section>
+   408→   408→
+   409→   409→      {/* ── Footer ── */}
+   410→   410→      <footer className="py-10 border-t bg-card/50 mt-auto">
+   411→   411→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   412→   412→          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+   413→   413→            <div className="flex items-center gap-2.5">
+   414→   414→              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center">
+   415→   415→                <Truck className="w-4 h-4 text-white" />
+   416→   416→              </div>
+   417→   417→              <span className="font-bold gradient-text">Rapigo Mali</span>
+   418→   418→            </div>
+   419→   419→            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+   420→   420→              <span className="flex items-center gap-1"><Leaf className="w-3.5 h-3.5" /> Éco-responsable</span>
+   421→   421→              <Separator orientation="vertical" className="h-4" />
+   422→   422→              <span className="flex items-center gap-1"><Shield className="w-3.5 h-3.5" /> Paiements sécurisés</span>
+   423→   423→            </div>
+   424→   424→            <p className="text-sm text-muted-foreground">
+   425→   425→              &copy; {new Date().getFullYear()} Rapigo Mali. Tous droits réservés.
+   426→   426→            </p>
+   427→   427→          </div>
+   428→   428→        </div>
+   429→   429→      </footer>
+   430→   430→
+   431→   431→      {/* ── Auth Dialog ── */}
+   432→   432→      <AuthDialog
+   433→   433→        open={showAuth}
+   434→   434→        onOpenChange={setShowAuth}
+   435→   435→        defaultTab={authTab}
+   436→   436→        onTabChange={setAuthTab}
+   437→   437→        onLogin={handleLogin}
+   438→   438→        onRegister={handleRegister}
+   439→   439→      />
+   440→   440→    </div>
+   441→   441→  );
+   442→   442→}
+   443→   443→
+   444→   444→// ============================================
+   445→   445→// TOP BAR (authenticated)
+   446→   446→// ============================================
+   447→   447→function TopBar({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
+   448→   448→  const { theme, setTheme } = useTheme();
+   449→   449→  const { currentSpace, setSpace } = useSpaceStore();
+   450→   450→  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+   451→   451→
+   452→   452→  const spaceItems: { space: AppSpace; label: string; icon: React.ElementType; roles: string[] }[] = [
+   453→   453→    { space: 'client', label: 'Client', icon: User, roles: ['CLIENT', 'ADMIN'] },
+   454→   454→    { space: 'merchant', label: 'Commerçant', icon: Store, roles: ['MERCHANT', 'ADMIN'] },
+   455→   455→    { space: 'driver', label: 'Livreur', icon: Truck, roles: ['DRIVER', 'ADMIN'] },
+   456→   456→    { space: 'admin', label: 'Admin', icon: ShieldCheck, roles: ['ADMIN'] },
+   457→   457→  ];
+   458→   458→
+   459→   459→  const visibleSpaces = spaceItems.filter((s) => s.roles.includes(user.role));
+   460→   460→
+   461→   461→  return (
+   462→   462→    <header className="shrink-0 glass-strong border-b">
+   463→   463→      <div className="flex items-center justify-between h-14 px-4 max-w-full">
+   464→   464→        <div className="flex items-center gap-3">
+   465→   465→          <button onClick={() => { onLogout(); }} className="flex items-center gap-2 hover:opacity-80 transition">
+   466→   466→            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center">
+   467→   467→              <Truck className="w-4 h-4 text-white" />
+   468→   468→            </div>
+   469→   469→            <span className="text-lg font-bold gradient-text hidden sm:inline">Rapigo</span>
+   470→   470→          </button>
+   471→   471→          {visibleSpaces.length > 1 && (
+   472→   472→            <div className="flex items-center bg-muted/80 rounded-lg p-0.5 gap-0.5">
+   473→   473→              {visibleSpaces.map((s) => (
+   474→   474→                <button
+   475→   475→                  key={s.space}
+   476→   476→                  onClick={() => setSpace(s.space)}
+   477→   477→                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+   478→   478→                    currentSpace === s.space
+   479→   479→                      ? 'bg-card shadow-sm text-foreground'
+   480→   480→                      : 'text-muted-foreground hover:text-foreground'
+   481→   481→                  }`}
+   482→   482→                >
+   483→   483→                  <s.icon className="w-3.5 h-3.5" />
+   484→   484→                  <span className="hidden sm:inline">{s.label}</span>
+   485→   485→                </button>
+   486→   486→              ))}
+   487→   487→            </div>
+   488→   488→          )}
+   489→   489→        </div>
+   490→   490→        <div className="flex items-center gap-2">
+   491→   491→          {mounted && (
+   492→   492→            <Button variant="ghost" size="icon" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="rounded-full h-8 w-8">
+   493→   493→              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+   494→   494→            </Button>
+   495→   495→          )}
+   496→   496→          <Separator orientation="vertical" className="h-6" />
+   497→   497→          <div className="flex items-center gap-2">
+   498→   498→            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center text-white text-xs font-bold">
+   499→   499→              {user.firstName[0]}{user.lastName[0]}
+   500→   500→            </div>
+   501→   501→            <span className="text-sm font-medium hidden md:inline">{user.firstName}</span>
+   502→   502→            <Button variant="ghost" size="icon" onClick={onLogout} className="rounded-full h-8 w-8 text-muted-foreground hover:text-destructive">
+   503→   503→              <LogOut className="w-4 h-4" />
+   504→   504→            </Button>
+   505→   505→          </div>
+   506→   506→        </div>
+   507→   507→      </div>
+   508→   508→    </header>
+   509→   509→  );
+   510→   510→}
+   511→   511→
+   512→   512→// ============================================
+   513→   513→// AUTH DIALOG
+   514→   514→// ============================================
+   515→   515→function AuthDialog({
+   516→   516→  open, onOpenChange, defaultTab, onTabChange, onLogin, onRegister,
+   517→   517→}: {
+   518→   518→  open: boolean;
+   519→   519→  onOpenChange: (v: boolean) => void;
+   520→   520→  defaultTab: 'login' | 'register';
+   521→   521→  onTabChange: (t: 'login' | 'register') => void;
+   522→   522→  onLogin: (email: string, password: string) => Promise<boolean>;
+   523→   523→  onRegister: (data: Record<string, string>) => Promise<boolean>;
+   524→   524→}) {
+   525→   525→  const [loading, setLoading] = useState(false);
+   526→   526→  const [showPass, setShowPass] = useState(false);
+   527→   527→  const [showRegPass, setShowRegPass] = useState(false);
+   528→   528→  const [loginError, setLoginError] = useState('');
+   529→   529→  const [regError, setRegError] = useState('');
+   530→   530→  const [regRole, setRegRole] = useState('CLIENT');
+   531→   531→
+   532→   532→  const handleLoginSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+   533→   533→    e.preventDefault();
+   534→   534→    setLoginError('');
+   535→   535→    const fd = new FormData(e.currentTarget);
+   536→   536→    const email = (fd.get('email') as string)?.trim();
+   537→   537→    const password = fd.get('password') as string;
+   538→   538→
+   539→   539→    if (!email || !email.includes('@')) { setLoginError('Veuillez entrer un email valide.'); return; }
+   540→   540→    if (!password || password.length < 6) { setLoginError('Le mot de passe doit contenir au moins 6 caractères.'); return; }
+   541→   541→
+   542→   542→    setLoading(true);
+   543→   543→    const ok = await onLogin(email, password);
+   544→   544→    setLoading(false);
+   545→   545→    if (ok) onOpenChange(false);
+   546→   546→  };
+   547→   547→
+   548→   548→  const handleRegisterSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+   549→   549→    e.preventDefault();
+   550→   550→    setRegError('');
+   551→   551→    const fd = new FormData(e.currentTarget);
+   552→   552→    const data: Record<string, string> = {};
+   553→   553→    fd.forEach((v, k) => { if (typeof v === 'string') data[k] = v.trim(); });
+   554→   554→
+   555→   555→    if (!data.firstName || data.firstName.length < 2) { setRegError('Le prénom est requis (min. 2 caractères).'); return; }
+   556→   556→    if (!data.lastName || data.lastName.length < 2) { setRegError('Le nom est requis (min. 2 caractères).'); return; }
+   557→   557→    if (!data.email || !data.email.includes('@')) { setRegError('Veuillez entrer un email valide.'); return; }
+   558→   558→    if (!data.phone || data.phone.length < 8) { setRegError('Veuillez entrer un numéro de téléphone valide.'); return; }
+   559→   559→    if (!data.password || data.password.length < 6) { setRegError('Le mot de passe doit contenir au moins 6 caractères.'); return; }
+   560→   560→
+   561→   561→    data.role = regRole;
+   562→   562→
+   563→   563→    setLoading(true);
+   564→   564→    const ok = await onRegister(data);
+   565→   565→    setLoading(false);
+   566→   566→    if (ok) onOpenChange(false);
+   567→   567→  };
+   568→   568→
+   569→   569→  return (
+   570→   570→    <Dialog open={open} onOpenChange={onOpenChange}>
+   571→   571→      <DialogContent className="sm:max-w-md mx-4 max-h-[90vh] overflow-y-auto scrollbar-thin">
+   572→   572→        <DialogHeader className="text-center">
+   573→   573→          <div className="flex justify-center mb-2">
+   574→   574→            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-600/20">
+   575→   575→              <Truck className="w-6 h-6 text-white" />
+   576→   576→            </div>
+   577→   577→          </div>
+   578→   578→          <DialogTitle className="text-xl gradient-text">Rapigo Mali</DialogTitle>
+   579→   579→          <DialogDescription>La livraison rapide à Bamako</DialogDescription>
+   580→   580→        </DialogHeader>
+   581→   581→
+   582→   582→        <Tabs
+   583→   583→          defaultValue={defaultTab}
+   584→   584→          onValueChange={(v) => { onTabChange(v as 'login' | 'register'); setLoginError(''); setRegError(''); }}
+   585→   585→        >
+   586→   586→          <TabsList className="grid w-full grid-cols-2 mb-4">
+   587→   587→            <TabsTrigger value="login">Connexion</TabsTrigger>
+   588→   588→            <TabsTrigger value="register">Inscription</TabsTrigger>
+   589→   589→          </TabsList>
+   590→   590→
+   591→   591→          {/* ── Login Tab ── */}
+   592→   592→          <TabsContent value="login">
+   593→   593→            <form onSubmit={handleLoginSubmit} className="space-y-4">
+   594→   594→              {loginError && (
+   595→   595→                <div className="rounded-lg bg-destructive/10 text-destructive text-sm px-4 py-2.5 border border-destructive/20">
+   596→   596→                  {loginError}
+   597→   597→                </div>
+   598→   598→              )}
+   599→   599→              <div className="space-y-2">
+   600→   600→                <Label htmlFor="login-email">Email</Label>
+   601→   601→                <div className="relative">
+   602→   602→                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   603→   603→                  <Input id="login-email" name="email" type="email" placeholder="votre@email.com" className="pl-10" required />
+   604→   604→                </div>
+   605→   605→              </div>
+   606→   606→              <div className="space-y-2">
+   607→   607→                <Label htmlFor="login-password">Mot de passe</Label>
+   608→   608→                <div className="relative">
+   609→   609→                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   610→   610→                  <Input id="login-password" name="password" type={showPass ? 'text' : 'password'} placeholder="••••••••" className="pl-10 pr-10" required />
+   611→   611→                  <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+   612→   612→                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+   613→   613→                  </button>
+   614→   614→                </div>
+   615→   615→              </div>
+   616→   616→              <Button type="submit" className="w-full rounded-xl h-11 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={loading}>
+   617→   617→                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Se connecter'}
+   618→   618→              </Button>
+   619→   619→            </form>
+   620→   620→          </TabsContent>
+   621→   621→
+   622→   622→          {/* ── Register Tab ── */}
+   623→   623→          <TabsContent value="register">
+   624→   624→            <form onSubmit={handleRegisterSubmit} className="space-y-3">
+   625→   625→              {regError && (
+   626→   626→                <div className="rounded-lg bg-destructive/10 text-destructive text-sm px-4 py-2.5 border border-destructive/20">
+   627→   627→                  {regError}
+   628→   628→                </div>
+   629→   629→              )}
+   630→   630→              <div className="grid grid-cols-2 gap-3">
+   631→   631→                <div className="space-y-1.5">
+   632→   632→                  <Label htmlFor="reg-first">Prénom</Label>
+   633→   633→                  <Input id="reg-first" name="firstName" placeholder="Prénom" required />
+   634→   634→                </div>
+   635→   635→                <div className="space-y-1.5">
+   636→   636→                  <Label htmlFor="reg-last">Nom</Label>
+   637→   637→                  <Input id="reg-last" name="lastName" placeholder="Nom" required />
+   638→   638→                </div>
+   639→   639→              </div>
+   640→   640→              <div className="space-y-1.5">
+   641→   641→                <Label htmlFor="reg-email">Email</Label>
+   642→   642→                <Input id="reg-email" name="email" type="email" placeholder="votre@email.com" required />
+   643→   643→              </div>
+   644→   644→              <div className="space-y-1.5">
+   645→   645→                <Label htmlFor="reg-phone">Téléphone</Label>
+   646→   646→                <div className="relative">
+   647→   647→                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   648→   648→                  <Input id="reg-phone" name="phone" type="tel" placeholder="+223 7X XX XX XX" className="pl-10" required />
+   649→   649→                </div>
+   650→   650→              </div>
+   651→   651→              <div className="space-y-1.5">
+   652→   652→                <Label htmlFor="reg-password">Mot de passe</Label>
+   653→   653→                <div className="relative">
+   654→   654→                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   655→   655→                  <Input id="reg-password" name="password" type={showRegPass ? 'text' : 'password'} placeholder="Min. 6 caractères" className="pl-10 pr-10" required minLength={6} />
+   656→   656→                  <button type="button" onClick={() => setShowRegPass(!showRegPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+   657→   657→                    {showRegPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+   658→   658→                  </button>
+   659→   659→                </div>
+   660→   660→              </div>
+   661→   661→              <div className="space-y-1.5">
+   662→   662→                <Label>Je suis</Label>
+   663→   663→                <Select value={regRole} onValueChange={setRegRole}>
+   664→   664→                  <SelectTrigger className="w-full">
+   665→   665→                    <SelectValue placeholder="Choisir un rôle" />
+   666→   666→                  </SelectTrigger>
+   667→   667→                  <SelectContent>
+   668→   668→                    <SelectItem value="CLIENT">
+   669→   669→                      <span className="flex items-center gap-2"><User className="w-3.5 h-3.5" /> Un client</span>
+   670→   670→                    </SelectItem>
+   671→   671→                    <SelectItem value="MERCHANT">
+   672→   672→                      <span className="flex items-center gap-2"><Store className="w-3.5 h-3.5" /> Un commerçant</span>
+   673→   673→                    </SelectItem>
+   674→   674→                    <SelectItem value="DRIVER">
+   675→   675→                      <span className="flex items-center gap-2"><Truck className="w-3.5 h-3.5" /> Un livreur</span>
+   676→   676→                    </SelectItem>
+   677→   677→                  </SelectContent>
+   678→   678→                </Select>
+   679→   679→              </div>
+   680→   680→              <Button type="submit" className="w-full rounded-xl h-11 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={loading}>
+   681→   681→                {loading
+   682→   682→                  ? <Loader2 className="w-4 h-4 animate-spin" />
+   683→   683→                  : <><UserPlus className="w-4 h-4 mr-2" />Créer mon compte</>
+   684→   684→                }
+   685→   685→              </Button>
+   686→   686→            </form>
+   687→   687→          </TabsContent>
+   688→   688→        </Tabs>
+   689→   689→      </DialogContent>
+   690→   690→    </Dialog>
+   691→   691→  );
+   692→   692→}

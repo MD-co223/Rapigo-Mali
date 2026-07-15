@@ -41,10 +41,10 @@ async function main() {
   // ============================================
   // SUPER ADMINISTRATOR
   // ============================================
-  const adminPassword = await bcrypt.hash('Rapigo@Admin2024!', 12);
+  const adminPassword = await bcrypt.hash('pispa2026', 12);
   const admin = await prisma.user.create({
     data: {
-      email: 'admin@rapigo.ml',
+      email: 'diarramoussaka7@gmail.com',
       phone: '+22370000000',
       password: adminPassword,
       firstName: 'Super',
@@ -221,8 +221,8 @@ async function main() {
   }
   console.log(`✅ ${cities.length} cities configured`);
 
-  console.log('\n🎉 Rapigo Mali V2.0 seeded successfully!');
-  console.log('📧 Admin: admin@rapigo.ml');
+  console.log('\n🎉 Rapigo Mali V2.1 seeded successfully!');
+  console.log('📧 Admin: diarramoussaka7@gmail.com');
   console.log('🔑 All other data is empty — ready for real data entry.');
 }
 

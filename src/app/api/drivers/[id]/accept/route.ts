@@ -53,7 +53,7 @@ export async function POST(
       include: {
         client: { include: { user: true } },
         merchant: { select: { id: true, businessName: true, userId: true } },
-        driver: { include: { user: { select: { firstName: true, lastName: true, phone: true, avatar: true, vehicleType: true, vehiclePlate: true } } } },
+        driver: { include: { user: { select: { firstName: true, lastName: true, phone: true, avatar: true } } } },
       },
     });
 

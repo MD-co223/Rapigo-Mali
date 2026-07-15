@@ -96,7 +96,7 @@ function createNavStore<T extends string>(defaultView: T) {
 
 export const useClientNav = createNavStore<ClientView>('home');
 
-export type MerchantView = 'dashboard' | 'products' | 'add-product' | 'orders' | 'order-detail' | 'stats' | 'marketing' | 'billing' | 'settings' | 'payment-config' | 'delivery-zones' | 'subscription' | 'chat' | 'support' | 'notifications' | 'profile';
+export type MerchantView = 'dashboard' | 'products' | 'add-product' | 'orders' | 'order-detail' | 'stats' | 'marketing' | 'billing' | 'settings' | 'payment-config' | 'delivery-zones' | 'subscription' | 'chat' | 'support' | 'notifications' | 'profile' | 'coupons';
 export const useMerchantNav = createNavStore<MerchantView>('dashboard');
 
 export type DriverView = 'home' | 'ride' | 'navigation' | 'history' | 'earnings' | 'ratings' | 'wallet' | 'support' | 'profile' | 'notifications' | 'chat' | 'documents';

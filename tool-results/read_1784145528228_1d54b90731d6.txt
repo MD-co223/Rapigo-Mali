@@ -1,0 +1,2002 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import React, { useState, useEffect, useCallback } from 'react';
+     4→     4→import {
+     5→     5→  LayoutDashboard, Package, PlusCircle, ShoppingBag, MapPin,
+     6→     6→  CreditCard, Crown, User, Bell, LogOut, Menu, X, ChevronLeft,
+     7→     7→  Search, Edit, Trash2, Eye, Star, Clock, DollarSign, TrendingUp,
+     8→     8→  Loader2, AlertCircle, ImagePlus, Send, MessageSquare, Phone,
+     9→     9→  Mail, Globe, Map, ArrowRight, Check, ExternalLink, ChevronDown,
+    10→    10→  RefreshCw, Store, Settings, Copy, Plus, Minus, FileText, File, ChevronUp,
+    11→    11→} from 'lucide-react';
+    12→    12→import { Button } from '@/components/ui/button';
+    13→    13→import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+    14→    14→import { Input } from '@/components/ui/input';
+    15→    15→import { Badge } from '@/components/ui/badge';
+    16→    16→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+    17→    17→import { Textarea } from '@/components/ui/textarea';
+    18→    18→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+    19→    19→import { Separator } from '@/components/ui/separator';
+    20→    20→import { Label } from '@/components/ui/label';
+    21→    21→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    22→    22→import { Switch } from '@/components/ui/switch';
+    23→    23→import { Checkbox } from '@/components/ui/checkbox';
+    24→    24→import {
+    25→    25→  useMerchantNav, useAuthStore, useSpaceStore,
+    26→    26→  apiFetch, formatPrice,
+    27→    27→  ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
+    28→    28→  PAYMENT_STATUS_LABELS, PAYMENT_METHODS,
+    29→    29→  BUSINESS_TYPES,
+    30→    30→} from '@/lib/store';
+    31→    31→import type { MerchantView } from '@/lib/store';
+    32→    32→
+    33→    33→// ─── Types ───────────────────────────────────────────────────────────────
+    34→    34→
+    35→    35→interface MerchantProfile {
+    36→    36→  id: string;
+    37→    37→  businessName: string;
+    38→    38→  businessType: string;
+    39→    39→  description: string;
+    40→    40→  shortDescription: string;
+    41→    41→  logo: string;
+    42→    42→  coverImage: string;
+    43→    43→  address: string;
+    44→    44→  city: string;
+    45→    45→  quartier: string;
+    46→    46→  phone: string;
+    47→    47→  email: string;
+    48→    48→  website: string;
+    49→    49→  operatingHours: string;
+    50→    50→  isApproved: boolean;
+    51→    51→  isFeatured: boolean;
+    52→    52→  rating: number;
+    53→    53→  totalRatings: number;
+    54→    54→  commissionRate: number;
+    55→    55→  minOrderAmount: number;
+    56→    56→}
+    57→    57→
+    58→    58→interface Product {
+    59→    59→  id: string;
+    60→    60→  merchantId: string;
+    61→    61→  categoryId: string | null;
+    62→    62→  name: string;
+    63→    63→  slug: string;
+    64→    64→  shortDescription: string | null;
+    65→    65→  longDescription: string | null;
+    66→    66→  price: number;
+    67→    67→  comparePrice: number | null;
+    68→    68→  currency: string;
+    69→    69→  image: string | null;
+    70→    70→  images: string | null;
+    71→    71→  video: string | null;
+    72→    72→  sku: string | null;
+    73→    73→  barcode: string | null;
+    74→    74→  weight: string | null;
+    75→    75→  dimensions: string | null;
+    76→    76→  variants: string | null;
+    77→    77→  options: string | null;
+    78→    78→  supplements: string | null;
+    79→    79→  allergens: string | null;
+    80→    80→  tags: string | null;
+    81→    81→  brand: string | null;
+    82→    82→  origin: string | null;
+    83→    83→  stock: number;
+    84→    84→  isAvailable: boolean;
+    85→    85→  isFeatured: boolean;
+    86→    86→  preparationTime: number | null;
+    87→    87→  rating: number;
+    88→    88→  totalSold: number;
+    89→    89→  createdAt: string;
+    90→    90→  updatedAt: string;
+    91→    91→  category?: { id: string; name: string } | null;
+    92→    92→}
+    93→    93→
+    94→    94→interface OrderItem {
+    95→    95→  id: string;
+    96→    96→  productId: string;
+    97→    97→  productName: string;
+    98→    98→  productImage: string | null;
+    99→    99→  quantity: number;
+   100→   100→  unitPrice: number;
+   101→   101→  totalPrice: number;
+   102→   102→  variants: string | null;
+   103→   103→  supplements: string | null;
+   104→   104→  notes: string | null;
+   105→   105→}
+   106→   106→
+   107→   107→interface Order {
+   108→   108→  id: string;
+   109→   109→  orderNumber: string;
+   110→   110→  clientId: string;
+   111→   111→  merchantId: string;
+   112→   112→  driverId: string | null;
+   113→   113→  status: string;
+   114→   114→  subtotal: number;
+   115→   115→  deliveryFee: number;
+   116→   116→  serviceFee: number;
+   117→   117→  discount: number;
+   118→   118→  total: number;
+   119→   119→  currency: string;
+   120→   120→  paymentMethod: string;
+   121→   121→  paymentStatus: string;
+   122→   122→  paymentProof: string | null;
+   123→   123→  paymentNote: string | null;
+   124→   124→  deliveryAddress: string;
+   125→   125→  deliveryCity: string;
+   126→   126→  deliveryQuartier: string | null;
+   127→   127→  notes: string | null;
+   128→   128→  estimatedTime: number | null;
+   129→   129→  createdAt: string;
+   130→   130→  updatedAt: string;
+   131→   131→  items: OrderItem[];
+   132→   132→  client?: { id: string; firstName: string; lastName: string; phone: string } | null;
+   133→   133→  driver?: { id: string; firstName: string; lastName: string; phone: string; vehicleType: string; vehiclePlate: string } | null;
+   134→   134→}
+   135→   135→
+   136→   136→interface DeliveryZone {
+   137→   137→  id: string;
+   138→   138→  merchantId: string;
+   139→   139→  city: string;
+   140→   140→  quartier: string | null;
+   141→   141→  fee: number;
+   142→   142→  currency: string;
+   143→   143→  isActive: boolean;
+   144→   144→}
+   145→   145→
+   146→   146→interface PaymentConfig {
+   147→   147→  id: string;
+   148→   148→  merchantId: string;
+   149→   149→  method: string;
+   150→   150→  isEnabled: boolean;
+   151→   151→  phoneNumber: string | null;
+   152→   152→  accountName: string | null;
+   153→   153→  accountNumber: string | null;
+   154→   154→  qrCode: string | null;
+   155→   155→  instructions: string | null;
+   156→   156→}
+   157→   157→
+   158→   158→interface Plan {
+   159→   159→  id: string;
+   160→   160→  name: string;
+   161→   161→  slug: string;
+   162→   162→  price: number;
+   163→   163→  currency: string;
+   164→   164→  duration: number;
+   165→   165→  features: string | null;
+   166→   166→  maxProducts: number | null;
+   167→   167→  maxOrders: number | null;
+   168→   168→  maxCoupons: number | null;
+   169→   169→  priority: number;
+   170→   170→  isActive: boolean;
+   171→   171→}
+   172→   172→
+   173→   173→interface Category {
+   174→   174→  id: string;
+   175→   175→  name: string;
+   176→   176→  slug: string;
+   177→   177→}
+   178→   178→
+   179→   179→interface MerchantStats {
+   180→   180→  activeProducts: number;
+   181→   181→  ordersToday: number;
+   182→   182→  monthlyRevenue: number;
+   183→   183→  averageRating: number;
+   184→   184→  recentOrders: Order[];
+   185→   185→}
+   186→   186→
+   187→   187→// ─── Nav Items ───────────────────────────────────────────────────────────
+   188→   188→
+   189→   189→const NAV_ITEMS: { view: MerchantView; label: string; icon: React.ElementType }[] = [
+   190→   190→  { view: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+   191→   191→  { view: 'products', label: 'Produits', icon: Package },
+   192→   192→  { view: 'add-product', label: 'Ajouter un produit', icon: PlusCircle },
+   193→   193→  { view: 'orders', label: 'Commandes', icon: ShoppingBag },
+   194→   194→  { view: 'delivery-zones', label: 'Zones de livraison', icon: MapPin },
+   195→   195→  { view: 'payment-config', label: 'Configuration paiement', icon: CreditCard },
+   196→   196→  { view: 'subscription', label: 'Abonnement', icon: Crown },
+   197→   197→  { view: 'profile', label: 'Profil', icon: User },
+   198→   198→];
+   199→   199→
+   200→   200→const ORDER_TABS = [
+   201→   201→  { value: 'new', label: 'Nouvelles', statuses: ['PENDING', 'PAYMENT_PENDING'] },
+   202→   202→  { value: 'preparing', label: 'En préparation', statuses: ['CONFIRMED', 'PREPARING'] },
+   203→   203→  { value: 'ready', label: 'Prêtes', statuses: ['READY', 'ASSIGNED'] },
+   204→   204→  { value: 'transit', label: 'En livraison', statuses: ['PICKED_UP', 'IN_TRANSIT'] },
+   205→   205→  { value: 'completed', label: 'Terminées', statuses: ['DELIVERED'] },
+   206→   206→  { value: 'all', label: 'Toutes', statuses: [] },
+   207→   207→];
+   208→   208→
+   209→   209→const PAYMENT_METHOD_LIST = ['CASH', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE', 'VISA', 'MASTERCARD', 'QR_CODE'];
+   210→   210→
+   211→   211→const STATUS_FLOW: Record<string, string[]> = {
+   212→   212→  PENDING: ['CONFIRMED', 'CANCELLED'],
+   213→   213→  PAYMENT_PENDING: [],
+   214→   214→  CONFIRMED: ['PREPARING', 'CANCELLED'],
+   215→   215→  PREPARING: ['READY'],
+   216→   216→  READY: [],
+   217→   217→  ASSIGNED: [],
+   218→   218→  PICKED_UP: [],
+   219→   219→  IN_TRANSIT: [],
+   220→   220→  DELIVERED: [],
+   221→   221→  CANCELLED: [],
+   222→   222→  REFUNDED: [],
+   223→   223→};
+   224→   224→
+   225→   225→// ─── Main Component ──────────────────────────────────────────────────────
+   226→   226→
+   227→   227→export default function MerchantApp() {
+   228→   228→  const { view, data, navigate } = useMerchantNav();
+   229→   229→  const { user, logout: authLogout } = useAuthStore();
+   230→   230→  const setSpace = useSpaceStore((s) => s.setSpace);
+   231→   231→
+   232→   232→  const [merchant, setMerchant] = useState<MerchantProfile | null>(null);
+   233→   233→  const [loading, setLoading] = useState(true);
+   234→   234→  const [error, setError] = useState<string | null>(null);
+   235→   235→  const [sidebarOpen, setSidebarOpen] = useState(false);
+   236→   236→
+   237→   237→  const fetchMerchant = useCallback(async () => {
+   238→   238→    setLoading(true);
+   239→   239→    setError(null);
+   240→   240→    const res = await apiFetch<MerchantProfile>('/api/merchants/me');
+   241→   241→    if (res.error || !res.data) {
+   242→   242→      setError(res.error || 'Impossible de charger le profil');
+   243→   243→      setLoading(false);
+   244→   244→      return;
+   245→   245→    }
+   246→   246→    setMerchant(res.data);
+   247→   247→    setLoading(false);
+   248→   248→  }, []);
+   249→   249→
+   250→   250→  useEffect(() => {
+   251→   251→    // eslint-disable-next-line react-hooks/set-state-in-effect
+   252→   252→    fetchMerchant();
+   253→   253→  }, [fetchMerchant]);
+   254→   254→
+   255→   255→  const handleLogout = () => {
+   256→   256→    authLogout();
+   257→   257→    setSpace('landing');
+   258→   258→  };
+   259→   259→
+   260→   260→  // ─── Waiting for approval ─────────────────────────────────────────
+   261→   261→  if (loading) {
+   262→   262→    return (
+   263→   263→      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+   264→   264→        <div className="flex flex-col items-center gap-4">
+   265→   265→          <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+   266→   266→          <p className="text-gray-600 text-sm">Chargement de votre espace...</p>
+   267→   267→        </div>
+   268→   268→      </div>
+   269→   269→    );
+   270→   270→  }
+   271→   271→
+   272→   272→  if (error) {
+   273→   273→    return (
+   274→   274→      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+   275→   275→        <div className="flex flex-col items-center gap-4 max-w-md text-center px-4">
+   276→   276→          <AlertCircle className="h-12 w-12 text-red-500" />
+   277→   277→          <h2 className="text-xl font-semibold text-gray-900">Erreur de chargement</h2>
+   278→   278→          <p className="text-gray-600 text-sm">{error}</p>
+   279→   279→          <Button onClick={handleLogout} variant="outline">Se déconnecter</Button>
+   280→   280→        </div>
+   281→   281→      </div>
+   282→   282→    );
+   283→   283→  }
+   284→   284→
+   285→   285→  if (!merchant) return null;
+   286→   286→
+   287→   287→  if (!merchant.isApproved) {
+   288→   288→    return (
+   289→   289→      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+   290→   290→        <Card className="max-w-lg w-full">
+   291→   291→          <CardContent className="flex flex-col items-center text-center gap-6 pt-2">
+   292→   292→            <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center">
+   293→   293→              <Clock className="h-10 w-10 text-amber-600" />
+   294→   294→            </div>
+   295→   295→            <div>
+   296→   296→              <h1 className="text-2xl font-bold text-gray-900">En attente d'approbation</h1>
+   297→   297→              <p className="text-gray-600 mt-2">
+   298→   298→                Votre compte marchand <span className="font-semibold text-emerald-700">{merchant.businessName}</span> a été
+   299→   299→                soumis avec succès. Un administrateur doit examiner et approuver votre compte avant que vous puissiez
+   300→   300→                accéder au tableau de bord.
+   301→   301→              </p>
+   302→   302→            </div>
+   303→   303→            <Separator className="w-full" />
+   304→   304→            <div className="w-full text-left space-y-3">
+   305→   305→              <div className="flex justify-between text-sm">
+   306→   306→                <span className="text-gray-500">Type d'activité</span>
+   307→   307→                <span className="font-medium">{BUSINESS_TYPES[merchant.businessType] || merchant.businessType}</span>
+   308→   308→              </div>
+   309→   309→              <div className="flex justify-between text-sm">
+   310→   310→                <span className="text-gray-500">Téléphone</span>
+   311→   311→                <span className="font-medium">{merchant.phone}</span>
+   312→   312→              </div>
+   313→   313→              <div className="flex justify-between text-sm">
+   314→   314→                <span className="text-gray-500">Ville</span>
+   315→   315→                <span className="font-medium">{merchant.city}</span>
+   316→   316→              </div>
+   317→   317→              {merchant.email && (
+   318→   318→                <div className="flex justify-between text-sm">
+   319→   319→                  <span className="text-gray-500">Email</span>
+   320→   320→                  <span className="font-medium">{merchant.email}</span>
+   321→   321→                </div>
+   322→   322→              )}
+   323→   323→            </div>
+   324→   324→            <Separator className="w-full" />
+   325→   325→            <div className="flex items-center gap-2 text-sm text-gray-500">
+   326→   326→              <Loader2 className="h-4 w-4 animate-spin" />
+   327→   327→              <span>Veuillez patienter, l'approbation peut prendre jusqu'à 24 heures.</span>
+   328→   328→            </div>
+   329→   329→            <div className="flex gap-3">
+   330→   330→              <Button variant="outline" onClick={fetchMerchant}>
+   331→   331→                <RefreshCw className="h-4 w-4 mr-2" />
+   332→   332→                Actualiser
+   333→   333→              </Button>
+   334→   334→              <Button variant="ghost" onClick={handleLogout}>
+   335→   335→                <LogOut className="h-4 w-4 mr-2" />
+   336→   336→                Se déconnecter
+   337→   337→              </Button>
+   338→   338→            </div>
+   339→   339→          </CardContent>
+   340→   340→        </Card>
+   341→   341→      </div>
+   342→   342→    );
+   343→   343→  }
+   344→   344→
+   345→   345→  // ─── Approved: render app ─────────────────────────────────────────
+   346→   346→  return (
+   347→   347→    <div className="min-h-screen flex bg-gray-50">
+   348→   348→      {/* Desktop Sidebar */}
+   349→   349→      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-white border-r border-gray-200 z-30">
+   350→   350→        <div className="flex items-center h-16 px-6 border-b border-gray-200">
+   351→   351→          <Store className="h-7 w-7 text-emerald-600 mr-3" />
+   352→   352→          <span className="text-lg font-bold text-emerald-700 truncate">Rapigo Marchand</span>
+   353→   353→        </div>
+   354→   354→        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+   355→   355→          {NAV_ITEMS.map((item) => {
+   356→   356→            const Icon = item.icon;
+   357→   357→            const isActive = view === item.view;
+   358→   358→            return (
+   359→   359→              <button
+   360→   360→                key={item.view}
+   361→   361→                onClick={() => navigate(item.view)}
+   362→   362→                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+   363→   363→                  isActive
+   364→   364→                    ? 'bg-emerald-50 text-emerald-700'
+   365→   365→                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+   366→   366→                }`}
+   367→   367→              >
+   368→   368→                <Icon className="h-5 w-5 shrink-0" />
+   369→   369→                <span className="truncate">{item.label}</span>
+   370→   370→              </button>
+   371→   371→            );
+   372→   372→          })}
+   373→   373→        </nav>
+   374→   374→        <div className="p-4 border-t border-gray-200">
+   375→   375→          <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50" onClick={handleLogout}>
+   376→   376→            <LogOut className="h-4 w-4 mr-2" />
+   377→   377→            Se déconnecter
+   378→   378→          </Button>
+   379→   379→        </div>
+   380→   380→      </aside>
+   381→   381→
+   382→   382→      {/* Mobile sidebar overlay */}
+   383→   383→      {sidebarOpen && (
+   384→   384→        <div className="fixed inset-0 z-40 lg:hidden">
+   385→   385→          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+   386→   386→          <aside className="fixed inset-y-0 left-0 w-72 bg-white shadow-xl z-50 flex flex-col">
+   387→   387→            <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+   388→   388→              <div className="flex items-center gap-3">
+   389→   389→                <Store className="h-7 w-7 text-emerald-600" />
+   390→   390→                <span className="text-lg font-bold text-emerald-700">Rapigo</span>
+   391→   391→              </div>
+   392→   392→              <button onClick={() => setSidebarOpen(false)} className="p-1 rounded-md hover:bg-gray-100">
+   393→   393→                <X className="h-5 w-5" />
+   394→   394→              </button>
+   395→   395→            </div>
+   396→   396→            <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+   397→   397→              {NAV_ITEMS.map((item) => {
+   398→   398→                const Icon = item.icon;
+   399→   399→                const isActive = view === item.view;
+   400→   400→                return (
+   401→   401→                  <button
+   402→   402→                    key={item.view}
+   403→   403→                    onClick={() => { navigate(item.view); setSidebarOpen(false); }}
+   404→   404→                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+   405→   405→                      isActive
+   406→   406→                        ? 'bg-emerald-50 text-emerald-700'
+   407→   407→                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+   408→   408→                    }`}
+   409→   409→                  >
+   410→   410→                    <Icon className="h-5 w-5 shrink-0" />
+   411→   411→                    <span>{item.label}</span>
+   412→   412→                  </button>
+   413→   413→                );
+   414→   414→              })}
+   415→   415→            </nav>
+   416→   416→            <div className="p-4 border-t border-gray-200">
+   417→   417→              <Button variant="ghost" className="w-full justify-start text-red-600" onClick={handleLogout}>
+   418→   418→                <LogOut className="h-4 w-4 mr-2" />
+   419→   419→                Se déconnecter
+   420→   420→              </Button>
+   421→   421→            </div>
+   422→   422→          </aside>
+   423→   423→        </div>
+   424→   424→      )}
+   425→   425→
+   426→   426→      {/* Main Content */}
+   427→   427→      <main className="flex-1 lg:pl-64">
+   428→   428→        {/* Top Bar */}
+   429→   429→        <header className="sticky top-0 z-20 bg-white border-b border-gray-200 h-16">
+   430→   430→          <div className="flex items-center justify-between h-full px-4 lg:px-6">
+   431→   431→            <div className="flex items-center gap-3">
+   432→   432→              <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-md hover:bg-gray-100">
+   433→   433→                <Menu className="h-5 w-5" />
+   434→   434→              </button>
+   435→   435→              <h1 className="text-lg font-semibold text-gray-900 truncate">{merchant.businessName}</h1>
+   436→   436→              {view !== 'dashboard' && view !== 'add-product' && view !== 'order-detail' && (
+   437→   437→                <button onClick={() => useMerchantNav.getState().goBack()} className="hidden sm:flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+   438→   438→                  <ChevronLeft className="h-4 w-4" />
+   439→   439→                  Retour
+   440→   440→                </button>
+   441→   441→              )}
+   442→   442→            </div>
+   443→   443→            <div className="flex items-center gap-2">
+   444→   444→              <Button variant="ghost" size="icon" className="relative">
+   445→   445→                <Bell className="h-5 w-5" />
+   446→   446→                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+   447→   447→              </Button>
+   448→   448→              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full">
+   449→   449→                <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold">
+   450→   450→                  {merchant.businessName.charAt(0).toUpperCase()}
+   451→   451→                </div>
+   452→   452→                <span className="text-sm font-medium text-emerald-700 max-w-[120px] truncate">{merchant.businessName}</span>
+   453→   453→              </div>
+   454→   454→            </div>
+   455→   455→          </div>
+   456→   456→        </header>
+   457→   457→
+   458→   458→        {/* View Content */}
+   459→   459→        <div className="p-4 lg:p-6">
+   460→   460→          {view === 'dashboard' && <DashboardView merchant={merchant} />}
+   461→   461→          {view === 'products' && <ProductsView merchant={merchant} />}
+   462→   462→          {view === 'add-product' && <AddEditProductView merchant={merchant} />}
+   463→   463→          {view === 'orders' && <OrdersView merchant={merchant} />}
+   464→   464→          {view === 'order-detail' && <OrderDetailView merchant={merchant} />}
+   465→   465→          {view === 'delivery-zones' && <DeliveryZonesView merchant={merchant} />}
+   466→   466→          {view === 'payment-config' && <PaymentConfigView merchant={merchant} />}
+   467→   467→          {view === 'subscription' && <SubscriptionView merchant={merchant} />}
+   468→   468→          {view === 'profile' && <ProfileView merchant={merchant} onRefresh={fetchMerchant} />}
+   469→   469→        </div>
+   470→   470→      </main>
+   471→   471→    </div>
+   472→   472→  );
+   473→   473→}
+   474→   474→
+   475→   475→// ─── 1. Dashboard View ──────────────────────────────────────────────────
+   476→   476→
+   477→   477→function DashboardView({ merchant }: { merchant: MerchantProfile }) {
+   478→   478→  const [stats, setStats] = useState<MerchantStats | null>(null);
+   479→   479→  const [loading, setLoading] = useState(true);
+   480→   480→  const navigate = useMerchantNav((s) => s.navigate);
+   481→   481→
+   482→   482→  useEffect(() => {
+   483→   483→    const fetchStats = async () => {
+   484→   484→      const res = await apiFetch<MerchantStats>('/api/stats/merchant');
+   485→   485→      if (res.data) setStats(res.data);
+   486→   486→      setLoading(false);
+   487→   487→    };
+   488→   488→    fetchStats();
+   489→   489→  }, []);
+   490→   490→
+   491→   491→  const statCards = [
+   492→   492→    {
+   493→   493→      label: 'Produits actifs',
+   494→   494→      value: stats?.activeProducts ?? 0,
+   495→   495→      icon: Package,
+   496→   496→      color: 'text-emerald-600',
+   497→   497→      bg: 'bg-emerald-50',
+   498→   498→    },
+   499→   499→    {
+   500→   500→      label: 'Commandes aujourd\'hui',
+   501→   501→      value: stats?.ordersToday ?? 0,
+   502→   502→      icon: ShoppingBag,
+   503→   503→      color: 'text-orange-600',
+   504→   504→      bg: 'bg-orange-50',
+   505→   505→    },
+   506→   506→    {
+   507→   507→      label: 'Revenus du mois',
+   508→   508→      value: formatPrice(stats?.monthlyRevenue ?? 0),
+   509→   509→      icon: DollarSign,
+   510→   510→      color: 'text-teal-600',
+   511→   511→      bg: 'bg-teal-50',
+   512→   512→    },
+   513→   513→    {
+   514→   514→      label: 'Note moyenne',
+   515→   515→      value: stats?.averageRating?.toFixed(1) ?? merchant.rating.toFixed(1),
+   516→   516→      icon: Star,
+   517→   517→      color: 'text-amber-600',
+   518→   518→      bg: 'bg-amber-50',
+   519→   519→    },
+   520→   520→  ];
+   521→   521→
+   522→   522→  return (
+   523→   523→    <div className="space-y-6">
+   524→   524→      <div>
+   525→   525→        <h2 className="text-2xl font-bold text-gray-900">Tableau de bord</h2>
+   526→   526→        <p className="text-gray-500 text-sm mt-1">Bienvenue, {merchant.businessName} ! Voici un aperçu de votre activité.</p>
+   527→   527→      </div>
+   528→   528→
+   529→   529→      {loading ? (
+   530→   530→        <div className="flex items-center justify-center py-20">
+   531→   531→          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+   532→   532→        </div>
+   533→   533→      ) : (
+   534→   534→        <>
+   535→   535→          {/* Stat Cards */}
+   536→   536→          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+   537→   537→            {statCards.map((card) => {
+   538→   538→              const Icon = card.icon;
+   539→   539→              return (
+   540→   540→                <Card key={card.label} className="py-4">
+   541→   541→                  <CardContent className="flex items-center gap-4">
+   542→   542→                    <div className={`p-3 rounded-xl ${card.bg}`}>
+   543→   543→                      <Icon className={`h-6 w-6 ${card.color}`} />
+   544→   544→                    </div>
+   545→   545→                    <div>
+   546→   546→                      <p className="text-sm text-gray-500">{card.label}</p>
+   547→   547→                      <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+   548→   548→                    </div>
+   549→   549→                  </CardContent>
+   550→   550→                </Card>
+   551→   551→              );
+   552→   552→            })}
+   553→   553→          </div>
+   554→   554→
+   555→   555→          {/* Quick Actions */}
+   556→   556→          <div className="flex flex-wrap gap-3">
+   557→   557→            <Button onClick={() => navigate('add-product')} className="bg-emerald-600 hover:bg-emerald-700">
+   558→   558→              <PlusCircle className="h-4 w-4 mr-2" />
+   559→   559→              Ajouter un produit
+   560→   560→            </Button>
+   561→   561→            <Button variant="outline" onClick={() => navigate('orders')}>
+   562→   562→              <ShoppingBag className="h-4 w-4 mr-2" />
+   563→   563→              Voir toutes les commandes
+   564→   564→            </Button>
+   565→   565→          </div>
+   566→   566→
+   567→   567→          {/* Recent Orders */}
+   568→   568→          <Card>
+   569→   569→            <CardHeader>
+   570→   570→              <CardTitle className="text-lg">Commandes récentes</CardTitle>
+   571→   571→              <CardDescription>Les 10 dernières commandes</CardDescription>
+   572→   572→            </CardHeader>
+   573→   573→            <CardContent>
+   574→   574→              {(!stats?.recentOrders || stats.recentOrders.length === 0) ? (
+   575→   575→                <div className="text-center py-10 text-gray-500">
+   576→   576→                  <ShoppingBag className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+   577→   577→                  <p>Aucune commande pour le moment</p>
+   578→   578→                </div>
+   579→   579→              ) : (
+   580→   580→                <div className="overflow-x-auto">
+   581→   581→                  <table className="w-full text-sm">
+   582→   582→                    <thead>
+   583→   583→                      <tr className="border-b border-gray-200 text-left">
+   584→   584→                        <th className="pb-3 font-medium text-gray-500">N°</th>
+   585→   585→                        <th className="pb-3 font-medium text-gray-500">Client</th>
+   586→   586→                        <th className="pb-3 font-medium text-gray-500">Total</th>
+   587→   587→                        <th className="pb-3 font-medium text-gray-500">Statut</th>
+   588→   588→                        <th className="pb-3 font-medium text-gray-500">Date</th>
+   589→   589→                      </tr>
+   590→   590→                    </thead>
+   591→   591→                    <tbody className="divide-y divide-gray-100">
+   592→   592→                      {stats.recentOrders.slice(0, 10).map((order) => (
+   593→   593→                        <tr key={order.id} className="cursor-pointer hover:bg-gray-50" onClick={() => navigate('order-detail', { orderId: order.id })}>
+   594→   594→                          <td className="py-3 font-mono text-xs text-emerald-700">#{order.orderNumber.slice(-6)}</td>
+   595→   595→                          <td className="py-3">{order.client ? `${order.client.firstName} ${order.client.lastName}` : 'Client'}</td>
+   596→   596→                          <td className="py-3 font-semibold">{formatPrice(order.total)}</td>
+   597→   597→                          <td className="py-3">
+   598→   598→                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ORDER_STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-800'}`}>
+   599→   599→                              {ORDER_STATUS_LABELS[order.status] || order.status}
+   600→   600→                            </span>
+   601→   601→                          </td>
+   602→   602→                          <td className="py-3 text-gray-500">{new Date(order.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+   603→   603→                        </tr>
+   604→   604→                      ))}
+   605→   605→                    </tbody>
+   606→   606→                  </table>
+   607→   607→                </div>
+   608→   608→              )}
+   609→   609→            </CardContent>
+   610→   610→          </Card>
+   611→   611→        </>
+   612→   612→      )}
+   613→   613→    </div>
+   614→   614→  );
+   615→   615→}
+   616→   616→
+   617→   617→// ─── 2. Products View ────────────────────────────────────────────────────
+   618→   618→
+   619→   619→function ProductsView({ merchant }: { merchant: MerchantProfile }) {
+   620→   620→  const navigate = useMerchantNav((s) => s.navigate);
+   621→   621→  const [products, setProducts] = useState<Product[]>([]);
+   622→   622→  const [loading, setLoading] = useState(true);
+   623→   623→  const [search, setSearch] = useState('');
+   624→   624→  const [deleteId, setDeleteId] = useState<string | null>(null);
+   625→   625→  const [deleting, setDeleting] = useState(false);
+   626→   626→
+   627→   627→  const fetchProducts = useCallback(async () => {
+   628→   628→    const res = await apiFetch<Product[]>(`/api/products?merchantId=${merchant.id}`);
+   629→   629→    if (res.data) setProducts(res.data);
+   630→   630→    setLoading(false);
+   631→   631→  }, [merchant.id]);
+   632→   632→
+   633→   633→  // eslint-disable-next-line react-hooks/set-state-in-effect
+   634→   634→  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+   635→   635→
+   636→   636→  const handleDelete = async () => {
+   637→   637→    if (!deleteId) return;
+   638→   638→    setDeleting(true);
+   639→   639→    await apiFetch(`/api/products/${deleteId}`, { method: 'DELETE' });
+   640→   640→    setDeleteId(null);
+   641→   641→    setDeleting(false);
+   642→   642→    fetchProducts();
+   643→   643→  };
+   644→   644→
+   645→   645→  const filtered = products.filter((p) =>
+   646→   646→    p.name.toLowerCase().includes(search.toLowerCase()) ||
+   647→   647→    (p.sku && p.sku.toLowerCase().includes(search.toLowerCase()))
+   648→   648→  );
+   649→   649→
+   650→   650→  const toggleAvailable = async (product: Product) => {
+   651→   651→    await apiFetch(`/api/products/${product.id}`, {
+   652→   652→      method: 'PUT',
+   653→   653→      body: JSON.stringify({ isAvailable: !product.isAvailable }),
+   654→   654→    });
+   655→   655→    fetchProducts();
+   656→   656→  };
+   657→   657→
+   658→   658→  return (
+   659→   659→    <div className="space-y-6">
+   660→   660→      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+   661→   661→        <div>
+   662→   662→          <h2 className="text-2xl font-bold text-gray-900">Produits</h2>
+   663→   663→          <p className="text-gray-500 text-sm mt-1">{products.length} produit(s) au total</p>
+   664→   664→        </div>
+   665→   665→        <Button onClick={() => navigate('add-product')} className="bg-emerald-600 hover:bg-emerald-700">
+   666→   666→          <PlusCircle className="h-4 w-4 mr-2" />
+   667→   667→          Ajouter un produit
+   668→   668→        </Button>
+   669→   669→      </div>
+   670→   670→
+   671→   671→      <div className="relative max-w-sm">
+   672→   672→        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+   673→   673→        <Input placeholder="Rechercher un produit..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+   674→   674→      </div>
+   675→   675→
+   676→   676→      {loading ? (
+   677→   677→        <div className="flex items-center justify-center py-20">
+   678→   678→          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+   679→   679→        </div>
+   680→   680→      ) : filtered.length === 0 ? (
+   681→   681→        <div className="text-center py-20 text-gray-500">
+   682→   682→          <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+   683→   683→          <p className="text-lg font-medium">Aucun produit trouvé</p>
+   684→   684→          <p className="text-sm mt-1">Commencez par ajouter votre premier produit.</p>
+   685→   685→        </div>
+   686→   686→      ) : (
+   687→   687→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   688→   688→          {filtered.map((product) => (
+   689→   689→            <Card key={product.id} className="group overflow-hidden hover:shadow-md transition-shadow">
+   690→   690→              <div
+   691→   691→                className="h-40 bg-gray-100 relative cursor-pointer"
+   692→   692→                onClick={() => navigate('add-product', { productId: product.id })}
+   693→   693→              >
+   694→   694→                {product.image ? (
+   695→   695→                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+   696→   696→                ) : (
+   697→   697→                  <div className="w-full h-full flex items-center justify-center">
+   698→   698→                    <Package className="h-10 w-10 text-gray-300" />
+   699→   699→                  </div>
+   700→   700→                )}
+   701→   701→                <div className="absolute top-2 right-2 flex gap-1">
+   702→   702→                  {!product.isAvailable && (
+   703→   703→                    <Badge variant="destructive" className="text-[10px]">Indisponible</Badge>
+   704→   704→                  )}
+   705→   705→                  {product.isFeatured && (
+   706→   706→                    <Badge className="bg-amber-500 text-[10px]">Vedette</Badge>
+   707→   707→                  )}
+   708→   708→                </div>
+   709→   709→              </div>
+   710→   710→              <CardContent className="p-4 space-y-2">
+   711→   711→                <div className="flex items-start justify-between gap-2">
+   712→   712→                  <h3 className="font-semibold text-gray-900 line-clamp-1 cursor-pointer hover:text-emerald-700" onClick={() => navigate('add-product', { productId: product.id })}>
+   713→   713→                    {product.name}
+   714→   714→                  </h3>
+   715→   715→                </div>
+   716→   716→                <div className="flex items-baseline gap-2">
+   717→   717→                  <span className="text-lg font-bold text-emerald-700">{formatPrice(product.price)}</span>
+   718→   718→                  {product.comparePrice && product.comparePrice > product.price && (
+   719→   719→                    <span className="text-sm text-gray-400 line-through">{formatPrice(product.comparePrice)}</span>
+   720→   720→                  )}
+   721→   721→                </div>
+   722→   722→                <div className="flex items-center justify-between text-sm text-gray-500">
+   723→   723→                  <span>Stock: {product.stock}</span>
+   724→   724→                  <span className="flex items-center gap-1">
+   725→   725→                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+   726→   726→                    {product.rating.toFixed(1)}
+   727→   727→                  </span>
+   728→   728→                </div>
+   729→   729→                <div className="flex items-center gap-2 pt-2">
+   730→   730→                  <Switch
+   731→   731→                    checked={product.isAvailable}
+   732→   732→                    onCheckedChange={() => toggleAvailable(product)}
+   733→   733→                    className="data-[state=checked]:bg-emerald-600"
+   734→   734→                  />
+   735→   735→                  <span className="text-xs text-gray-500">{product.isAvailable ? 'Disponible' : 'Masqué'}</span>
+   736→   736→                </div>
+   737→   737→                <div className="flex gap-2 pt-1">
+   738→   738→                  <Button size="sm" variant="outline" className="flex-1" onClick={() => navigate('add-product', { productId: product.id })}>
+   739→   739→                    <Edit className="h-3.5 w-3.5 mr-1" />
+   740→   740→                    Modifier
+   741→   741→                  </Button>
+   742→   742→                  <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteId(product.id)}>
+   743→   743→                    <Trash2 className="h-3.5 w-3.5" />
+   744→   744→                  </Button>
+   745→   745→                </div>
+   746→   746→              </CardContent>
+   747→   747→            </Card>
+   748→   748→          ))}
+   749→   749→        </div>
+   750→   750→      )}
+   751→   751→
+   752→   752→      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+   753→   753→        <DialogContent>
+   754→   754→          <DialogHeader>
+   755→   755→            <DialogTitle>Supprimer le produit</DialogTitle>
+   756→   756→            <DialogDescription>Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible.</DialogDescription>
+   757→   757→          </DialogHeader>
+   758→   758→          <DialogFooter>
+   759→   759→            <Button variant="outline" onClick={() => setDeleteId(null)} disabled={deleting}>Annuler</Button>
+   760→   760→            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+   761→   761→              {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+   762→   762→              Supprimer
+   763→   763→            </Button>
+   764→   764→          </DialogFooter>
+   765→   765→        </DialogContent>
+   766→   766→      </Dialog>
+   767→   767→    </div>
+   768→   768→  );
+   769→   769→}
+   770→   770→
+   771→   771→// ─── 3. Add/Edit Product View ───────────────────────────────────────────
+   772→   772→
+   773→   773→function AddEditProductView({ merchant }: { merchant: MerchantProfile }) {
+   774→   774→  const { data, navigate } = useMerchantNav();
+   775→   775→  const isEdit = !!data?.productId;
+   776→   776→  const [loading, setLoading] = useState(isEdit);
+   777→   777→  const [saving, setSaving] = useState(false);
+   778→   778→  const [error, setError] = useState<string | null>(null);
+   779→   779→  const [categories, setCategories] = useState<Category[]>([]);
+   780→   780→  const [saveSuccess, setSaveSuccess] = useState(false);
+   781→   781→
+   782→   782→  const [form, setForm] = useState({
+   783→   783→    name: '',
+   784→   784→    shortDescription: '',
+   785→   785→    longDescription: '',
+   786→   786→    price: '',
+   787→   787→    comparePrice: '',
+   788→   788→    stock: '',
+   789→   789→    sku: '',
+   790→   790→    barcode: '',
+   791→   791→    categoryId: '',
+   792→   792→    brand: '',
+   793→   793→    origin: '',
+   794→   794→    preparationTime: '',
+   795→   795→    isAvailable: true,
+   796→   796→    isFeatured: false,
+   797→   797→    weight: '',
+   798→   798→    length: '',
+   799→   799→    width: '',
+   800→   800→    height: '',
+   801→   801→    tags: '',
+   802→   802→    allergens: '',
+   803→   803→    images: '',
+   804→   804→    video: '',
+   805→   805→    options: '',
+   806→   806→    supplements: '',
+   807→   807→    variants: '',
+   808→   808→  });
+   809→   809→
+   810→   810→  useEffect(() => {
+   811→   811→    const fetchCategories = async () => {
+   812→   812→      const res = await apiFetch<Category[]>('/api/categories');
+   813→   813→      if (res.data) setCategories(res.data);
+   814→   814→    };
+   815→   815→    fetchCategories();
+   816→   816→
+   817→   817→    if (isEdit && data?.productId) {
+   818→   818→      const fetchProduct = async () => {
+   819→   819→        const res = await apiFetch<Product>(`/api/products/${data.productId}`);
+   820→   820→        if (res.error || !res.data) {
+   821→   821→          setError(res.error || 'Produit introuvable');
+   822→   822→          setLoading(false);
+   823→   823→          return;
+   824→   824→        }
+   825→   825→        const p = res.data;
+   826→   826→        let imagesStr = '';
+   827→   827→        try { imagesStr = p.images ? JSON.parse(p.images).join(', ') : ''; } catch { imagesStr = p.images || ''; }
+   828→   828→        let tagsStr = '';
+   829→   829→        try { tagsStr = p.tags ? JSON.parse(p.tags).join(', ') : ''; } catch { tagsStr = p.tags || ''; }
+   830→   830→        let allergensStr = '';
+   831→   831→        try { allergensStr = p.allergens ? JSON.parse(p.allergens).join(', ') : ''; } catch { allergensStr = p.allergens || ''; }
+   832→   832→        let dims = { length: '', width: '', height: '' };
+   833→   833→        try { dims = p.dimensions ? JSON.parse(p.dimensions) : dims; } catch { /* keep default */ }
+   834→   834→
+   835→   835→        setForm({
+   836→   836→          name: p.name,
+   837→   837→          shortDescription: p.shortDescription || '',
+   838→   838→          longDescription: p.longDescription || '',
+   839→   839→          price: String(p.price),
+   840→   840→          comparePrice: p.comparePrice ? String(p.comparePrice) : '',
+   841→   841→          stock: String(p.stock),
+   842→   842→          sku: p.sku || '',
+   843→   843→          barcode: p.barcode || '',
+   844→   844→          categoryId: p.categoryId || '',
+   845→   845→          brand: p.brand || '',
+   846→   846→          origin: p.origin || '',
+   847→   847→          preparationTime: p.preparationTime ? String(p.preparationTime) : '',
+   848→   848→          isAvailable: p.isAvailable,
+   849→   849→          isFeatured: p.isFeatured,
+   850→   850→          weight: p.weight || '',
+   851→   851→          length: dims.length || '',
+   852→   852→          width: dims.width || '',
+   853→   853→          height: dims.height || '',
+   854→   854→          tags: tagsStr,
+   855→   855→          allergens: allergensStr,
+   856→   856→          images: imagesStr,
+   857→   857→          video: p.video || '',
+   858→   858→          options: p.options || '',
+   859→   859→          supplements: p.supplements || '',
+   860→   860→          variants: p.variants || '',
+   861→   861→        });
+   862→   862→        setLoading(false);
+   863→   863→      };
+   864→   864→      fetchProduct();
+   865→   865→    } else {
+   866→   866→      // eslint-disable-next-line react-hooks/set-state-in-effect
+   867→   867→      setLoading(false);
+   868→   868→    }
+   869→   869→  }, [isEdit, data?.productId]);
+   870→   870→
+   871→   871→  const updateField = (field: string, value: string | boolean) => setForm((prev) => ({ ...prev, [field]: value }));
+   872→   872→
+   873→   873→  const addImage = () => {
+   874→   874→    setForm((prev) => ({
+   875→   875→      ...prev,
+   876→   876→      images: prev.images ? `${prev.images}, ` : '',
+   877→   877→    }));
+   878→   878→  };
+   879→   879→
+   880→   880→  const removeLastImage = () => {
+   881→   881→    const parts = form.images.split(',').map((s) => s.trim()).filter(Boolean);
+   882→   882→    parts.pop();
+   883→   883→    setForm((prev) => ({ ...prev, images: parts.join(', ') }));
+   884→   884→  };
+   885→   885→
+   886→   886→  const handleSave = async () => {
+   887→   887→    if (!form.name.trim() || !form.price) {
+   888→   888→      setError('Le nom et le prix sont obligatoires.');
+   889→   889→      return;
+   890→   890→    }
+   891→   891→    setSaving(true);
+   892→   892→    setError(null);
+   893→   893→
+   894→   894→    const imagesArr = form.images ? form.images.split(',').map((s) => s.trim()).filter(Boolean) : [];
+   895→   895→    const tagsArr = form.tags ? form.tags.split(',').map((s) => s.trim()).filter(Boolean) : [];
+   896→   896→    const allergensArr = form.allergens ? form.allergens.split(',').map((s) => s.trim()).filter(Boolean) : [];
+   897→   897→    const hasDims = form.length || form.width || form.height;
+   898→   898→
+   899→   899→    const body: Record<string, unknown> = {
+   900→   900→      name: form.name,
+   901→   901→      shortDescription: form.shortDescription || null,
+   902→   902→      longDescription: form.longDescription || null,
+   903→   903→      price: parseInt(form.price) || 0,
+   904→   904→      comparePrice: form.comparePrice ? parseInt(form.comparePrice) : null,
+   905→   905→      stock: parseInt(form.stock) || 0,
+   906→   906→      sku: form.sku || null,
+   907→   907→      barcode: form.barcode || null,
+   908→   908→      categoryId: form.categoryId || null,
+   909→   909→      brand: form.brand || null,
+   910→   910→      origin: form.origin || null,
+   911→   911→      preparationTime: form.preparationTime ? parseInt(form.preparationTime) : null,
+   912→   912→      isAvailable: form.isAvailable,
+   913→   913→      isFeatured: form.isFeatured,
+   914→   914→      weight: form.weight || null,
+   915→   915→      dimensions: hasDims ? JSON.stringify({ length: form.length, width: form.width, height: form.height }) : null,
+   916→   916→      images: imagesArr.length > 0 ? JSON.stringify(imagesArr) : null,
+   917→   917→      video: form.video || null,
+   918→   918→      tags: tagsArr.length > 0 ? JSON.stringify(tagsArr) : null,
+   919→   919→      allergens: allergensArr.length > 0 ? JSON.stringify(allergensArr) : null,
+   920→   920→      options: form.options || null,
+   921→   921→      supplements: form.supplements || null,
+   922→   922→      variants: form.variants || null,
+   923→   923→    };
+   924→   924→
+   925→   925→    let res;
+   926→   926→    if (isEdit && data?.productId) {
+   927→   927→      res = await apiFetch(`/api/products/${data.productId}`, { method: 'PUT', body: JSON.stringify(body) });
+   928→   928→    } else {
+   929→   929→      res = await apiFetch('/api/products', { method: 'POST', body: JSON.stringify(body) });
+   930→   930→    }
+   931→   931→
+   932→   932→    if (res.error) {
+   933→   933→      setError(res.error);
+   934→   934→    } else {
+   935→   935→      setSaveSuccess(true);
+   936→   936→      setTimeout(() => navigate('products'), 1000);
+   937→   937→    }
+   938→   938→    setSaving(false);
+   939→   939→  };
+   940→   940→
+   941→   941→  if (loading) {
+   942→   942→    return (
+   943→   943→      <div className="flex items-center justify-center py-20">
+   944→   944→        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+   945→   945→      </div>
+   946→   946→    );
+   947→   947→  }
+   948→   948→
+   949→   949→  return (
+   950→   950→    <div className="space-y-6 max-w-4xl">
+   951→   951→      <div className="flex items-center gap-3">
+   952→   952→        <Button variant="ghost" size="icon" onClick={() => navigate('products')}>
+   953→   953→          <ChevronLeft className="h-5 w-5" />
+   954→   954→        </Button>
+   955→   955→        <div>
+   956→   956→          <h2 className="text-2xl font-bold text-gray-900">{isEdit ? 'Modifier le produit' : 'Ajouter un produit'}</h2>
+   957→   957→          <p className="text-gray-500 text-sm mt-0.5">{isEdit ? 'Modifiez les informations du produit' : 'Remplissez les informations du nouveau produit'}</p>
+   958→   958→        </div>
+   959→   959→      </div>
+   960→   960→
+   961→   961→      {saveSuccess && (
+   962→   962→        <div className="flex items-center gap-2 p-4 bg-emerald-50 text-emerald-700 rounded-lg">
+   963→   963→          <Check className="h-5 w-5" />
+   964→   964→          <span className="text-sm font-medium">Produit enregistré avec succès ! Redirection...</span>
+   965→   965→        </div>
+   966→   966→      )}
+   967→   967→
+   968→   968→      {error && (
+   969→   969→        <div className="flex items-center gap-2 p-4 bg-red-50 text-red-700 rounded-lg">
+   970→   970→          <AlertCircle className="h-5 w-5" />
+   971→   971→          <span className="text-sm">{error}</span>
+   972→   972→        </div>
+   973→   973→      )}
+   974→   974→
+   975→   975→      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+   976→   976→        {/* Main Info */}
+   977→   977→        <div className="lg:col-span-2 space-y-6">
+   978→   978→          <Card>
+   979→   979→            <CardHeader>
+   980→   980→              <CardTitle className="text-base">Informations principales</CardTitle>
+   981→   981→            </CardHeader>
+   982→   982→            <CardContent className="space-y-4">
+   983→   983→              <div className="space-y-2">
+   984→   984→                <Label>Nom du produit *</Label>
+   985→   985→                <Input value={form.name} onChange={(e) => updateField('name', e.target.value)} placeholder="Ex: Poulet braisé" />
+   986→   986→              </div>
+   987→   987→              <div className="space-y-2">
+   988→   988→                <Label>Description courte</Label>
+   989→   989→                <Input value={form.shortDescription} onChange={(e) => updateField('shortDescription', e.target.value)} placeholder="Une brève description" />
+   990→   990→              </div>
+   991→   991→              <div className="space-y-2">
+   992→   992→                <Label>Description longue</Label>
+   993→   993→                <Textarea value={form.longDescription} onChange={(e) => updateField('longDescription', e.target.value)} placeholder="Description détaillée du produit..." className="min-h-24" />
+   994→   994→              </div>
+   995→   995→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   996→   996→                <div className="space-y-2">
+   997→   997→                  <Label>Prix (FCFA) *</Label>
+   998→   998→                  <Input type="number" value={form.price} onChange={(e) => updateField('price', e.target.value)} placeholder="0" min="0" />
+   999→   999→                </div>
+  1000→  1000→                <div className="space-y-2">
+  1001→  1001→                  <Label>Prix promotionnel (FCFA)</Label>
+  1002→  1002→                  <Input type="number" value={form.comparePrice} onChange={(e) => updateField('comparePrice', e.target.value)} placeholder="0" min="0" />
+  1003→  1003→                </div>
+  1004→  1004→              </div>
+  1005→  1005→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1006→  1006→                <div className="space-y-2">
+  1007→  1007→                  <Label>Stock</Label>
+  1008→  1008→                  <Input type="number" value={form.stock} onChange={(e) => updateField('stock', e.target.value)} placeholder="0" min="0" />
+  1009→  1009→                </div>
+  1010→  1010→                <div className="space-y-2">
+  1011→  1011→                  <Label>Temps de préparation (min)</Label>
+  1012→  1012→                  <Input type="number" value={form.preparationTime} onChange={(e) => updateField('preparationTime', e.target.value)} placeholder="15" min="0" />
+  1013→  1013→                </div>
+  1014→  1014→              </div>
+  1015→  1015→            </CardContent>
+  1016→  1016→          </Card>
+  1017→  1017→
+  1018→  1018→          <Card>
+  1019→  1019→            <CardHeader>
+  1020→  1020→              <CardTitle className="text-base">Détails du produit</CardTitle>
+  1021→  1021→            </CardHeader>
+  1022→  1022→            <CardContent className="space-y-4">
+  1023→  1023→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1024→  1024→                <div className="space-y-2">
+  1025→  1025→                  <Label>SKU</Label>
+  1026→  1026→                  <Input value={form.sku} onChange={(e) => updateField('sku', e.target.value)} placeholder="SKU-001" />
+  1027→  1027→                </div>
+  1028→  1028→                <div className="space-y-2">
+  1029→  1029→                  <Label>Code-barres</Label>
+  1030→  1030→                  <Input value={form.barcode} onChange={(e) => updateField('barcode', e.target.value)} placeholder="1234567890123" />
+  1031→  1031→                </div>
+  1032→  1032→              </div>
+  1033→  1033→              <div className="space-y-2">
+  1034→  1034→                <Label>Catégorie</Label>
+  1035→  1035→                <Select value={form.categoryId} onValueChange={(val) => updateField('categoryId', val)}>
+  1036→  1036→                  <SelectTrigger className="w-full">
+  1037→  1037→                    <SelectValue placeholder="Sélectionner une catégorie" />
+  1038→  1038→                  </SelectTrigger>
+  1039→  1039→                  <SelectContent>
+  1040→  1040→                    {categories.map((cat) => (
+  1041→  1041→                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+  1042→  1042→                    ))}
+  1043→  1043→                  </SelectContent>
+  1044→  1044→                </Select>
+  1045→  1045→              </div>
+  1046→  1046→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1047→  1047→                <div className="space-y-2">
+  1048→  1048→                  <Label>Marque</Label>
+  1049→  1049→                  <Input value={form.brand} onChange={(e) => updateField('brand', e.target.value)} placeholder="Marque du produit" />
+  1050→  1050→                </div>
+  1051→  1051→                <div className="space-y-2">
+  1052→  1052→                  <Label>Origine</Label>
+  1053→  1053→                  <Input value={form.origin} onChange={(e) => updateField('origin', e.target.value)} placeholder="Ex: Mali, Côte d'Ivoire" />
+  1054→  1054→                </div>
+  1055→  1055→              </div>
+  1056→  1056→              <div className="space-y-2">
+  1057→  1057→                <Label>Poids</Label>
+  1058→  1058→                <Input value={form.weight} onChange={(e) => updateField('weight', e.target.value)} placeholder="Ex: 500g, 1kg" />
+  1059→  1059→              </div>
+  1060→  1060→              <div className="grid grid-cols-3 gap-4">
+  1061→  1061→                <div className="space-y-2">
+  1062→  1062→                  <Label>Longueur (cm)</Label>
+  1063→  1063→                  <Input type="number" value={form.length} onChange={(e) => updateField('length', e.target.value)} placeholder="0" />
+  1064→  1064→                </div>
+  1065→  1065→                <div className="space-y-2">
+  1066→  1066→                  <Label>Largeur (cm)</Label>
+  1067→  1067→                  <Input type="number" value={form.width} onChange={(e) => updateField('width', e.target.value)} placeholder="0" />
+  1068→  1068→                </div>
+  1069→  1069→                <div className="space-y-2">
+  1070→  1070→                  <Label>Hauteur (cm)</Label>
+  1071→  1071→                  <Input type="number" value={form.height} onChange={(e) => updateField('height', e.target.value)} placeholder="0" />
+  1072→  1072→                </div>
+  1073→  1073→              </div>
+  1074→  1074→              <div className="space-y-2">
+  1075→  1075→                <Label>Tags (séparés par des virgules)</Label>
+  1076→  1076→                <Input value={form.tags} onChange={(e) => updateField('tags', e.target.value)} placeholder="bio, local, premium" />
+  1077→  1077→              </div>
+  1078→  1078→              <div className="space-y-2">
+  1079→  1079→                <Label>Allergènes (séparés par des virgules)</Label>
+  1080→  1080→                <Input value={form.allergens} onChange={(e) => updateField('allergens', e.target.value)} placeholder="gluten, arachide, lait" />
+  1081→  1081→              </div>
+  1082→  1082→            </CardContent>
+  1083→  1083→          </Card>
+  1084→  1084→
+  1085→  1085→          <Card>
+  1086→  1086→            <CardHeader>
+  1087→  1087→              <CardTitle className="text-base">Médias</CardTitle>
+  1088→  1088→            </CardHeader>
+  1089→  1089→            <CardContent className="space-y-4">
+  1090→  1090→              <div className="space-y-2">
+  1091→  1091→                <Label>Images (URLs séparées par des virgules)</Label>
+  1092→  1092→                <Textarea value={form.images} onChange={(e) => updateField('images', e.target.value)} placeholder="https://example.com/image1.jpg, https://example.com/image2.jpg" className="min-h-20" />
+  1093→  1093→                <div className="flex gap-2">
+  1094→  1094→                  <Button type="button" variant="outline" size="sm" onClick={addImage}><Plus className="h-3 w-3 mr-1" /> Ajouter</Button>
+  1095→  1095→                  <Button type="button" variant="outline" size="sm" onClick={removeLastImage}><Minus className="h-3 w-3 mr-1" /> Retirer la dernière</Button>
+  1096→  1096→                </div>
+  1097→  1097→              </div>
+  1098→  1098→              <div className="space-y-2">
+  1099→  1099→                <Label>URL de vidéo</Label>
+  1100→  1100→                <Input value={form.video} onChange={(e) => updateField('video', e.target.value)} placeholder="https://youtube.com/watch?v=..." />
+  1101→  1101→              </div>
+  1102→  1102→            </CardContent>
+  1103→  1103→          </Card>
+  1104→  1104→
+  1105→  1105→          <Card>
+  1106→  1106→            <CardHeader>
+  1107→  1107→              <CardTitle className="text-base">Options, suppléments & variantes (JSON)</CardTitle>
+  1108→  1108→            </CardHeader>
+  1109→  1109→            <CardContent className="space-y-4">
+  1110→  1110→              <div className="space-y-2">
+  1111→  1111→                <Label>Options</Label>
+  1112→  1112→                <Textarea
+  1113→  1113→                  value={form.options}
+  1114→  1114→                  onChange={(e) => updateField('options', e.target.value)}
+  1115→  1115→                  placeholder='[{"name": "Taille", "values": ["Petit", "Grand"], "required": true}]'
+  1116→  1116→                  className="min-h-20 font-mono text-xs"
+  1117→  1117→                />
+  1118→  1118→              </div>
+  1119→  1119→              <div className="space-y-2">
+  1120→  1120→                <Label>Suppléments</Label>
+  1121→  1121→                <Textarea
+  1122→  1122→                  value={form.supplements}
+  1123→  1123→                  onChange={(e) => updateField('supplements', e.target.value)}
+  1124→  1124→                  placeholder='[{"name": "Fromage extra", "price": 500}]'
+  1125→  1125→                  className="min-h-20 font-mono text-xs"
+  1126→  1126→                />
+  1127→  1127→              </div>
+  1128→  1128→              <div className="space-y-2">
+  1129→  1129→                <Label>Variantes</Label>
+  1130→  1130→                <Textarea
+  1131→  1131→                  value={form.variants}
+  1132→  1132→                  onChange={(e) => updateField('variants', e.target.value)}
+  1133→  1133→                  placeholder='[{"name": "Couleur", "values": ["Rouge", "Bleu"], "priceDifference": 0}]'
+  1134→  1134→                  className="min-h-20 font-mono text-xs"
+  1135→  1135→                />
+  1136→  1136→              </div>
+  1137→  1137→            </CardContent>
+  1138→  1138→          </Card>
+  1139→  1139→        </div>
+  1140→  1140→
+  1141→  1141→        {/* Sidebar - Status & Save */}
+  1142→  1142→        <div className="space-y-6">
+  1143→  1143→          <Card>
+  1144→  1144→            <CardHeader>
+  1145→  1145→              <CardTitle className="text-base">Statut</CardTitle>
+  1146→  1146→            </CardHeader>
+  1147→  1147→            <CardContent className="space-y-4">
+  1148→  1148→              <div className="flex items-center justify-between">
+  1149→  1149→                <Label>Disponible</Label>
+  1150→  1150→                <Switch checked={form.isAvailable} onCheckedChange={(val) => updateField('isAvailable', val)} className="data-[state=checked]:bg-emerald-600" />
+  1151→  1151→              </div>
+  1152→  1152→              <div className="flex items-center justify-between">
+  1153→  1153→                <Label>Produit vedette</Label>
+  1154→  1154→                <Switch checked={form.isFeatured} onCheckedChange={(val) => updateField('isFeatured', val)} className="data-[state=checked]:bg-amber-500" />
+  1155→  1155→              </div>
+  1156→  1156→            </CardContent>
+  1157→  1157→          </Card>
+  1158→  1158→
+  1159→  1159→          <Card>
+  1160→  1160→            <CardHeader>
+  1161→  1161→              <CardTitle className="text-base">Aperçu du prix</CardTitle>
+  1162→  1162→            </CardHeader>
+  1163→  1163→            <CardContent>
+  1164→  1164→              <div className="text-center py-4">
+  1165→  1165→                <p className="text-3xl font-bold text-emerald-700">{formatPrice(parseInt(form.price) || 0)}</p>
+  1166→  1166→                {form.comparePrice && parseInt(form.comparePrice) > parseInt(form.price) && (
+  1167→  1167→                  <p className="text-sm text-gray-400 line-through mt-1">{formatPrice(parseInt(form.comparePrice))}</p>
+  1168→  1168→                )}
+  1169→  1169→              </div>
+  1170→  1170→            </CardContent>
+  1171→  1171→          </Card>
+  1172→  1172→
+  1173→  1173→          <div className="flex flex-col gap-3">
+  1174→  1174→            <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 w-full">
+  1175→  1175→              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+  1176→  1176→              {isEdit ? 'Enregistrer les modifications' : 'Créer le produit'}
+  1177→  1177→            </Button>
+  1178→  1178→            <Button variant="outline" onClick={() => navigate('products')} className="w-full">Annuler</Button>
+  1179→  1179→          </div>
+  1180→  1180→        </div>
+  1181→  1181→      </div>
+  1182→  1182→    </div>
+  1183→  1183→  );
+  1184→  1184→}
+  1185→  1185→
+  1186→  1186→// ─── 4. Orders View ─────────────────────────────────────────────────────
+  1187→  1187→
+  1188→  1188→function OrdersView({ merchant }: { merchant: MerchantProfile }) {
+  1189→  1189→  const navigate = useMerchantNav((s) => s.navigate);
+  1190→  1190→  const [orders, setOrders] = useState<Order[]>([]);
+  1191→  1191→  const [loading, setLoading] = useState(true);
+  1192→  1192→  const [activeTab, setActiveTab] = useState('new');
+  1193→  1193→  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  1194→  1194→
+  1195→  1195→  const fetchOrders = useCallback(async () => {
+  1196→  1196→    const res = await apiFetch<Order[]>('/api/orders');
+  1197→  1197→    if (res.data) {
+  1198→  1198→      setOrders(res.data.filter((o) => o.merchantId === merchant.id));
+  1199→  1199→    }
+  1200→  1200→    setLoading(false);
+  1201→  1201→  }, [merchant.id]);
+  1202→  1202→
+  1203→  1203→  // eslint-disable-next-line react-hooks/set-state-in-effect
+  1204→  1204→  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+  1205→  1205→
+  1206→  1206→  const updateOrderStatus = async (orderId: string, status: string, paymentStatus?: string) => {
+  1207→  1207→    setUpdatingId(orderId);
+  1208→  1208→    const body: Record<string, string> = { status };
+  1209→  1209→    if (paymentStatus) body.paymentStatus = paymentStatus;
+  1210→  1210→    await apiFetch(`/api/orders/${orderId}`, { method: 'PUT', body: JSON.stringify(body) });
+  1211→  1211→    setUpdatingId(null);
+  1212→  1212→    fetchOrders();
+  1213→  1213→  };
+  1214→  1214→
+  1215→  1215→  const filteredOrders = (() => {
+  1216→  1216→    const tab = ORDER_TABS.find((t) => t.value === activeTab);
+  1217→  1217→    if (!tab || tab.statuses.length === 0) return orders;
+  1218→  1218→    return orders.filter((o) => tab.statuses.includes(o.status));
+  1219→  1219→  })().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  1220→  1220→
+  1221→  1221→  const formatTime = (dateStr: string) => {
+  1222→  1222→    const d = new Date(dateStr);
+  1223→  1223→    return d.toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  1224→  1224→  };
+  1225→  1225→
+  1226→  1226→  const getPaymentActionButton = (order: Order) => {
+  1227→  1227→    if ((order.status === 'PENDING' || order.status === 'PAYMENT_PENDING') && order.paymentProof) {
+  1228→  1228→      return (
+  1229→  1229→        <div className="flex gap-2 mt-3">
+  1230→  1230→          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 flex-1" disabled={updatingId === order.id} onClick={() => updateOrderStatus(order.id, 'CONFIRMED', 'ACCEPTED')}>
+  1231→  1231→            {updatingId === order.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+  1232→  1232→            Accepter le paiement
+  1233→  1233→          </Button>
+  1234→  1234→          <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50" disabled={updatingId === order.id} onClick={() => updateOrderStatus(order.id, order.status, 'REJECTED')}>
+  1235→  1235→            Refuser
+  1236→  1236→          </Button>
+  1237→  1237→        </div>
+  1238→  1238→      );
+  1239→  1239→    }
+  1240→  1240→    if (order.paymentProof && (order.status === 'PENDING' || order.status === 'PAYMENT_PENDING')) {
+  1241→  1241→      return (
+  1242→  1242→        <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+  1243→  1243→          <p className="text-xs text-blue-700 font-medium">Preuve de paiement envoyée</p>
+  1244→  1244→        </div>
+  1245→  1245→      );
+  1246→  1246→    }
+  1247→  1247→    return null;
+  1248→  1248→  };
+  1249→  1249→
+  1250→  1250→  const getStatusButton = (order: Order) => {
+  1251→  1251→    if (order.status === 'CONFIRMED') {
+  1252→  1252→      return (
+  1253→  1253→        <Button size="sm" className="bg-orange-500 hover:bg-orange-600 w-full mt-3" disabled={updatingId === order.id} onClick={() => updateOrderStatus(order.id, 'PREPARING')}>
+  1254→  1254→          {updatingId === order.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Clock className="h-3.5 w-3.5 mr-1" />}
+  1255→  1255→          Commencer la préparation
+  1256→  1256→        </Button>
+  1257→  1257→      );
+  1258→  1258→    }
+  1259→  1259→    if (order.status === 'PREPARING') {
+  1260→  1260→      return (
+  1261→  1261→        <Button size="sm" className="bg-teal-600 hover:bg-teal-700 w-full mt-3" disabled={updatingId === order.id} onClick={() => updateOrderStatus(order.id, 'READY')}>
+  1262→  1262→          {updatingId === order.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+  1263→  1263→          Commande prête
+  1264→  1264→        </Button>
+  1265→  1265→      );
+  1266→  1266→    }
+  1267→  1267→    if (order.status === 'PICKED_UP') {
+  1268→  1268→      return (
+  1269→  1269→        <div className="mt-3 p-3 bg-purple-50 rounded-lg flex items-center gap-2">
+  1270→  1270→          <Package className="h-4 w-4 text-purple-600" />
+  1271→  1271→          <div>
+  1272→  1272→            <p className="text-sm font-medium text-purple-700">Remis au livreur</p>
+  1273→  1273→            {order.driver && <p className="text-xs text-purple-500">{order.driver.firstName} {order.driver.lastName}</p>}
+  1274→  1274→          </div>
+  1275→  1275→        </div>
+  1276→  1276→      );
+  1277→  1277→    }
+  1278→  1278→    return null;
+  1279→  1279→  };
+  1280→  1280→
+  1281→  1281→  return (
+  1282→  1282→    <div className="space-y-6">
+  1283→  1283→      <div>
+  1284→  1284→        <h2 className="text-2xl font-bold text-gray-900">Commandes</h2>
+  1285→  1285→        <p className="text-gray-500 text-sm mt-1">{orders.length} commande(s) au total</p>
+  1286→  1286→      </div>
+  1287→  1287→
+  1288→  1288→      <Tabs value={activeTab} onValueChange={setActiveTab}>
+  1289→  1289→        <TabsList className="flex-wrap h-auto gap-1">
+  1290→  1290→          {ORDER_TABS.map((tab) => {
+  1291→  1291→            const count = tab.statuses.length === 0
+  1292→  1292→              ? orders.length
+  1293→  1293→              : orders.filter((o) => tab.statuses.includes(o.status)).length;
+  1294→  1294→            return (
+  1295→  1295→              <TabsTrigger key={tab.value} value={tab.value} className="text-xs sm:text-sm">
+  1296→  1296→                {tab.label}
+  1297→  1297→                {count > 0 && (
+  1298→  1298→                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">{count}</span>
+  1299→  1299→                )}
+  1300→  1300→              </TabsTrigger>
+  1301→  1301→            );
+  1302→  1302→          })}
+  1303→  1303→        </TabsList>
+  1304→  1304→      </Tabs>
+  1305→  1305→
+  1306→  1306→      {loading ? (
+  1307→  1307→        <div className="flex items-center justify-center py-20">
+  1308→  1308→          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+  1309→  1309→        </div>
+  1310→  1310→      ) : filteredOrders.length === 0 ? (
+  1311→  1311→        <div className="text-center py-20 text-gray-500">
+  1312→  1312→          <ShoppingBag className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+  1313→  1313→          <p className="text-lg font-medium">Aucune commande</p>
+  1314→  1314→          <p className="text-sm mt-1">Pas de commande dans cette catégorie.</p>
+  1315→  1315→        </div>
+  1316→  1316→      ) : (
+  1317→  1317→        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  1318→  1318→          {filteredOrders.map((order) => (
+  1319→  1319→            <Card key={order.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('order-detail', { orderId: order.id })}>
+  1320→  1320→              <CardContent className="p-4 space-y-3">
+  1321→  1321→                <div className="flex items-start justify-between">
+  1322→  1322→                  <div>
+  1323→  1323→                    <p className="font-mono text-sm font-semibold text-emerald-700">#{order.orderNumber}</p>
+  1324→  1324→                    <p className="text-sm text-gray-500 mt-0.5">
+  1325→  1325→                      {order.client ? `${order.client.firstName} ${order.client.lastName}` : 'Client'}
+  1326→  1326→                    </p>
+  1327→  1327→                  </div>
+  1328→  1328→                  <div className="text-right">
+  1329→  1329→                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ORDER_STATUS_COLORS[order.status] || ''}`}>
+  1330→  1330→                      {ORDER_STATUS_LABELS[order.status] || order.status}
+  1331→  1331→                    </span>
+  1332→  1332→                    <p className="text-xs text-gray-400 mt-1">{PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod}</p>
+  1333→  1333→                  </div>
+  1334→  1334→                </div>
+  1335→  1335→                <p className="text-sm text-gray-600 truncate">
+  1336→  1336→                  {order.items.map((i) => `${i.quantity}x ${i.productName}`).join(', ')}
+  1337→  1337→                </p>
+  1338→  1338→                <Separator />
+  1339→  1339→                <div className="flex items-center justify-between">
+  1340→  1340→                  <div className="flex items-center gap-1 text-sm text-gray-500">
+  1341→  1341→                    <Clock className="h-3.5 w-3.5" />
+  1342→  1342→                    {formatTime(order.createdAt)}
+  1343→  1343→                  </div>
+  1344→  1344→                  <p className="text-lg font-bold text-gray-900">{formatPrice(order.total)}</p>
+  1345→  1345→                </div>
+  1346→  1346→
+  1347→  1347→                {/* Payment actions */}
+  1348→  1348→                {(order.status === 'PENDING' || order.status === 'PAYMENT_PENDING') && order.paymentProof && (
+  1349→  1349→                  <div onClick={(e) => e.stopPropagation()}>
+  1350→  1350→                    <img src={order.paymentProof} alt="Preuve de paiement" className="w-20 h-20 object-cover rounded-lg border" />
+  1351→  1351→                    {getPaymentActionButton(order)}
+  1352→  1352→                  </div>
+  1353→  1353→                )}
+  1354→  1354→
+  1355→  1355→                {/* Status transition buttons */}
+  1356→  1356→                <div onClick={(e) => e.stopPropagation()}>
+  1357→  1357→                  {getStatusButton(order)}
+  1358→  1358→                </div>
+  1359→  1359→
+  1360→  1360→                {/* Driver info for transit orders */}
+  1361→  1361→                {(order.status === 'PICKED_UP' || order.status === 'IN_TRANSIT') && order.driver && (
+  1362→  1362→                  <div className="flex items-center gap-3 p-2 bg-violet-50 rounded-lg">
+  1363→  1363→                    <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 text-xs font-bold">
+  1364→  1364→                      {order.driver.firstName[0]}
+  1365→  1365→                    </div>
+  1366→  1366→                    <div>
+  1367→  1367→                      <p className="text-sm font-medium text-violet-700">{order.driver.firstName} {order.driver.lastName}</p>
+  1368→  1368→                      <p className="text-xs text-violet-500">{order.driver.phone} · {order.driver.vehicleType}</p>
+  1369→  1369→                    </div>
+  1370→  1370→                  </div>
+  1371→  1371→                )}
+  1372→  1372→              </CardContent>
+  1373→  1373→            </Card>
+  1374→  1374→          ))}
+  1375→  1375→        </div>
+  1376→  1376→      )}
+  1377→  1377→    </div>
+  1378→  1378→  );
+  1379→  1379→}
+  1380→  1380→
+  1381→  1381→// ─── 5. Order Detail View ────────────────────────────────────────────────
+  1382→  1382→
+  1383→  1383→function OrderDetailView({ merchant }: { merchant: MerchantProfile }) {
+  1384→  1384→  const { data, navigate } = useMerchantNav();
+  1385→  1385→  const [order, setOrder] = useState<Order | null>(null);
+  1386→  1386→  const [loading, setLoading] = useState(true);
+  1387→  1387→  const [updating, setUpdating] = useState(false);
+  1388→  1388→  const [imageOpen, setImageOpen] = useState(false);
+  1389→  1389→
+  1390→  1390→  const fetchOrder = useCallback(async () => {
+  1391→  1391→    if (!data?.orderId) return;
+  1392→  1392→    setLoading(true);
+  1393→  1393→    const res = await apiFetch<Order>(`/api/orders/${data.orderId}`);
+  1394→  1394→    if (res.data) setOrder(res.data);
+  1395→  1395→    setLoading(false);
+  1396→  1396→  }, [data]);
+  1397→  1397→
+  1398→  1398→  // eslint-disable-next-line react-hooks/set-state-in-effect
+  1399→  1399→  useEffect(() => { fetchOrder(); }, [fetchOrder]);
+  1400→  1400→
+  1401→  1401→  const updateOrder = async (status: string, paymentStatus?: string) => {
+  1402→  1402→    if (!order) return;
+  1403→  1403→    setUpdating(true);
+  1404→  1404→    const body: Record<string, string> = { status };
+  1405→  1405→    if (paymentStatus) body.paymentStatus = paymentStatus;
+  1406→  1406→    await apiFetch(`/api/orders/${order.id}`, { method: 'PUT', body: JSON.stringify(body) });
+  1407→  1407→    setUpdating(false);
+  1408→  1408→    fetchOrder();
+  1409→  1409→  };
+  1410→  1410→
+  1411→  1411→  const statusSteps = ['PENDING', 'PAYMENT_PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'];
+  1412→  1412→  const getStepIndex = (status: string) => statusSteps.indexOf(status);
+  1413→  1413→
+  1414→  1414→  if (loading) {
+  1415→  1415→    return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>;
+  1416→  1416→  }
+  1417→  1417→
+  1418→  1418→  if (!order) {
+  1419→  1419→    return (
+  1420→  1420→      <div className="text-center py-20">
+  1421→  1421→        <AlertCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+  1422→  1422→        <p className="text-gray-500">Commande introuvable</p>
+  1423→  1423→      </div>
+  1424→  1424→    );
+  1425→  1425→  }
+  1426→  1426→
+  1427→  1427→  const currentIdx = getStepIndex(order.status);
+  1428→  1428→
+  1429→  1429→  return (
+  1430→  1430→    <div className="space-y-6 max-w-3xl">
+  1431→  1431→      <div className="flex items-center gap-3">
+  1432→  1432→        <Button variant="ghost" size="icon" onClick={() => navigate('orders')}>
+  1433→  1433→          <ChevronLeft className="h-5 w-5" />
+  1434→  1434→        </Button>
+  1435→  1435→        <div>
+  1436→  1436→          <h2 className="text-2xl font-bold text-gray-900">Commande #{order.orderNumber}</h2>
+  1437→  1437→          <p className="text-gray-500 text-sm mt-0.5">{new Date(order.createdAt).toLocaleString('fr-FR')}</p>
+  1438→  1438→        </div>
+  1439→  1439→        <div className="ml-auto">
+  1440→  1440→          <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${ORDER_STATUS_COLORS[order.status] || ''}`}>
+  1441→  1441→            {ORDER_STATUS_LABELS[order.status] || order.status}
+  1442→  1442→          </span>
+  1443→  1443→        </div>
+  1444→  1444→      </div>
+  1445→  1445→
+  1446→  1446→      {/* Status Timeline */}
+  1447→  1447→      <Card>
+  1448→  1448→        <CardHeader>
+  1449→  1449→          <CardTitle className="text-base">Suivi de la commande</CardTitle>
+  1450→  1450→        </CardHeader>
+  1451→  1451→        <CardContent>
+  1452→  1452→          <div className="flex items-center gap-1 overflow-x-auto pb-2">
+  1453→  1453→            {statusSteps.map((step, idx) => (
+  1454→  1454→              <React.Fragment key={step}>
+  1455→  1455→                <div className="flex flex-col items-center min-w-[80px]">
+  1456→  1456→                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+  1457→  1457→                    idx <= currentIdx ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'
+  1458→  1458→                  }`}>
+  1459→  1459→                    {idx <= currentIdx ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+  1460→  1460→                  </div>
+  1461→  1461→                  <span className={`text-[10px] mt-1 text-center ${idx <= currentIdx ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>
+  1462→  1462→                    {ORDER_STATUS_LABELS[step]}
+  1463→  1463→                  </span>
+  1464→  1464→                </div>
+  1465→  1465→                {idx < statusSteps.length - 1 && (
+  1466→  1466→                  <div className={`h-0.5 w-6 mb-5 shrink-0 ${idx < currentIdx ? 'bg-emerald-500' : 'bg-gray-200'}`} />
+  1467→  1467→                )}
+  1468→  1468→              </React.Fragment>
+  1469→  1469→            ))}
+  1470→  1470→          </div>
+  1471→  1471→        </CardContent>
+  1472→  1472→      </Card>
+  1473→  1473→
+  1474→  1474→      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  1475→  1475→        {/* Client & Delivery Info */}
+  1476→  1476→        <Card>
+  1477→  1477→          <CardHeader>
+  1478→  1478→            <CardTitle className="text-base">Client & Livraison</CardTitle>
+  1479→  1479→          </CardHeader>
+  1480→  1480→          <CardContent className="space-y-3">
+  1481→  1481→            {order.client && (
+  1482→  1482→              <div className="flex items-center gap-3">
+  1483→  1483→                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold">
+  1484→  1484→                  {order.client.firstName[0]}{order.client.lastName[0]}
+  1485→  1485→                </div>
+  1486→  1486→                <div>
+  1487→  1487→                  <p className="font-medium">{order.client.firstName} {order.client.lastName}</p>
+  1488→  1488→                  <p className="text-sm text-gray-500">{order.client.phone}</p>
+  1489→  1489→                </div>
+  1490→  1490→              </div>
+  1491→  1491→            )}
+  1492→  1492→            <Separator />
+  1493→  1493→            <div className="space-y-1 text-sm">
+  1494→  1494→              <p className="text-gray-500">Adresse de livraison</p>
+  1495→  1495→              <p className="font-medium">{order.deliveryAddress}</p>
+  1496→  1496→              <p className="text-gray-500">{order.deliveryCity}{order.deliveryQuartier ? ` - ${order.deliveryQuartier}` : ''}</p>
+  1497→  1497→            </div>
+  1498→  1498→            {order.notes && (
+  1499→  1499→              <div className="p-2 bg-amber-50 rounded-lg text-sm text-amber-800">
+  1500→  1500→                <span className="font-medium">Note client :</span> {order.notes}
+  1501→  1501→              </div>
+  1502→  1502→            )}
+  1503→  1503→            {order.driver && (
+  1504→  1504→              <>
+  1505→  1505→                <Separator />
+  1506→  1506→                <div className="space-y-1">
+  1507→  1507→                  <p className="text-gray-500 text-sm">Livreur assigné</p>
+  1508→  1508→                  <div className="flex items-center gap-2">
+  1509→  1509→                    <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 text-sm font-bold">
+  1510→  1510→                      {order.driver.firstName[0]}{order.driver.lastName[0]}
+  1511→  1511→                    </div>
+  1512→  1512→                    <div>
+  1513→  1513→                      <p className="text-sm font-medium">{order.driver.firstName} {order.driver.lastName}</p>
+  1514→  1514→                      <p className="text-xs text-gray-500">{order.driver.phone} · {order.driver.vehicleType} {order.driver.vehiclePlate || ''}</p>
+  1515→  1515→                    </div>
+  1516→  1516→                  </div>
+  1517→  1517→                </div>
+  1518→  1518→              </>
+  1519→  1519→            )}
+  1520→  1520→          </CardContent>
+  1521→  1521→        </Card>
+  1522→  1522→
+  1523→  1523→        {/* Payment Info */}
+  1524→  1524→        <Card>
+  1525→  1525→          <CardHeader>
+  1526→  1526→            <CardTitle className="text-base">Paiement</CardTitle>
+  1527→  1527→          </CardHeader>
+  1528→  1528→          <CardContent className="space-y-3">
+  1529→  1529→            <div className="flex justify-between text-sm">
+  1530→  1530→              <span className="text-gray-500">Méthode</span>
+  1531→  1531→              <span className="font-medium">{PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod}</span>
+  1532→  1532→            </div>
+  1533→  1533→            <div className="flex justify-between text-sm">
+  1534→  1534→              <span className="text-gray-500">Statut paiement</span>
+  1535→  1535→              <Badge variant={order.paymentStatus === 'ACCEPTED' ? 'default' : order.paymentStatus === 'REJECTED' ? 'destructive' : 'outline'}>
+  1536→  1536→                {PAYMENT_STATUS_LABELS[order.paymentStatus] || order.paymentStatus}
+  1537→  1537→              </Badge>
+  1538→  1538→            </div>
+  1539→  1539→            <Separator />
+  1540→  1540→            <div className="space-y-1 text-sm">
+  1541→  1541→              <div className="flex justify-between"><span className="text-gray-500">Sous-total</span><span>{formatPrice(order.subtotal)}</span></div>
+  1542→  1542→              <div className="flex justify-between"><span className="text-gray-500">Livraison</span><span>{formatPrice(order.deliveryFee)}</span></div>
+  1543→  1543→              <div className="flex justify-between"><span className="text-gray-500">Frais de service</span><span>{formatPrice(order.serviceFee)}</span></div>
+  1544→  1544→              {order.discount > 0 && (
+  1545→  1545→                <div className="flex justify-between text-emerald-600"><span>Réduction</span><span>-{formatPrice(order.discount)}</span></div>
+  1546→  1546→              )}
+  1547→  1547→              <Separator />
+  1548→  1548→              <div className="flex justify-between text-base font-bold"><span>Total</span><span className="text-emerald-700">{formatPrice(order.total)}</span></div>
+  1549→  1549→            </div>
+  1550→  1550→            {order.paymentNote && (
+  1551→  1551→              <div className="p-2 bg-blue-50 rounded-lg text-sm text-blue-800">
+  1552→  1552→                <span className="font-medium">Note de paiement :</span> {order.paymentNote}
+  1553→  1553→              </div>
+  1554→  1554→            )}
+  1555→  1555→          </CardContent>
+  1556→  1556→        </Card>
+  1557→  1557→      </div>
+  1558→  1558→
+  1559→  1559→      {/* Items */}
+  1560→  1560→      <Card>
+  1561→  1561→        <CardHeader>
+  1562→  1562→          <CardTitle className="text-base">Articles</CardTitle>
+  1563→  1563→        </CardHeader>
+  1564→  1564→        <CardContent>
+  1565→  1565→          <div className="space-y-3">
+  1566→  1566→            {order.items.map((item) => (
+  1567→  1567→              <div key={item.id} className="flex items-center gap-3">
+  1568→  1568→                {item.productImage ? (
+  1569→  1569→                  <img src={item.productImage} alt={item.productName} className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
+  1570→  1570→                ) : (
+  1571→  1571→                  <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center"><Package className="h-5 w-5 text-gray-300" /></div>
+  1572→  1572→                )}
+  1573→  1573→                <div className="flex-1 min-w-0">
+  1574→  1574→                  <p className="font-medium text-sm truncate">{item.productName}</p>
+  1575→  1575→                  <p className="text-xs text-gray-500">{item.quantity}x {formatPrice(item.unitPrice)}</p>
+  1576→  1576→                  {item.supplements && (
+  1577→  1577→                    <p className="text-xs text-gray-400 mt-0.5 truncate">+ Suppléments</p>
+  1578→  1578→                  )}
+  1579→  1579→                </div>
+  1580→  1580→                <p className="font-semibold text-sm">{formatPrice(item.totalPrice)}</p>
+  1581→  1581→              </div>
+  1582→  1582→            ))}
+  1583→  1583→          </div>
+  1584→  1584→        </CardContent>
+  1585→  1585→      </Card>
+  1586→  1586→
+  1587→  1587→      {/* Payment Proof */}
+  1588→  1588→      {order.paymentProof && (
+  1589→  1589→        <Card>
+  1590→  1590→          <CardHeader>
+  1591→  1591→            <CardTitle className="text-base">Preuve de paiement</CardTitle>
+  1592→  1592→          </CardHeader>
+  1593→  1593→          <CardContent className="space-y-4">
+  1594→  1594→            <div className="flex justify-center">
+  1595→  1595→              <img
+  1596→  1596→                src={order.paymentProof}
+  1597→  1597→                alt="Preuve de paiement"
+  1598→  1598→                className="max-h-60 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
+  1599→  1599→                onClick={() => setImageOpen(true)}
+  1600→  1600→              />
+  1601→  1601→            </div>
+  1602→  1602→            {(order.status === 'PENDING' || order.status === 'PAYMENT_PENDING') && (
+  1603→  1603→              <div className="flex gap-3">
+  1604→  1604→                <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={updating} onClick={() => updateOrder('CONFIRMED', 'ACCEPTED')}>
+  1605→  1605→                  {updating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+  1606→  1606→                  Accepter le paiement
+  1607→  1607→                </Button>
+  1608→  1608→                <Button variant="outline" className="flex-1 text-red-600 hover:bg-red-50" disabled={updating} onClick={() => updateOrder(order.status, 'REJECTED')}>
+  1609→  1609→                  Refuser
+  1610→  1610→                </Button>
+  1611→  1611→              </div>
+  1612→  1612→            )}
+  1613→  1613→          </CardContent>
+  1614→  1614→        </Card>
+  1615→  1615→      )}
+  1616→  1616→
+  1617→  1617→      {/* Status Transition Actions */}
+  1618→  1618→      <Card>
+  1619→  1619→        <CardHeader>
+  1620→  1620→          <CardTitle className="text-base">Actions</CardTitle>
+  1621→  1621→        </CardHeader>
+  1622→  1622→        <CardContent className="space-y-3">
+  1623→  1623→          {order.status === 'PENDING' && !order.paymentProof && (
+  1624→  1624→            <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={updating} onClick={() => updateOrder('CONFIRMED')}>
+  1625→  1625→              {updating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+  1626→  1626→              Confirmer la commande
+  1627→  1627→            </Button>
+  1628→  1628→          )}
+  1629→  1629→          {order.status === 'CONFIRMED' && (
+  1630→  1630→            <Button className="w-full bg-orange-500 hover:bg-orange-600" disabled={updating} onClick={() => updateOrder('PREPARING')}>
+  1631→  1631→              {updating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Clock className="h-4 w-4 mr-2" />}
+  1632→  1632→              Commencer la préparation
+  1633→  1633→            </Button>
+  1634→  1634→          )}
+  1635→  1635→          {order.status === 'PREPARING' && (
+  1636→  1636→            <Button className="w-full bg-teal-600 hover:bg-teal-700" disabled={updating} onClick={() => updateOrder('READY')}>
+  1637→  1637→              {updating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+  1638→  1638→              Commande prête
+  1639→  1639→            </Button>
+  1640→  1640→          )}
+  1641→  1641→          {['PENDING', 'CONFIRMED'].includes(order.status) && (
+  1642→  1642→            <Button variant="outline" className="w-full text-red-600 hover:bg-red-50" disabled={updating} onClick={() => updateOrder('CANCELLED')}>
+  1643→  1643→              Annuler la commande
+  1644→  1644→            </Button>
+  1645→  1645→          )}
+  1646→  1646→          {!['PENDING', 'PAYMENT_PENDING', 'CONFIRMED', 'PREPARING'].includes(order.status) && order.status !== 'CANCELLED' && order.status !== 'DELIVERED' && (
+  1647→  1647→            <div className="text-center py-4 text-gray-500 text-sm">
+  1648→  1648→              <Check className="h-5 w-5 mx-auto mb-2 text-emerald-500" />
+  1649→  1649→              Aucune action requise pour le moment.
+  1650→  1650→            </div>
+  1651→  1651→          )}
+  1652→  1652→          {order.status === 'DELIVERED' && (
+  1653→  1653→            <div className="text-center py-4 text-emerald-700 text-sm font-medium">
+  1654→  1654→              <Check className="h-5 w-5 mx-auto mb-2" />
+  1655→  1655→              Commande livrée avec succès !
+  1656→  1656→            </div>
+  1657→  1657→          )}
+  1658→  1658→        </CardContent>
+  1659→  1659→      </Card>
+  1660→  1660→
+  1661→  1661→      {/* Chat placeholder */}
+  1662→  1662→      <Card>
+  1663→  1663→        <CardHeader>
+  1664→  1664→          <CardTitle className="text-base">Communication</CardTitle>
+  1665→  1665→        </CardHeader>
+  1666→  1666→        <CardContent>
+  1667→  1667→          <div className="text-center py-8 text-gray-500">
+  1668→  1668→            <MessageSquare className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+  1669→  1669→            <p className="font-medium">Bientôt disponible</p>
+  1670→  1670→            <p className="text-sm mt-1">Le chat avec le client et le livreur sera bientôt activé.</p>
+  1671→  1671→          </div>
+  1672→  1672→        </CardContent>
+  1673→  1673→      </Card>
+  1674→  1674→
+  1675→  1675→      {/* Image viewer dialog */}
+  1676→  1676→      <Dialog open={imageOpen} onOpenChange={setImageOpen}>
+  1677→  1677→        <DialogContent className="max-w-2xl">
+  1678→  1678→          <img src={order.paymentProof || ''} alt="Preuve de paiement" className="w-full rounded-lg" />
+  1679→  1679→        </DialogContent>
+  1680→  1680→      </Dialog>
+  1681→  1681→    </div>
+  1682→  1682→  );
+  1683→  1683→}
+  1684→  1684→
+  1685→  1685→// ─── 6. Delivery Zones View ──────────────────────────────────────────────
+  1686→  1686→
+  1687→  1687→function DeliveryZonesView({ merchant }: { merchant: MerchantProfile }) {
+  1688→  1688→  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  1689→  1689→  const [loading, setLoading] = useState(true);
+  1690→  1690→  const [showForm, setShowForm] = useState(false);
+  1691→  1691→  const [editZone, setEditZone] = useState<DeliveryZone | null>(null);
+  1692→  1692→  const [saving, setSaving] = useState(false);
+  1693→  1693→  const [deleteId, setDeleteId] = useState<string | null>(null);
+  1694→  1694→  const [deleting, setDeleting] = useState(false);
+  1695→  1695→
+  1696→  1696→  const [form, setForm] = useState({ city: 'Bamako', quartier: '', fee: '' });
+  1697→  1697→
+  1698→  1698→  const fetchZones = useCallback(async () => {
+  1699→  1699→    const res = await apiFetch<DeliveryZone[]>(`/api/merchants/${merchant.id}/delivery-zones`);
+  1700→  1700→    if (res.data) setZones(res.data);
+  1701→  1701→    setLoading(false);
+  1702→  1702→  }, [merchant.id]);
+  1703→  1703→
+  1704→  1704→  // eslint-disable-next-line react-hooks/set-state-in-effect
+  1705→  1705→  useEffect(() => { fetchZones(); }, [fetchZones]);
+  1706→  1706→
+  1707→  1707→  const resetForm = () => {
+  1708→  1708→    setForm({ city: 'Bamako', quartier: '', fee: '' });
+  1709→  1709→    setEditZone(null);
+  1710→  1710→    setShowForm(false);
+  1711→  1711→  };
+  1712→  1712→
+  1713→  1713→  const openEdit = (zone: DeliveryZone) => {
+  1714→  1714→    setEditZone(zone);
+  1715→  1715→    setForm({ city: zone.city, quartier: zone.quartier || '', fee: String(zone.fee) });
+  1716→  1716→    setShowForm(true);
+  1717→  1717→  };
+  1718→  1718→
+  1719→  1719→  const handleSave = async () => {
+  1720→  1720→    if (!form.fee) return;
+  1721→  1721→    setSaving(true);
+  1722→  1722→    const body = {
+  1723→  1723→      city: form.city,
+  1724→  1724→      quartier: form.quartier || null,
+  1725→  1725→      fee: parseInt(form.fee) || 0,
+  1726→  1726→    };
+  1727→  1727→
+  1728→  1728→    if (editZone) {
+  1729→  1729→      await apiFetch(`/api/merchants/${merchant.id}/delivery-zones`, {
+  1730→  1730→        method: 'POST',
+  1731→  1731→        body: JSON.stringify({ ...body, id: editZone.id }),
+  1732→  1732→      });
+  1733→  1733→    } else {
+  1734→  1734→      await apiFetch(`/api/merchants/${merchant.id}/delivery-zones`, {
+  1735→  1735→        method: 'POST',
+  1736→  1736→        body: JSON.stringify(body),
+  1737→  1737→      });
+  1738→  1738→    }
+  1739→  1739→    setSaving(false);
+  1740→  1740→    resetForm();
+  1741→  1741→    fetchZones();
+  1742→  1742→  };
+  1743→  1743→
+  1744→  1744→  const handleDelete = async () => {
+  1745→  1745→    if (!deleteId) return;
+  1746→  1746→    setDeleting(true);
+  1747→  1747→    await apiFetch(`/api/merchants/${merchant.id}/delivery-zones`, {
+  1748→  1748→      method: 'DELETE',
+  1749→  1749→      body: JSON.stringify({ id: deleteId }),
+  1750→  1750→    });
+  1751→  1751→    setDeleting(false);
+  1752→  1752→    setDeleteId(null);
+  1753→  1753→    fetchZones();
+  1754→  1754→  };
+  1755→  1755→
+  1756→  1756→  return (
+  1757→  1757→    <div className="space-y-6">
+  1758→  1758→      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+  1759→  1759→        <div>
+  1760→  1760→          <h2 className="text-2xl font-bold text-gray-900">Zones de livraison</h2>
+  1761→  1761→          <p className="text-gray-500 text-sm mt-1">Configurez vos zones et frais de livraison</p>
+  1762→  1762→        </div>
+  1763→  1763→        <Button onClick={() => { resetForm(); setShowForm(true); }} className="bg-emerald-600 hover:bg-emerald-700">
+  1764→  1764→          <PlusCircle className="h-4 w-4 mr-2" />
+  1765→  1765→          Ajouter une zone
+  1766→  1766→        </Button>
+  1767→  1767→      </div>
+  1768→  1768→
+  1769→  1769→      {loading ? (
+  1770→  1770→        <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>
+  1771→  1771→      ) : zones.length === 0 ? (
+  1772→  1772→        <div className="text-center py-20 text-gray-500">
+  1773→  1773→          <MapPin className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+  1774→  1774→          <p className="text-lg font-medium">Aucune zone configurée</p>
+  1775→  1775→          <p className="text-sm mt-1">Ajoutez vos zones de livraison pour commencer.</p>
+  1776→  1776→        </div>
+  1777→  1777→      ) : (
+  1778→  1778→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  1779→  1779→          {zones.map((zone) => (
+  1780→  1780→            <Card key={zone.id} className="hover:shadow-md transition-shadow">
+  1781→  1781→              <CardContent className="p-4">
+  1782→  1782→                <div className="flex items-start justify-between">
+  1783→  1783→                  <div className="flex items-center gap-3">
+  1784→  1784→                    <div className="p-2 rounded-lg bg-emerald-50">
+  1785→  1785→                      <MapPin className="h-5 w-5 text-emerald-600" />
+  1786→  1786→                    </div>
+  1787→  1787→                    <div>
+  1788→  1788→                      <p className="font-semibold text-gray-900">{zone.city}</p>
+  1789→  1789→                      {zone.quartier && <p className="text-sm text-gray-500">{zone.quartier}</p>}
+  1790→  1790→                    </div>
+  1791→  1791→                  </div>
+  1792→  1792→                  <span className="text-lg font-bold text-emerald-700">{formatPrice(zone.fee)}</span>
+  1793→  1793→                </div>
+  1794→  1794→                <div className="flex items-center gap-2 mt-4">
+  1795→  1795→                  <Switch checked={zone.isActive} onCheckedChange={async (val) => {
+  1796→  1796→                    await apiFetch(`/api/merchants/${merchant.id}/delivery-zones`, {
+  1797→  1797→                      method: 'POST',
+  1798→  1798→                      body: JSON.stringify({ id: zone.id, isActive: val }),
+  1799→  1799→                    });
+  1800→  1800→                    fetchZones();
+  1801→  1801→                  }} className="data-[state=checked]:bg-emerald-600" />
+  1802→  1802→                  <span className="text-xs text-gray-500">{zone.isActive ? 'Active' : 'Inactive'}</span>
+  1803→  1803→                  <div className="ml-auto flex gap-1">
+  1804→  1804→                    <Button size="sm" variant="ghost" onClick={() => openEdit(zone)}>
+  1805→  1805→                      <Edit className="h-3.5 w-3.5" />
+  1806→  1806→                    </Button>
+  1807→  1807→                    <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeleteId(zone.id)}>
+  1808→  1808→                      <Trash2 className="h-3.5 w-3.5" />
+  1809→  1809→                    </Button>
+  1810→  1810→                  </div>
+  1811→  1811→                </div>
+  1812→  1812→              </CardContent>
+  1813→  1813→            </Card>
+  1814→  1814→          ))}
+  1815→  1815→        </div>
+  1816→  1816→      )}
+  1817→  1817→
+  1818→  1818→      {/* Add/Edit Form Dialog */}
+  1819→  1819→      <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
+  1820→  1820→        <DialogContent>
+  1821→  1821→          <DialogHeader>
+  1822→  1822→            <DialogTitle>{editZone ? 'Modifier la zone' : 'Ajouter une zone'}</DialogTitle>
+  1823→  1823→            <DialogDescription>Définissez la ville, le quartier et les frais de livraison.</DialogDescription>
+  1824→  1824→          </DialogHeader>
+  1825→  1825→          <div className="space-y-4 py-2">
+  1826→  1826→            <div className="space-y-2">
+  1827→  1827→              <Label>Ville</Label>
+  1828→  1828→              <Input value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} placeholder="Bamako" />
+  1829→  1829→            </div>
+  1830→  1830→            <div className="space-y-2">
+  1831→  1831→              <Label>Quartier</Label>
+  1832→  1832→              <Input value={form.quartier} onChange={(e) => setForm((p) => ({ ...p, quartier: e.target.value }))} placeholder="Ex: Badalabougou" />
+  1833→  1833→            </div>
+  1834→  1834→            <div className="space-y-2">
+  1835→  1835→              <Label>Frais de livraison (FCFA)</Label>
+  1836→  1836→              <Input type="number" value={form.fee} onChange={(e) => setForm((p) => ({ ...p, fee: e.target.value }))} placeholder="500" min="0" />
+  1837→  1837→            </div>
+  1838→  1838→          </div>
+  1839→  1839→          <DialogFooter>
+  1840→  1840→            <Button variant="outline" onClick={resetForm}>Annuler</Button>
+  1841→  1841→            <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+  1842→  1842→              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  1843→  1843→              {editZone ? 'Modifier' : 'Ajouter'}
+  1844→  1844→            </Button>
+  1845→  1845→          </DialogFooter>
+  1846→  1846→        </DialogContent>
+  1847→  1847→      </Dialog>
+  1848→  1848→
+  1849→  1849→      {/* Delete Confirmation */}
+  1850→  1850→      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+  1851→  1851→        <DialogContent>
+  1852→  1852→          <DialogHeader>
+  1853→  1853→            <DialogTitle>Supprimer la zone</DialogTitle>
+  1854→  1854→            <DialogDescription>Êtes-vous sûr de vouloir supprimer cette zone de livraison ?</DialogDescription>
+  1855→  1855→          </DialogHeader>
+  1856→  1856→          <DialogFooter>
+  1857→  1857→            <Button variant="outline" onClick={() => setDeleteId(null)} disabled={deleting}>Annuler</Button>
+  1858→  1858→            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+  1859→  1859→              {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  1860→  1860→              Supprimer
+  1861→  1861→            </Button>
+  1862→  1862→          </DialogFooter>
+  1863→  1863→        </DialogContent>
+  1864→  1864→      </Dialog>
+  1865→  1865→    </div>
+  1866→  1866→  );
+  1867→  1867→}
+  1868→  1868→
+  1869→  1869→// ─── 7. Payment Config View ──────────────────────────────────────────────
+  1870→  1870→
+  1871→  1871→function PaymentConfigView({ merchant }: { merchant: MerchantProfile }) {
+  1872→  1872→  const [configs, setConfigs] = useState<PaymentConfig[]>([]);
+  1873→  1873→  const [loading, setLoading] = useState(true);
+  1874→  1874→  const [savingMethod, setSavingMethod] = useState<string | null>(null);
+  1875→  1875→
+  1876→  1876→  const fetchConfigs = useCallback(async () => {
+  1877→  1877→    const res = await apiFetch<PaymentConfig[]>(`/api/merchants/${merchant.id}/payment-config`);
+  1878→  1878→    if (res.data) setConfigs(res.data);
+  1879→  1879→    setLoading(false);
+  1880→  1880→  }, [merchant.id]);
+  1881→  1881→
+  1882→  1882→  // eslint-disable-next-line react-hooks/set-state-in-effect
+  1883→  1883→  useEffect(() => { fetchConfigs(); }, [fetchConfigs]);
+  1884→  1884→
+  1885→  1885→  const getConfig = (method: string) => configs.find((c) => c.method === method);
+  1886→  1886→
+  1887→  1887→  const toggleMethod = async (method: string, enabled: boolean) => {
+  1888→  1888→    const existing = getConfig(method);
+  1889→  1889→    if (existing) {
+  1890→  1890→      await apiFetch(`/api/merchants/${merchant.id}/payment-config`, {
+  1891→  1891→        method: 'POST',
+  1892→  1892→        body: JSON.stringify({ id: existing.id, isEnabled: enabled }),
+  1893→  1893→      });
+  1894→  1894→    } else {
+  1895→  1895→      await apiFetch(`/api/merchants/${merchant.id}/payment-config`, {
+  1896→  1896→        method: 'POST',
+  1897→  1897→        body: JSON.stringify({ method, isEnabled: enabled }),
+  1898→  1898→      });
+  1899→  1899→    }
+  1900→  1900→    fetchConfigs();
+  1901→  1901→  };
+  1902→  1902→
+  1903→  1903→  const saveConfig = async (method: string, fields: Record<string, string>) => {
+  1904→  1904→    setSavingMethod(method);
+  1905→  1905→    const existing = getConfig(method);
+  1906→  1906→    await apiFetch(`/api/merchants/${merchant.id}/payment-config`, {
+  1907→  1907→      method: 'POST',
+  1908→  1908→      body: JSON.stringify({
+  1909→  1909→        ...(existing ? { id: existing.id } : { method }),
+  1910→  1910→        ...fields,
+  1911→  1911→      }),
+  1912→  1912→    });
+  1913→  1913→    setSavingMethod(null);
+  1914→  1914→    fetchConfigs();
+  1915→  1915→  };
+  1916→  1916→
+  1917→  1917→  const deleteConfig = async (method: string) => {
+  1918→  1918→    const existing = getConfig(method);
+  1919→  1919→    if (!existing) return;
+  1920→  1920→    await apiFetch(`/api/merchants/${merchant.id}/payment-config`, {
+  1921→  1921→      method: 'DELETE',
+  1922→  1922→      body: JSON.stringify({ id: existing.id }),
+  1923→  1923→    });
+  1924→  1924→    fetchConfigs();
+  1925→  1925→  };
+  1926→  1926→
+  1927→  1927→  const isMobileMoney = (m: string) => ['ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'].includes(m);
+  1928→  1928→  const isCard = (m: string) => ['VISA', 'MASTERCARD'].includes(m);
+  1929→  1929→
+  1930→  1930→  if (loading) {
+  1931→  1931→    return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>;
+  1932→  1932→  }
+  1933→  1933→
+  1934→  1934→  return (
+  1935→  1935→    <div className="space-y-6">
+  1936→  1936→      <div>
+  1937→  1937→        <h2 className="text-2xl font-bold text-gray-900">Configuration paiement</h2>
+  1938→  1938→        <p className="text-gray-500 text-sm mt-1">Gérez vos méthodes de paiement acceptées</p>
+  1939→  1939→      </div>
+  1940→  1940→
+  1941→  1941→      <div className="space-y-4">
+  1942→  1942→        {PAYMENT_METHOD_LIST.map((method) => {
+  1943→  1943→          const config = getConfig(method);
+  1944→  1944→          const isEnabled = config?.isEnabled ?? false;
+  1945→  1945→
+  1946→  1946→          return (
+  1947→  1947→            <PaymentMethodCard
+  1948→  1948→              key={method}
+  1949→  1949→              method={method}
+  1950→  1950→              config={config}
+  1951→  1951→              isEnabled={isEnabled}
+  1952→  1952→              saving={savingMethod === method}
+  1953→  1953→              onToggle={(enabled) => toggleMethod(method, enabled)}
+  1954→  1954→              onSave={(fields) => saveConfig(method, fields)}
+  1955→  1955→              onDelete={() => deleteConfig(method)}
+  1956→  1956→            />
+  1957→  1957→          );
+  1958→  1958→        })}
+  1959→  1959→      </div>
+  1960→  1960→    </div>
+  1961→  1961→  );
+  1962→  1962→}
+  1963→  1963→
+  1964→  1964→function PaymentMethodCard({
+  1965→  1965→  method,
+  1966→  1966→  config,
+  1967→  1967→  isEnabled,
+  1968→  1968→  saving,
+  1969→  1969→  onToggle,
+  1970→  1970→  onSave,
+  1971→  1971→  onDelete,
+  1972→  1972→}: {
+  1973→  1973→  method: string;
+  1974→  1974→  config: PaymentConfig | null;
+  1975→  1975→  isEnabled: boolean;
+  1976→  1976→  saving: boolean;
+  1977→  1977→  onToggle: (enabled: boolean) => void;
+  1978→  1978→  onSave: (fields: Record<string, string>) => void;
+  1979→  1979→  onDelete: () => void;
+  1980→  1980→}) {
+  1981→  1981→  const [expanded, setExpanded] = useState(false);
+  1982→  1982→  const [phone, setPhone] = useState(config?.phoneNumber || '');
+  1983→  1983→  const [accountName, setAccountName] = useState(config?.accountName || '');
+  1984→  1984→  const [accountNumber, setAccountNumber] = useState(config?.accountNumber || '');
+  1985→  1985→  const [qrCode, setQrCode] = useState(config?.qrCode || '');
+  1986→  1986→  const [instructions, setInstructions] = useState(config?.instructions || '');
+  1987→  1987→
+  1988→  1988→  useEffect(() => {
+  1989→  1989→    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync prop to local state
+  1990→  1990→    setPhone(config?.phoneNumber || '');
+  1991→  1991→     
+  1992→  1992→    setAccountName(config?.accountName || '');
+  1993→  1993→     
+  1994→  1994→    setAccountNumber(config?.accountNumber || '');
+  1995→  1995→     
+  1996→  1996→    setQrCode(config?.qrCode || '');
+  1997→  1997→     
+  1998→  1998→    setInstructions(config?.instructions || '');
+  1999→  1999→  }, [config]);
+  2000→  2000→
+
+[showing lines 1-2000 of 2002; use offset=2001 with limit to continue reading]

@@ -1,0 +1,833 @@
+     1→  2001→          />
+     2→  2002→          <button
+     3→  2003→            onClick={() => fileRef.current?.click()}
+     4→  2004→            className="w-full border-2 border-dashed rounded-lg p-8 flex flex-col items-center gap-2 hover:border-emerald-600 transition-colors"
+     5→  2005→          >
+     6→  2006→            <Camera className="w-8 h-8 text-muted-foreground" />
+     7→  2007→            <span className="text-sm text-muted-foreground">{proofFile ? proofFile.name : 'Choisir une image'}</span>
+     8→  2008→          </button>
+     9→  2009→          <DialogFooter>
+    10→  2010→            <DialogClose asChild><Button variant="outline">Annuler</Button></DialogClose>
+    11→  2011→            <Button
+    12→  2012→              className="bg-emerald-600 hover:bg-emerald-700"
+    13→  2013→              onClick={handleUploadProof}
+    14→  2014→              disabled={!proofFile || uploading}
+    15→  2015→            >
+    16→  2016→              {uploading ? <Spinner className="w-4 h-4 mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+    17→  2017→              Envoyer
+    18→  2018→            </Button>
+    19→  2019→          </DialogFooter>
+    20→  2020→        </DialogContent>
+    21→  2021→      </Dialog>
+    22→  2022→    </div>
+    23→  2023→  );
+    24→  2024→}
+    25→  2025→
+    26→  2026→// ============================================
+    27→  2027→// 10. FAVORITES VIEW
+    28→  2028→// ============================================
+    29→  2029→function FavoritesView() {
+    30→  2030→  const { navigate } = useClientNav();
+    31→  2031→  const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
+    32→  2032→  const [loading, setLoading] = useState(true);
+    33→  2033→  const [error, setError] = useState<string | null>(null);
+    34→  2034→  const [retryCount, setRetryCount] = useState(0);
+    35→  2035→
+    36→  2036→  useEffect(() => {
+    37→  2037→    let cancelled = false;
+    38→  2038→    (async () => {
+    39→  2039→      setLoading(true);
+    40→  2040→      setError(null);
+    41→  2041→      const res = await apiFetch<FavoriteProduct[]>('/api/favorites');
+    42→  2042→      if (cancelled) return;
+    43→  2043→      if (res.error && !res.data) setError(res.error);
+    44→  2044→      if (res.data) setFavorites(Array.isArray(res.data) ? res.data : []);
+    45→  2045→      setLoading(false);
+    46→  2046→    })();
+    47→  2047→    return () => { cancelled = true; };
+    48→  2048→  }, [retryCount]);
+    49→  2049→
+    50→  2050→  const handleRemove = async (productId: string) => {
+    51→  2051→    const res = await apiFetch('/api/favorites', {
+    52→  2052→      method: 'DELETE',
+    53→  2053→      body: JSON.stringify({ productId }),
+    54→  2054→    });
+    55→  2055→    if (res.error) toast.error(res.error);
+    56→  2056→    else {
+    57→  2057→      toast.success('Retiré des favoris');
+    58→  2058→      setFavorites((prev) => prev.filter((f) => f.productId !== productId));
+    59→  2059→    }
+    60→  2060→  };
+    61→  2061→
+    62→  2062→  if (loading) return <LoadingState />;
+    63→  2063→  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+    64→  2064→
+    65→  2065→  return (
+    66→  2066→    <div className="p-4 pb-24 space-y-4">
+    67→  2067→      <h1 className="font-semibold text-lg">Mes favoris</h1>
+    68→  2068→
+    69→  2069→      {favorites.length === 0 ? (
+    70→  2070→        <EmptyState
+    71→  2071→          icon={Heart}
+    72→  2072→          message="Aucun favori pour le moment. Ajoutez des produits en les aimant !"
+    73→  2073→          action="Explorer"
+    74→  2074→          onAction={() => navigate('home')}
+    75→  2075→        />
+    76→  2076→      ) : (
+    77→  2077→        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+    78→  2078→          {favorites.map((fav) => (
+    79→  2079→            <Card key={fav.id} className="overflow-hidden rounded-xl">
+    80→  2080→              <button className="w-full text-left" onClick={() => navigate('product-detail', { id: fav.productId })}>
+    81→  2081→                <div className="aspect-square bg-muted relative">
+    82→  2082→                  {fav.product?.image ? (
+    83→  2083→                    <img src={fav.product.image} alt={fav.product.name} className="w-full h-full object-cover" />
+    84→  2084→                  ) : (
+    85→  2085→                    <div className="w-full h-full flex items-center justify-center">
+    86→  2086→                      <Package className="w-10 h-10 text-muted-foreground/40" />
+    87→  2087→                    </div>
+    88→  2088→                  )}
+    89→  2089→                  <button
+    90→  2090→                    onClick={(e) => { e.stopPropagation(); handleRemove(fav.productId); }}
+    91→  2091→                    className="absolute top-2 right-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+    92→  2092→                  >
+    93→  2093→                    <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+    94→  2094→                  </button>
+    95→  2095→                </div>
+    96→  2096→              </button>
+    97→  2097→              <CardContent className="p-3">
+    98→  2098→                <h4 className="font-medium text-xs truncate">{fav.product?.name}</h4>
+    99→  2099→                <p className="text-xs text-muted-foreground truncate">{fav.product?.merchant?.businessName}</p>
+   100→  2100→                {fav.product && (
+   101→  2101→                  <p className="font-bold text-sm text-emerald-600 dark:text-emerald-400 mt-1">{formatPrice(fav.product.price)}</p>
+   102→  2102→                )}
+   103→  2103→              </CardContent>
+   104→  2104→            </Card>
+   105→  2105→          ))}
+   106→  2106→        </div>
+   107→  2107→      )}
+   108→  2108→    </div>
+   109→  2109→  );
+   110→  2110→}
+   111→  2111→
+   112→  2112→// ============================================
+   113→  2113→// 11. WALLET VIEW
+   114→  2114→// ============================================
+   115→  2115→function WalletView() {
+   116→  2116→  const [wallet, setWallet] = useState<WalletData | null>(null);
+   117→  2117→  const [transactions, setTransactions] = useState<Transaction[]>([]);
+   118→  2118→  const [loading, setLoading] = useState(true);
+   119→  2119→  const [error, setError] = useState<string | null>(null);
+   120→  2120→  const [retryCount, setRetryCount] = useState(0);
+   121→  2121→
+   122→  2122→  useEffect(() => {
+   123→  2123→    let cancelled = false;
+   124→  2124→    (async () => {
+   125→  2125→      setLoading(true);
+   126→  2126→      setError(null);
+   127→  2127→      const [wRes, tRes] = await Promise.all([
+   128→  2128→        apiFetch<WalletData>('/api/wallet'),
+   129→  2129→        apiFetch<Transaction[]>('/api/wallet/transactions'),
+   130→  2130→      ]);
+   131→  2131→      if (cancelled) return;
+   132→  2132→      if (wRes.error && !wRes.data) setError(wRes.error);
+   133→  2133→      if (wRes.data) setWallet(wRes.data as WalletData);
+   134→  2134→      if (tRes.data) setTransactions(Array.isArray(tRes.data) ? tRes.data : []);
+   135→  2135→      setLoading(false);
+   136→  2136→    })();
+   137→  2137→    return () => { cancelled = true; };
+   138→  2138→  }, [retryCount]);
+   139→  2139→
+   140→  2140→  if (loading) return <LoadingState />;
+   141→  2141→  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+   142→  2142→
+   143→  2143→  return (
+   144→  2144→    <div className="p-4 pb-24 space-y-4">
+   145→  2145→      <h1 className="font-semibold text-lg">Mon portefeuille</h1>
+   146→  2146→
+   147→  2147→      <Card className="rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-500 text-white border-0">
+   148→  2148→        <CardContent className="p-6">
+   149→  2149→          <p className="text-sm text-white/80">Solde disponible</p>
+   150→  2150→          <p className="text-3xl font-bold mt-1">
+   151→  2151→            {wallet ? formatPrice(wallet.balance) : '0 FCFA'}
+   152→  2152→          </p>
+   153→  2153→        </CardContent>
+   154→  2154→      </Card>
+   155→  2155→
+   156→  2156→      <div>
+   157→  2157→        <h2 className="font-semibold text-sm mb-3">Historique des transactions</h2>
+   158→  2158→        {transactions.length === 0 ? (
+   159→  2159→          <EmptyState icon={Wallet} message="Aucune transaction" />
+   160→  2160→        ) : (
+   161→  2161→          <div className="space-y-2">
+   162→  2162→            {transactions.map((tx) => (
+   163→  2163→              <Card key={tx.id} className="rounded-xl">
+   164→  2164→                <CardContent className="p-3 flex items-center gap-3">
+   165→  2165→                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+   166→  2166→                    tx.type === 'CREDIT' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30'
+   167→  2167→                  }`}>
+   168→  2168→                    {tx.type === 'CREDIT'
+   169→  2169→                      ? <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
+   170→  2170→                      : <ArrowUpRight className="w-5 h-5 text-red-600" />
+   171→  2171→                    }
+   172→  2172→                  </div>
+   173→  2173→                  <div className="flex-1 min-w-0">
+   174→  2174→                    <p className="text-sm font-medium truncate">{tx.description}</p>
+   175→  2175→                    <p className="text-xs text-muted-foreground">
+   176→  2176→                      {new Date(tx.createdAt).toLocaleDateString('fr-FR', {
+   177→  2177→                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+   178→  2178→                      })}
+   179→  2179→                    </p>
+   180→  2180→                  </div>
+   181→  2181→                  <span className={`font-semibold text-sm ${tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-600'}`}>
+   182→  2182→                    {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
+   183→  2183→                  </span>
+   184→  2184→                </CardContent>
+   185→  2185→              </Card>
+   186→  2186→            ))}
+   187→  2187→          </div>
+   188→  2188→        )}
+   189→  2189→      </div>
+   190→  2190→    </div>
+   191→  2191→  );
+   192→  2192→}
+   193→  2193→
+   194→  2194→// ============================================
+   195→  2195→// 12. NOTIFICATIONS VIEW
+   196→  2196→// ============================================
+   197→  2197→function NotificationsView() {
+   198→  2198→  const { goBack } = useClientNav();
+   199→  2199→  const [notifications, setNotifications] = useState<Notification[]>([]);
+   200→  2200→  const [loading, setLoading] = useState(true);
+   201→  2201→  const [error, setError] = useState<string | null>(null);
+   202→  2202→  const [retryCount, setRetryCount] = useState(0);
+   203→  2203→
+   204→  2204→  useEffect(() => {
+   205→  2205→    let cancelled = false;
+   206→  2206→    (async () => {
+   207→  2207→      setLoading(true);
+   208→  2208→      setError(null);
+   209→  2209→      const res = await apiFetch<Notification[]>('/api/notifications');
+   210→  2210→      if (cancelled) return;
+   211→  2211→      if (res.error && !res.data) setError(res.error);
+   212→  2212→      if (res.data) setNotifications(Array.isArray(res.data) ? res.data : []);
+   213→  2213→      setLoading(false);
+   214→  2214→    })();
+   215→  2215→    return () => { cancelled = true; };
+   216→  2216→  }, [retryCount]);
+   217→  2217→
+   218→  2218→  const handleMarkRead = async (id: string) => {
+   219→  2219→    const notif = notifications.find((n) => n.id === id);
+   220→  2220→    if (notif?.isRead) return;
+   221→  2221→    await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+   222→  2222→    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+   223→  2223→  };
+   224→  2224→
+   225→  2225→  if (loading) return <LoadingState />;
+   226→  2226→  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+   227→  2227→
+   228→  2228→  return (
+   229→  2229→    <div className="p-4 pb-24 space-y-4">
+   230→  2230→      <div className="flex items-center gap-3">
+   231→  2231→        <Button variant="ghost" size="icon" onClick={goBack}>
+   232→  2232→          <ChevronLeft className="w-5 h-5" />
+   233→  2233→        </Button>
+   234→  2234→        <h1 className="font-semibold text-lg">Notifications</h1>
+   235→  2235→      </div>
+   236→  2236→
+   237→  2237→      {notifications.length === 0 ? (
+   238→  2238→        <EmptyState icon={Bell} message="Aucune notification" />
+   239→  2239→      ) : (
+   240→  2240→        <div className="space-y-2">
+   241→  2241→          {notifications.map((notif) => (
+   242→  2242→            <button
+   243→  2243→              key={notif.id}
+   244→  2244→              onClick={() => handleMarkRead(notif.id)}
+   245→  2245→              className={`w-full text-left p-3 rounded-xl border transition-colors ${
+   246→  2246→                notif.isRead
+   247→  2247→                  ? 'bg-card border-border'
+   248→  2248→                  : 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-900/30'
+   249→  2249→              }`}
+   250→  2250→            >
+   251→  2251→              <div className="flex items-start gap-3">
+   252→  2252→                <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${
+   253→  2253→                  notif.isRead ? 'bg-transparent' : 'bg-emerald-500'
+   254→  2254→                }`} />
+   255→  2255→                <div className="flex-1 min-w-0">
+   256→  2256→                  <div className="flex items-start justify-between gap-2">
+   257→  2257→                    <h4 className={`text-sm font-medium ${notif.isRead ? '' : 'font-semibold'}`}>{notif.title}</h4>
+   258→  2258→                    <span className="text-[10px] text-muted-foreground shrink-0">
+   259→  2259→                      {new Date(notif.createdAt).toLocaleDateString('fr-FR', {
+   260→  2260→                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+   261→  2261→                      })}
+   262→  2262→                    </span>
+   263→  2263→                  </div>
+   264→  2264→                  <p className="text-xs text-muted-foreground mt-0.5">{notif.message}</p>
+   265→  2265→                </div>
+   266→  2266→              </div>
+   267→  2267→            </button>
+   268→  2268→          ))}
+   269→  2269→        </div>
+   270→  2270→      )}
+   271→  2271→    </div>
+   272→  2272→  );
+   273→  2273→}
+   274→  2274→
+   275→  2275→// ============================================
+   276→  2276→// 13. PROFILE VIEW
+   277→  2277→// ============================================
+   278→  2278→function ProfileView() {
+   279→  2279→  const { user, logout, updateUser } = useAuthStore();
+   280→  2280→  const { navigate } = useClientNav();
+   281→  2281→  const [editing, setEditing] = useState(false);
+   282→  2282→  const [firstName, setFirstName] = useState('');
+   283→  2283→  const [lastName, setLastName] = useState('');
+   284→  2284→  const [phone, setPhone] = useState('');
+   285→  2285→  const [saving, setSaving] = useState(false);
+   286→  2286→  const [referralCode, setReferralCode] = useState('');
+   287→  2287→  const editInitialized = useRef(false);
+   288→  2288→
+   289→  2289→  // Derive display values from user, initialize edit fields on first edit
+   290→  2290→  const displayFirstName = user?.firstName || '';
+   291→  2291→  const displayLastName = user?.lastName || '';
+   292→  2292→  const displayPhone = user?.phone || '';
+   293→  2293→
+   294→  2294→  const startEditing = () => {
+   295→  2295→    if (!editInitialized.current) {
+   296→  2296→      setFirstName(displayFirstName);
+   297→  2297→      setLastName(displayLastName);
+   298→  2298→      setPhone(displayPhone);
+   299→  2299→      editInitialized.current = true;
+   300→  2300→    }
+   301→  2301→    setEditing(true);
+   302→  2302→  };
+   303→  2303→
+   304→  2304→  useEffect(() => {
+   305→  2305→    apiFetch<{ referralCode: string }>('/api/auth/me').then((res) => {
+   306→  2306→      if (res.data) setReferralCode((res.data as { referralCode: string }).referralCode || '');
+   307→  2307→    });
+   308→  2308→  }, []);
+   309→  2309→
+   310→  2310→  const handleSave = async () => {
+   311→  2311→    setSaving(true);
+   312→  2312→    const res = await apiFetch('/api/auth/me', {
+   313→  2313→      method: 'PUT',
+   314→  2314→      body: JSON.stringify({ firstName, lastName, phone }),
+   315→  2315→    });
+   316→  2316→    if (res.error) { toast.error(res.error); }
+   317→  2317→    else {
+   318→  2318→      updateUser({ firstName, lastName, phone });
+   319→  2319→      toast.success('Profil mis à jour');
+   320→  2320→      setEditing(false);
+   321→  2321→    }
+   322→  2322→    setSaving(false);
+   323→  2323→  };
+   324→  2324→
+   325→  2325→  const handleLogout = () => {
+   326→  2326→    logout();
+   327→  2327→    toast.success('Déconnexion réussie');
+   328→  2328→  };
+   329→  2329→
+   330→  2330→  const menuItems = [
+   331→  2331→    { icon: Package, label: 'Mes commandes', view: 'orders' as const },
+   332→  2332→    { icon: Heart, label: 'Mes favoris', view: 'favorites' as const },
+   333→  2333→    { icon: Wallet, label: 'Mon portefeuille', view: 'wallet' as const },
+   334→  2334→    { icon: HelpCircle, label: 'Support', view: 'support' as const },
+   335→  2335→    { icon: Bell, label: 'Notifications', view: 'notifications' as const },
+   336→  2336→  ];
+   337→  2337→
+   338→  2338→  return (
+   339→  2339→    <div className="p-4 pb-24 space-y-4">
+   340→  2340→      <h1 className="font-semibold text-lg">Mon profil</h1>
+   341→  2341→
+   342→  2342→      <Card className="rounded-xl">
+   343→  2343→        <CardContent className="p-4">
+   344→  2344→          <div className="flex items-center gap-4">
+   345→  2345→            <Avatar className="h-16 w-16">
+   346→  2346→              <AvatarFallback className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 text-xl">
+   347→  2347→                {(user?.firstName?.[0] || '')}{(user?.lastName?.[0] || '')}
+   348→  2348→              </AvatarFallback>
+   349→  2349→            </Avatar>
+   350→  2350→            <div className="flex-1">
+   351→  2351→              <h2 className="font-bold text-lg">{displayFirstName} {displayLastName}</h2>
+   352→  2352→              <p className="text-sm text-muted-foreground">{user?.email}</p>
+   353→  2353→              <p className="text-sm text-muted-foreground">{displayPhone}</p>
+   354→  2354→            </div>
+   355→  2355→          </div>
+   356→  2356→
+   357→  2357→          {editing ? (
+   358→  2358→            <div className="mt-4 space-y-3">
+   359→  2359→              <div className="grid grid-cols-2 gap-3">
+   360→  2360→                <div>
+   361→  2361→                  <Label htmlFor="profileFirstName">Prénom</Label>
+   362→  2362→                  <Input id="profileFirstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+   363→  2363→                </div>
+   364→  2364→                <div>
+   365→  2365→                  <Label htmlFor="profileLastName">Nom</Label>
+   366→  2366→                  <Input id="profileLastName" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+   367→  2367→                </div>
+   368→  2368→              </div>
+   369→  2369→              <div>
+   370→  2370→                <Label htmlFor="profilePhone">Téléphone</Label>
+   371→  2371→                <Input id="profilePhone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+   372→  2372→              </div>
+   373→  2373→              <div className="flex gap-2">
+   374→  2374→                <Button variant="outline" className="flex-1" onClick={() => setEditing(false)}>Annuler</Button>
+   375→  2375→                <Button
+   376→  2376→                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+   377→  2377→                  onClick={handleSave}
+   378→  2378→                  disabled={saving}
+   379→  2379→                >
+   380→  2380→                  {saving ? <Spinner className="w-4 h-4 mr-2" /> : null}
+   381→  2381→                  Enregistrer
+   382→  2382→                </Button>
+   383→  2383→              </div>
+   384→  2384→            </div>
+   385→  2385→          ) : (
+   386→  2386→            <Button variant="outline" className="w-full mt-4" onClick={startEditing}>
+   387→  2387→              Modifier le profil
+   388→  2388→            </Button>
+   389→  2389→          )}
+   390→  2390→        </CardContent>
+   391→  2391→      </Card>
+   392→  2392→
+   393→  2393→      {referralCode && (
+   394→  2394→        <Card className="rounded-xl">
+   395→  2395→          <CardContent className="p-4">
+   396→  2396→            <div className="flex items-center justify-between">
+   397→  2397→              <div>
+   398→  2398→                <p className="text-sm font-medium">Code de parrainage</p>
+   399→  2399→                <p className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400">{referralCode}</p>
+   400→  2400→              </div>
+   401→  2401→              <Button
+   402→  2402→                variant="outline"
+   403→  2403→                size="icon"
+   404→  2404→                onClick={() => { navigator.clipboard.writeText(referralCode); toast.success('Code copié !'); }}
+   405→  2405→              >
+   406→  2406→                <Copy className="w-4 h-4" />
+   407→  2407→              </Button>
+   408→  2408→            </div>
+   409→  2409→          </CardContent>
+   410→  2410→        </Card>
+   411→  2411→      )}
+   412→  2412→
+   413→  2413→      <Card className="rounded-xl">
+   414→  2414→        <CardContent className="p-0">
+   415→  2415→          {menuItems.map((item) => (
+   416→  2416→            <button
+   417→  2417→              key={item.view}
+   418→  2418→              onClick={() => navigate(item.view)}
+   419→  2419→              className="w-full flex items-center gap-3 p-4 hover:bg-muted transition-colors text-left"
+   420→  2420→            >
+   421→  2421→              <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+   422→  2422→                <item.icon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+   423→  2423→              </div>
+   424→  2424→              <span className="text-sm font-medium flex-1">{item.label}</span>
+   425→  2425→              <ChevronDown className="w-4 h-4 text-muted-foreground rotate-[-90deg]" />
+   426→  2426→            </button>
+   427→  2427→          ))}
+   428→  2428→        </CardContent>
+   429→  2429→      </Card>
+   430→  2430→
+   431→  2431→      <Button
+   432→  2432→        variant="outline"
+   433→  2433→        className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+   434→  2434→        onClick={handleLogout}
+   435→  2435→      >
+   436→  2436→        Se déconnecter
+   437→  2437→      </Button>
+   438→  2438→    </div>
+   439→  2439→  );
+   440→  2440→}
+   441→  2441→
+   442→  2442→// ============================================
+   443→  2443→// 14. SUPPORT VIEW
+   444→  2444→// ============================================
+   445→  2445→function SupportView() {
+   446→  2446→  const { goBack } = useClientNav();
+   447→  2447→  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+   448→  2448→  const [loading, setLoading] = useState(true);
+   449→  2449→  const [error, setError] = useState<string | null>(null);
+   450→  2450→  const [showForm, setShowForm] = useState(false);
+   451→  2451→  const [subject, setSubject] = useState('');
+   452→  2452→  const [description, setDescription] = useState('');
+   453→  2453→  const [submitting, setSubmitting] = useState(false);
+   454→  2454→  const [retryCount, setRetryCount] = useState(0);
+   455→  2455→
+   456→  2456→  useEffect(() => {
+   457→  2457→    let cancelled = false;
+   458→  2458→    (async () => {
+   459→  2459→      setLoading(true);
+   460→  2460→      setError(null);
+   461→  2461→      const res = await apiFetch<SupportTicket[]>('/api/support');
+   462→  2462→      if (cancelled) return;
+   463→  2463→      if (res.error && !res.data) setError(res.error);
+   464→  2464→      if (res.data) setTickets(Array.isArray(res.data) ? res.data : []);
+   465→  2465→      setLoading(false);
+   466→  2466→    })();
+   467→  2467→    return () => { cancelled = true; };
+   468→  2468→  }, [retryCount]);
+   469→  2469→
+   470→  2470→  const handleSubmit = async () => {
+   471→  2471→    if (!subject.trim() || !description.trim()) {
+   472→  2472→      toast.error('Veuillez remplir tous les champs');
+   473→  2473→      return;
+   474→  2474→    }
+   475→  2475→    setSubmitting(true);
+   476→  2476→    const res = await apiFetch('/api/support', {
+   477→  2477→      method: 'POST',
+   478→  2478→      body: JSON.stringify({ subject, description }),
+   479→  2479→    });
+   480→  2480→    if (res.error) toast.error(res.error);
+   481→  2481→    else {
+   482→  2482→      toast.success('Ticket créé avec succès');
+   483→  2483→      setSubject('');
+   484→  2484→      setDescription('');
+   485→  2485→      setShowForm(false);
+   486→  2486→      setRetryCount((c) => c + 1);
+   487→  2487→    }
+   488→  2488→    setSubmitting(false);
+   489→  2489→  };
+   490→  2490→
+   491→  2491→  const statusColors: Record<string, string> = {
+   492→  2492→    OPEN: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+   493→  2493→    IN_PROGRESS: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+   494→  2494→    RESOLVED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+   495→  2495→    CLOSED: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+   496→  2496→  };
+   497→  2497→  const statusLabels: Record<string, string> = {
+   498→  2498→    OPEN: 'Ouvert',
+   499→  2499→    IN_PROGRESS: 'En cours',
+   500→  2500→    RESOLVED: 'Résolu',
+   501→  2501→    CLOSED: 'Fermé',
+   502→  2502→  };
+   503→  2503→
+   504→  2504→  return (
+   505→  2505→    <div className="p-4 pb-24 space-y-4">
+   506→  2506→      <div className="flex items-center justify-between">
+   507→  2507→        <div className="flex items-center gap-3">
+   508→  2508→          <Button variant="ghost" size="icon" onClick={goBack}>
+   509→  2509→            <ChevronLeft className="w-5 h-5" />
+   510→  2510→          </Button>
+   511→  2511→          <h1 className="font-semibold text-lg">Support</h1>
+   512→  2512→        </div>
+   513→  2513→        <Button className="bg-emerald-600 hover:bg-emerald-700" size="sm" onClick={() => setShowForm(!showForm)}>
+   514→  2514→          {showForm ? 'Fermer' : 'Nouveau ticket'}
+   515→  2515→        </Button>
+   516→  2516→      </div>
+   517→  2517→
+   518→  2518→      {showForm && (
+   519→  2519→        <Card className="rounded-xl">
+   520→  2520→          <CardContent className="p-4 space-y-3">
+   521→  2521→            <div>
+   522→  2522→              <Label htmlFor="ticketSubject">Sujet</Label>
+   523→  2523→              <Input id="ticketSubject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Résumez votre problème" />
+   524→  2524→            </div>
+   525→  2525→            <div>
+   526→  2526→              <Label htmlFor="ticketDesc">Description</Label>
+   527→  2527→              <Textarea id="ticketDesc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Décrivez votre problème en détail..." rows={4} />
+   528→  2528→            </div>
+   529→  2529→            <Button
+   530→  2530→              className="w-full bg-emerald-600 hover:bg-emerald-700"
+   531→  2531→              onClick={handleSubmit}
+   532→  2532→              disabled={submitting}
+   533→  2533→            >
+   534→  2534→              {submitting ? <Spinner className="w-4 h-4 mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+   535→  2535→              Envoyer le ticket
+   536→  2536→            </Button>
+   537→  2537→          </CardContent>
+   538→  2538→        </Card>
+   539→  2539→      )}
+   540→  2540→
+   541→  2541→      {loading ? (
+   542→  2542→        <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+   543→  2543→      ) : error ? (
+   544→  2544→        <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
+   545→  2545→      ) : tickets.length === 0 ? (
+   546→  2546→        <EmptyState icon={HelpCircle} message="Aucun ticket de support. Créez-en un si vous avez besoin d'aide." />
+   547→  2547→      ) : (
+   548→  2548→        <div className="space-y-2">
+   549→  2549→          {tickets.map((ticket) => (
+   550→  2550→            <Card key={ticket.id} className="rounded-xl">
+   551→  2551→              <CardContent className="p-4">
+   552→  2552→                <div className="flex items-start justify-between gap-2">
+   553→  2553→                  <div className="flex-1 min-w-0">
+   554→  2554→                    <h4 className="font-medium text-sm">{ticket.subject}</h4>
+   555→  2555→                    <p className="text-xs text-muted-foreground mt-0.5">
+   556→  2556→                      {new Date(ticket.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+   557→  2557→                    </p>
+   558→  2558→                  </div>
+   559→  2559→                  <Badge className={statusColors[ticket.status] || ''}>
+   560→  2560→                    {statusLabels[ticket.status] || ticket.status}
+   561→  2561→                  </Badge>
+   562→  2562→                </div>
+   563→  2563→              </CardContent>
+   564→  2564→            </Card>
+   565→  2565→          ))}
+   566→  2566→        </div>
+   567→  2567→      )}
+   568→  2568→    </div>
+   569→  2569→  );
+   570→  2570→}
+   571→  2571→
+   572→  2572→// ============================================
+   573→  2573→// 15. TRACKING VIEW
+   574→  2574→// ============================================
+   575→  2575→function TrackingView() {
+   576→  2576→  const { data, goBack } = useClientNav();
+   577→  2577→  const orderId = data?.id || '';
+   578→  2578→
+   579→  2579→  const [order, setOrder] = useState<Order | null>(null);
+   580→  2580→  const [loading, setLoading] = useState(true);
+   581→  2581→  const [error, setError] = useState<string | null>(null);
+   582→  2582→  const [retryCount, setRetryCount] = useState(0);
+   583→  2583→
+   584→  2584→  useEffect(() => {
+   585→  2585→    if (!orderId) return;
+   586→  2586→    let cancelled = false;
+   587→  2587→    (async () => {
+   588→  2588→      setLoading(true);
+   589→  2589→      setError(null);
+   590→  2590→      const res = await apiFetch<Order>(`/api/orders/${orderId}`);
+   591→  2591→      if (cancelled) return;
+   592→  2592→      if (res.error && !res.data) setError(res.error);
+   593→  2593→      if (res.data) setOrder(res.data as Order);
+   594→  2594→      setLoading(false);
+   595→  2595→    })();
+   596→  2596→    return () => { cancelled = true; };
+   597→  2597→  }, [orderId, retryCount]);
+   598→  2598→
+   599→  2599→  if (loading) return <LoadingState />;
+   600→  2600→  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+   601→  2601→  if (!order) return <EmptyState icon={Truck} message="Commande introuvable" />;
+   602→  2602→
+   603→  2603→  const TRACKING_STEPS = [
+   604→  2604→    { status: 'CONFIRMED', label: 'Commande confirmée' },
+   605→  2605→    { status: 'PREPARING', label: 'En préparation' },
+   606→  2606→    { status: 'READY', label: 'Prête' },
+   607→  2607→    { status: 'ASSIGNED', label: 'Livreur assigné' },
+   608→  2608→    { status: 'PICKED_UP', label: 'Commande récupérée' },
+   609→  2609→    { status: 'IN_TRANSIT', label: 'En livraison' },
+   610→  2610→    { status: 'DELIVERED', label: 'Livrée' },
+   611→  2611→  ];
+   612→  2612→
+   613→  2613→  const allSteps = [{ status: 'PENDING', label: 'Commande passée' }, ...TRACKING_STEPS];
+   614→  2614→  const currentStepIndex = allSteps.findIndex((s) => s.status === order.status);
+   615→  2615→
+   616→  2616→  return (
+   617→  2617→    <div className="p-4 pb-24 space-y-4">
+   618→  2618→      <div className="flex items-center gap-3">
+   619→  2619→        <Button variant="ghost" size="icon" onClick={goBack}>
+   620→  2620→          <ChevronLeft className="w-5 h-5" />
+   621→  2621→        </Button>
+   622→  2622→        <div>
+   623→  2623→          <h1 className="font-semibold text-lg">Suivi de livraison</h1>
+   624→  2624→          <p className="text-xs text-muted-foreground">Commande #{order.orderNumber}</p>
+   625→  2625→        </div>
+   626→  2626→      </div>
+   627→  2627→
+   628→  2628→      <div className="rounded-xl bg-muted h-48 flex items-center justify-center border overflow-hidden relative">
+   629→  2629→        <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-900/20 dark:to-emerald-900/10" />
+   630→  2630→        <div className="relative text-center">
+   631→  2631→          <Truck className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
+   632→  2632→          <p className="text-sm text-muted-foreground">Suivi en temps réel</p>
+   633→  2633→          <p className="text-xs text-muted-foreground mt-1">
+   634→  2634→            {order.status === 'DELIVERED'
+   635→  2635→              ? 'Commande livrée'
+   636→  2636→              : order.driver
+   637→  2637→                ? 'Votre livreur est en route'
+   638→  2638→                : 'En attente d\'un livreur'}
+   639→  2639→          </p>
+   640→  2640→        </div>
+   641→  2641→        {order.status === 'IN_TRANSIT' && (
+   642→  2642→          <div className="absolute bottom-3 right-3">
+   643→  2643→            <div className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full animate-pulse">
+   644→  2644→              En mouvement
+   645→  2645→            </div>
+   646→  2646→          </div>
+   647→  2647→        )}
+   648→  2648→      </div>
+   649→  2649→
+   650→  2650→      {order.driver && (
+   651→  2651→        <Card className="rounded-xl">
+   652→  2652→          <CardContent className="p-4">
+   653→  2653→            <p className="text-sm font-medium mb-3">Votre livreur</p>
+   654→  2654→            <div className="flex items-center gap-3">
+   655→  2655→              <Avatar className="h-12 w-12">
+   656→  2656→                <AvatarFallback className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600">
+   657→  2657→                  {order.driver.user.firstName[0]}{order.driver.user.lastName[0]}
+   658→  2658→                </AvatarFallback>
+   659→  2659→              </Avatar>
+   660→  2660→              <div className="flex-1">
+   661→  2661→                <p className="font-medium">{order.driver.user.firstName} {order.driver.user.lastName}</p>
+   662→  2662→                <p className="text-xs text-muted-foreground">
+   663→  2663→                  {order.driver.vehicleType} {order.driver.vehicleColor || ''} {order.driver.vehiclePlate || ''}
+   664→  2664→                </p>
+   665→  2665→              </div>
+   666→  2666→              <Button size="icon" variant="outline" className="h-10 w-10 rounded-full" asChild>
+   667→  2667→                <a href={`tel:${order.driver.user.phone}`}>
+   668→  2668→                  <Phone className="w-4 h-4 text-emerald-600" />
+   669→  2669→                </a>
+   670→  2670→              </Button>
+   671→  2671→            </div>
+   672→  2672→          </CardContent>
+   673→  2673→        </Card>
+   674→  2674→      )}
+   675→  2675→
+   676→  2676→      <Card className="rounded-xl">
+   677→  2677→        <CardHeader className="pb-2">
+   678→  2678→          <CardTitle className="text-base">Statut de la commande</CardTitle>
+   679→  2679→        </CardHeader>
+   680→  2680→        <CardContent>
+   681→  2681→          <div className="space-y-0">
+   682→  2682→            {allSteps.map((step, index) => {
+   683→  2683→              const isCompleted = currentStepIndex >= 0 && index <= currentStepIndex;
+   684→  2684→              const isCurrent = step.status === order.status;
+   685→  2685→              return (
+   686→  2686→                <div key={step.status} className="flex gap-3">
+   687→  2687→                  <div className="flex flex-col items-center">
+   688→  2688→                    <div
+   689→  2689→                      className={`w-3 h-3 rounded-full shrink-0 mt-1 ${
+   690→  2690→                        isCompleted ? 'bg-emerald-600' : 'bg-muted-foreground/30'
+   691→  2691→                      } ${isCurrent ? 'ring-4 ring-emerald-600/20' : ''}`}
+   692→  2692→                    />
+   693→  2693→                    {index < allSteps.length - 1 && (
+   694→  2694→                      <div className={`w-0.5 flex-1 min-h-[2rem] ${
+   695→  2695→                        index < currentStepIndex ? 'bg-emerald-600' : 'bg-border'
+   696→  2696→                      }`} />
+   697→  2697→                    )}
+   698→  2698→                  </div>
+   699→  2699→                  <div className={`pb-6 ${index === allSteps.length - 1 ? 'pb-0' : ''}`}>
+   700→  2700→                    <p className={`text-sm font-medium ${isCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
+   701→  2701→                      {step.label}
+   702→  2702→                    </p>
+   703→  2703→                    {isCurrent && (
+   704→  2704→                      <Badge className={ORDER_STATUS_COLORS[order.status] || 'mt-1 text-[10px]'}>
+   705→  2705→                        En cours
+   706→  2706→                      </Badge>
+   707→  2707→                    )}
+   708→  2708→                  </div>
+   709→  2709→                </div>
+   710→  2710→              );
+   711→  2711→            })}
+   712→  2712→          </div>
+   713→  2713→        </CardContent>
+   714→  2714→      </Card>
+   715→  2715→    </div>
+   716→  2716→  );
+   717→  2717→}
+   718→  2718→
+   719→  2719→// ============================================
+   720→  2720→// MAIN CLIENT APP
+   721→  2721→// ============================================
+   722→  2722→export default function ClientApp() {
+   723→  2723→  const { view, navigate } = useClientNav();
+   724→  2724→  const { items } = useCartStore();
+   725→  2725→  const { user } = useAuthStore();
+   726→  2726→  const [unreadCount, setUnreadCount] = useState(0);
+   727→  2727→
+   728→  2728→  useEffect(() => {
+   729→  2729→    apiFetch<Notification[]>('/api/notifications?unread=true').then((res) => {
+   730→  2730→      if (res.data) {
+   731→  2731→        const list = Array.isArray(res.data) ? res.data : [];
+   732→  2732→        setUnreadCount(list.length);
+   733→  2733→      }
+   734→  2734→    });
+   735→  2735→  }, [view]);
+   736→  2736→
+   737→  2737→  const cartCount = items.reduce((sum, i) => sum + i.quantity, 0);
+   738→  2738→
+   739→  2739→  const navItems = [
+   740→  2740→    { view: 'home' as const, label: 'Accueil', icon: Home },
+   741→  2741→    { view: 'search' as const, label: 'Recherche', icon: Search },
+   742→  2742→    { view: 'orders' as const, label: 'Commandes', icon: ClipboardList },
+   743→  2743→    { view: 'favorites' as const, label: 'Favoris', icon: Heart },
+   744→  2744→    { view: 'profile' as const, label: 'Profil', icon: User },
+   745→  2745→  ];
+   746→  2746→
+   747→  2747→  const renderView = () => {
+   748→  2748→    switch (view) {
+   749→  2749→      case 'home': return <HomeView />;
+   750→  2750→      case 'search': return <SearchView />;
+   751→  2751→      case 'category': return <CategoryView />;
+   752→  2752→      case 'merchant-detail': return <MerchantDetailView />;
+   753→  2753→      case 'product-detail': return <ProductDetailView />;
+   754→  2754→      case 'cart': return <CartView />;
+   755→  2755→      case 'checkout': return <CheckoutView />;
+   756→  2756→      case 'orders': return <OrdersView />;
+   757→  2757→      case 'order-detail': return <OrderDetailView />;
+   758→  2758→      case 'favorites': return <FavoritesView />;
+   759→  2759→      case 'wallet': return <WalletView />;
+   760→  2760→      case 'notifications': return <NotificationsView />;
+   761→  2761→      case 'profile': return <ProfileView />;
+   762→  2762→      case 'support': return <SupportView />;
+   763→  2763→      case 'tracking': return <TrackingView />;
+   764→  2764→      default: return <HomeView />;
+   765→  2765→    }
+   766→  2766→  };
+   767→  2767→
+   768→  2768→  return (
+   769→  2769→    <div className="min-h-screen bg-background flex flex-col max-w-lg mx-auto relative">
+   770→  2770→      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b px-4 py-3 flex items-center justify-between">
+   771→  2771→        <button onClick={() => navigate('home')} className="flex items-center gap-2">
+   772→  2772→          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+   773→  2773→            <span className="text-white font-bold text-sm">R</span>
+   774→  2774→          </div>
+   775→  2775→          <span className="font-bold text-lg text-emerald-600">Rapigo</span>
+   776→  2776→        </button>
+   777→  2777→        <div className="flex items-center gap-1">
+   778→  2778→          <Button
+   779→  2779→            variant="ghost"
+   780→  2780→            size="icon"
+   781→  2781→            className="relative h-9 w-9"
+   782→  2782→            onClick={() => navigate('notifications')}
+   783→  2783→          >
+   784→  2784→            <Bell className="w-5 h-5" />
+   785→  2785→            {unreadCount > 0 && (
+   786→  2786→              <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+   787→  2787→                {unreadCount > 9 ? '9+' : unreadCount}
+   788→  2788→              </span>
+   789→  2789→            )}
+   790→  2790→          </Button>
+   791→  2791→          <Button
+   792→  2792→            variant="ghost"
+   793→  2793→            size="icon"
+   794→  2794→            className="relative h-9 w-9"
+   795→  2795→            onClick={() => navigate('cart')}
+   796→  2796→          >
+   797→  2797→            <ShoppingBag className="w-5 h-5" />
+   798→  2798→            {cartCount > 0 && (
+   799→  2799→              <span className="absolute -top-0.5 -right-0.5 bg-emerald-600 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+   800→  2800→                {cartCount > 9 ? '9+' : cartCount}
+   801→  2801→              </span>
+   802→  2802→            )}
+   803→  2803→          </Button>
+   804→  2804→        </div>
+   805→  2805→      </header>
+   806→  2806→
+   807→  2807→      <main className="flex-1 overflow-y-auto">
+   808→  2808→        {renderView()}
+   809→  2809→      </main>
+   810→  2810→
+   811→  2811→      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t">
+   812→  2812→        <div className="max-w-lg mx-auto flex items-center justify-around py-2 px-2">
+   813→  2813→          {navItems.map((item) => {
+   814→  2814→            const isActive = view === item.view ||
+   815→  2815→              (item.view === 'home' && ['home', 'category', 'merchant-detail', 'product-detail', 'search'].includes(view));
+   816→  2816→            return (
+   817→  2817→              <button
+   818→  2818→                key={item.view}
+   819→  2819→                onClick={() => navigate(item.view)}
+   820→  2820→                className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors min-w-[56px] ${
+   821→  2821→                  isActive ? 'text-emerald-600' : 'text-muted-foreground hover:text-foreground'
+   822→  2822→                }`}
+   823→  2823→              >
+   824→  2824→                <item.icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : ''}`} />
+   825→  2825→                <span className="text-[10px] font-medium">{item.label}</span>
+   826→  2826→              </button>
+   827→  2827→            );
+   828→  2828→          })}
+   829→  2829→        </div>
+   830→  2830→      </nav>
+   831→  2831→    </div>
+   832→  2832→  );
+   833→  2833→}

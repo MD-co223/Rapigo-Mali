@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Home, Search, ClipboardList, Heart, User, MapPin, Clock, Star,
   Bell, Plus, Minus, Trash2, ShoppingBag, Phone, X, ArrowRight,
-  Truck, Loader2, ChevronLeft, Store, Send, CreditCard, Copy,
-  CheckCircle2, ArrowUpRight, ArrowDownLeft, CircleAlert,
-  Wallet, HelpCircle, Package, ChevronDown, Tag, Camera, Upload,
+  Truck, Loader2, ChevronLeft, Store, Send, Copy,
+  ArrowUpRight, ArrowDownLeft, CircleAlert,
+  Wallet, HelpCircle, Package, ChevronDown, Upload, Gift,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,8 +78,8 @@ interface Product {
   variants?: string;
   options?: string;
   supplements?: string;
-  category?: { name: string; icon?: string };
-  merchant?: { businessName: string };
+  category?: { name: string; icon?: string; id: string };
+  merchant?: { businessName: string; id: string };
 }
 
 interface Order {
@@ -128,7 +128,7 @@ interface Category {
   image?: string;
 }
 
-interface Notification {
+interface AppNotification {
   id: string;
   title: string;
   message: string;
@@ -182,6 +182,26 @@ interface DeliveryZone {
   quartier?: string;
   fee: number;
 }
+
+// ============================================
+// CONSTANTS
+// ============================================
+const BAMAKO_QUARTIERS = [
+  'Badalabougou', 'Baco Djicoroni', 'Banconi', 'Boulkassoumbougou',
+  'Daoudabougou', 'Djicoroni Para', 'Faladiè', 'Hamdallaye',
+  'Kalaban-Coura', 'Korofina', 'Lafiabougou', 'Magnambougou',
+  'Missabougou', 'Niamakoro', 'Quinzambougou', 'Sabalibougou',
+  'Sébenikoro', 'Sotuba', 'Torokorobougou', 'Yirimadio',
+];
+
+const SEGOU_QUARTIERS = [
+  'Ségou-Koura', 'Ségou-Ville', 'Sokolo', 'Markala',
+  'Dioro', 'Tominian', 'San',
+];
+
+const AVAILABLE_PAYMENT_METHODS = [
+  'CASH', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE', 'QR_CODE', 'WALLET',
+];
 
 // ============================================
 // HELPERS
@@ -296,6 +316,48 @@ function MerchantCard({ merchant, onClick }: { merchant: Merchant; onClick: () =
 }
 
 // ============================================
+// PRODUCT CARD (reusable)
+// ============================================
+function ProductCard({ product, onClick }: { product: Product; onClick: () => void }) {
+  return (
+    <Card className="overflow-hidden rounded-xl">
+      <button className="w-full text-left" onClick={onClick}>
+        <div className="aspect-square bg-muted relative">
+          {product.image ? (
+            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Package className="w-10 h-10 text-muted-foreground/40" />
+            </div>
+          )}
+          {product.comparePrice && product.comparePrice > product.price && (
+            <Badge className="absolute top-2 left-2 bg-red-500 text-white text-[10px] px-1.5 py-0">
+              -{Math.round((1 - product.price / product.comparePrice) * 100)}%
+            </Badge>
+          )}
+        </div>
+      </button>
+      <CardContent className="p-3">
+        <h4 className="font-medium text-xs truncate">{product.name}</h4>
+        <p className="text-[10px] text-muted-foreground truncate">{product.merchant?.businessName}</p>
+        <div className="flex items-center justify-between mt-2">
+          <div>
+            <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
+              {formatPrice(product.price)}
+            </span>
+            {product.comparePrice && product.comparePrice > product.price && (
+              <span className="text-[10px] text-muted-foreground line-through ml-1">
+                {formatPrice(product.comparePrice)}
+              </span>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================
 // 1. HOME VIEW
 // ============================================
 function HomeView() {
@@ -315,12 +377,13 @@ function HomeView() {
       setLoading(true);
       setError(null);
       const [mRes, cRes] = await Promise.all([
-        apiFetch<Merchant[]>('/api/merchants?featured=true&approved=true'),
+        apiFetch<Merchant[]>('/api/merchants?approved=true'),
         apiFetch<Category[]>('/api/categories'),
       ]);
       if (cancelled) return;
       if (mRes.error && !mRes.data) setError(mRes.error);
-      if (mRes.data) setMerchants(Array.isArray(mRes.data) ? mRes.data : []);
+      const allMerchants = mRes.data ? (Array.isArray(mRes.data) ? mRes.data : []) : [];
+      setMerchants(allMerchants.filter((m) => m.isFeatured));
       if (cRes.data) setCategories(Array.isArray(cRes.data) ? cRes.data : []);
       setLoading(false);
     })();
@@ -360,7 +423,7 @@ function HomeView() {
             {categories.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => navigate('category', { slug: cat.slug })}
+                onClick={() => navigate('category', { id: cat.id })}
                 className="flex flex-col items-center gap-1.5 min-w-[72px] p-3 rounded-xl bg-card hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors border shrink-0"
               >
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
@@ -416,18 +479,6 @@ function HomeView() {
           </div>
         )}
       </div>
-
-      {items.length > 0 && (
-        <button
-          onClick={() => navigate('cart')}
-          className="fixed bottom-20 right-4 z-40 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full p-4 shadow-lg transition-colors"
-        >
-          <ShoppingBag className="w-6 h-6" />
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-            {items.reduce((s, i) => s + i.quantity, 0)}
-          </span>
-        </button>
-      )}
     </div>
   );
 }
@@ -436,51 +487,53 @@ function HomeView() {
 // 2. SEARCH VIEW
 // ============================================
 function SearchView() {
-  const { navigate, goBack } = useClientNav();
+  const { navigate } = useClientNav();
   const { addItem, merchantId: cartMerchantId, clearCart } = useCartStore();
 
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [merchants, setMerchants] = useState<Merchant[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [activeTab, setActiveTab] = useState('produits');
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    apiFetch<Category[]>('/api/categories').then((res) => {
-      if (res.data) setCategories(Array.isArray(res.data) ? res.data : []);
-    });
     const t = setTimeout(() => inputRef.current?.focus(), 100);
     return () => clearTimeout(t);
   }, []);
 
-  const doSearch = async () => {
-    if (!query.trim()) return;
+  const doSearch = useCallback(async (searchQuery: string) => {
+    if (!searchQuery.trim()) return;
     setLoading(true);
     setSearched(true);
-    const catParam = selectedCategory !== 'all' ? `&categoryId=${selectedCategory}` : '';
     const [pRes, mRes] = await Promise.all([
-      apiFetch<Product[]>(`/api/products?search=${encodeURIComponent(query)}${catParam}`),
-      apiFetch<Merchant[]>(`/api/merchants?search=${encodeURIComponent(query)}${catParam}`),
+      apiFetch<Product[]>(`/api/products?search=${encodeURIComponent(searchQuery)}`),
+      apiFetch<Merchant[]>(`/api/merchants?search=${encodeURIComponent(searchQuery)}`),
     ]);
     setProducts(pRes.data ? (Array.isArray(pRes.data) ? pRes.data : []) : []);
     setMerchants(mRes.data ? (Array.isArray(mRes.data) ? mRes.data : []) : []);
     setLoading(false);
-  };
+  }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') doSearch();
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!value.trim()) {
+      setSearched(false);
+      setProducts([]);
+      setMerchants([]);
+      return;
+    }
+    debounceRef.current = setTimeout(() => {
+      doSearch(value);
+    }, 400);
   };
 
   const handleAddToCart = (product: Product) => {
     if (cartMerchantId && cartMerchantId !== product.merchantId) {
-      if (confirm('Votre panier contient des articles d\'un autre marchand. Voulez-vous vider le panier et continuer ?')) {
-        clearCart();
-      } else {
-        return;
-      }
+      clearCart();
     }
     addItem({
       productId: product.id,
@@ -497,60 +550,25 @@ function SearchView() {
   return (
     <div className="p-4 pb-24 space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={goBack}>
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
+            onChange={(e) => handleQueryChange(e.target.value)}
             placeholder="Rechercher..."
             className="pl-9 pr-10"
           />
           {query && (
             <button
-              onClick={() => { setQuery(''); setSearched(false); setProducts([]); setMerchants([]); }}
+              onClick={() => handleQueryChange('')}
               className="absolute right-3 top-1/2 -translate-y-1/2"
             >
               <X className="w-4 h-4 text-muted-foreground" />
             </button>
           )}
         </div>
-        <Button onClick={doSearch} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
-          {loading ? <Spinner className="w-4 h-4" /> : <Search className="w-4 h-4" />}
-        </Button>
       </div>
-
-      {categories.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-          <button
-            onClick={() => { setSelectedCategory('all'); if (query) doSearch(); }}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors shrink-0 ${
-              selectedCategory === 'all'
-                ? 'bg-emerald-600 text-white border-emerald-600'
-                : 'bg-card text-foreground border-border hover:border-emerald-600'
-            }`}
-          >
-            Tout
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => { setSelectedCategory(cat.id); if (query) doSearch(); }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors shrink-0 ${
-                selectedCategory === cat.id
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-card text-foreground border-border hover:border-emerald-600'
-              }`}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
-      )}
 
       {loading && <LoadingState />}
 
@@ -558,69 +576,91 @@ function SearchView() {
         <EmptyState icon={Search} message="Aucun résultat trouvé pour votre recherche" />
       )}
 
-      {!loading && merchants.length > 0 && (
-        <div>
-          <h3 className="font-semibold text-sm mb-2">Marchands ({merchants.length})</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {merchants.map((m) => (
-              <MerchantCard
-                key={m.id}
-                merchant={m}
-                onClick={() => navigate('merchant-detail', { id: m.id })}
-              />
-            ))}
-          </div>
-        </div>
+      {!loading && searched && (products.length > 0 || merchants.length > 0) && (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="w-full">
+            <TabsTrigger value="produits" className="flex-1 text-xs">
+              Produits {products.length > 0 ? `(${products.length})` : ''}
+            </TabsTrigger>
+            <TabsTrigger value="commercants" className="flex-1 text-xs">
+              Commerçants {merchants.length > 0 ? `(${merchants.length})` : ''}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="produits" className="mt-4">
+            {products.length === 0 ? (
+              <EmptyState icon={Package} message="Aucun produit trouvé" />
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {products.map((p) => (
+                  <Card key={p.id} className="overflow-hidden rounded-xl">
+                    <button
+                      className="w-full text-left"
+                      onClick={() => navigate('product-detail', { id: p.id })}
+                    >
+                      <div className="aspect-square bg-muted relative">
+                        {p.image ? (
+                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package className="w-10 h-10 text-muted-foreground/40" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                    <CardContent className="p-3">
+                      <h4 className="font-medium text-xs truncate">{p.name}</h4>
+                      <p className="text-xs text-muted-foreground truncate">{p.merchant?.businessName}</p>
+                      <div className="flex items-center justify-between mt-2">
+                        <div>
+                          <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                            {formatPrice(p.price)}
+                          </span>
+                          {p.comparePrice && p.comparePrice > p.price && (
+                            <span className="text-[10px] text-muted-foreground line-through ml-1">
+                              {formatPrice(p.comparePrice)}
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={(e) => { e.stopPropagation(); handleAddToCart(p); }}
+                        >
+                          <Plus className="w-4 h-4 text-emerald-600" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="commercants" className="mt-4">
+            {merchants.length === 0 ? (
+              <EmptyState icon={Store} message="Aucun commerçant trouvé" />
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {merchants.map((m) => (
+                  <MerchantCard
+                    key={m.id}
+                    merchant={m}
+                    onClick={() => navigate('merchant-detail', { id: m.id })}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       )}
 
-      {!loading && products.length > 0 && (
-        <div>
-          <h3 className="font-semibold text-sm mb-2">Produits ({products.length})</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {products.map((p) => (
-              <Card key={p.id} className="overflow-hidden rounded-xl">
-                <button
-                  className="w-full text-left"
-                  onClick={() => navigate('product-detail', { id: p.id })}
-                >
-                  <div className="aspect-square bg-muted relative">
-                    {p.image ? (
-                      <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Package className="w-10 h-10 text-muted-foreground/40" />
-                      </div>
-                    )}
-                  </div>
-                </button>
-                <CardContent className="p-3">
-                  <h4 className="font-medium text-xs truncate">{p.name}</h4>
-                  <p className="text-xs text-muted-foreground truncate">{p.merchant?.businessName}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <div>
-                      <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                        {formatPrice(p.price)}
-                      </span>
-                      {p.comparePrice && p.comparePrice > p.price && (
-                        <span className="text-[10px] text-muted-foreground line-through ml-1">
-                          {formatPrice(p.comparePrice)}
-                        </span>
-                      )}
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={(e) => { e.stopPropagation(); handleAddToCart(p); }}
-                    >
-                      <Plus className="w-4 h-4 text-emerald-600" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+      {!searched && !loading && (
+        <EmptyState
+          icon={Search}
+          message="Tapez pour rechercher des produits et des commerçants"
+        />
       )}
     </div>
   );
@@ -631,27 +671,35 @@ function SearchView() {
 // ============================================
 function CategoryView() {
   const { data, navigate, goBack } = useClientNav();
-  const slug = data?.slug || '';
+  const categoryId = data?.id || '';
 
-  const [merchants, setMerchants] = useState<Merchant[]>([]);
+  const [categoryName, setCategoryName] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!categoryId) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
-      const res = await apiFetch<Merchant[]>(`/api/merchants?businessType=${encodeURIComponent(slug)}`);
+      const [cRes, pRes] = await Promise.all([
+        apiFetch<Category>(`/api/categories/${categoryId}`),
+        apiFetch<Product[]>(`/api/products?categoryId=${categoryId}`),
+      ]);
       if (cancelled) return;
-      if (res.error && !res.data) setError(res.error);
-      if (res.data) setMerchants(Array.isArray(res.data) ? res.data : []);
+      if (cRes.data) {
+        const cat = cRes.data as Category;
+        setCategoryName(cat.name);
+      }
+      if (pRes.error && !pRes.data) setError(pRes.error);
+      if (pRes.data) setProducts(Array.isArray(pRes.data) ? pRes.data : []);
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [slug, retryCount]);
+  }, [categoryId, retryCount]);
 
   return (
     <div className="p-4 pb-24 space-y-4">
@@ -659,31 +707,31 @@ function CategoryView() {
         <Button variant="ghost" size="icon" onClick={goBack}>
           <ChevronLeft className="w-5 h-5" />
         </Button>
-        <h1 className="font-semibold text-lg">{BUSINESS_TYPES[slug] || slug}</h1>
+        <h1 className="font-semibold text-lg truncate">{categoryName || 'Catégorie'}</h1>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-48 rounded-xl" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-52 rounded-xl" />
           ))}
         </div>
       ) : error ? (
         <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
-      ) : merchants.length === 0 ? (
+      ) : products.length === 0 ? (
         <EmptyState
-          icon={Store}
-          message={`Aucun marchand trouvé dans la catégorie ${BUSINESS_TYPES[slug] || slug}`}
+          icon={Package}
+          message={`Aucun produit dans cette catégorie`}
           action="Retour à l'accueil"
           onAction={() => navigate('home')}
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {merchants.map((m) => (
-            <MerchantCard
-              key={m.id}
-              merchant={m}
-              onClick={() => navigate('merchant-detail', { id: m.id })}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {products.map((p) => (
+            <ProductCard
+              key={p.id}
+              product={p}
+              onClick={() => navigate('product-detail', { id: p.id })}
             />
           ))}
         </div>
@@ -713,7 +761,7 @@ function MerchantDetailView() {
       setError(null);
       const [mRes, pRes] = await Promise.all([
         apiFetch<Merchant>(`/api/merchants/${merchantId}`),
-        apiFetch<Product[]>(`/api/products?merchantId=${merchantId}&available=true`),
+        apiFetch<Product[]>(`/api/products?merchantId=${merchantId}`),
       ]);
       if (cancelled) return;
       if (mRes.error && !mRes.data) setError(mRes.error);
@@ -761,7 +809,7 @@ function MerchantDetailView() {
                 <Badge variant="secondary" className="mt-1">
                   {BUSINESS_TYPES[merchant.businessType] || merchant.businessType}
                 </Badge>
-                <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground flex-wrap">
                   {merchant.rating > 0 && (
                     <span className="flex items-center gap-1">
                       <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
@@ -774,8 +822,8 @@ function MerchantDetailView() {
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5" />
-                  {merchant.address}
+                  <MapPin className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{merchant.address}</span>
                 </p>
               </div>
             </div>
@@ -792,43 +840,11 @@ function MerchantDetailView() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {products.map((p) => (
-                <Card key={p.id} className="overflow-hidden rounded-xl">
-                  <button className="w-full text-left" onClick={() => navigate('product-detail', { id: p.id })}>
-                    <div className="aspect-square bg-muted relative">
-                      {p.image ? (
-                        <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Package className="w-10 h-10 text-muted-foreground/40" />
-                        </div>
-                      )}
-                      {p.comparePrice && p.comparePrice > p.price && (
-                        <Badge className="absolute top-2 left-2 bg-red-500 text-white text-[10px] px-1.5 py-0">
-                          -{Math.round((1 - p.price / p.comparePrice) * 100)}%
-                        </Badge>
-                      )}
-                    </div>
-                  </button>
-                  <CardContent className="p-3">
-                    <h4 className="font-medium text-xs truncate">{p.name}</h4>
-                    {p.shortDescription && (
-                      <p className="text-[10px] text-muted-foreground truncate">{p.shortDescription}</p>
-                    )}
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                        {formatPrice(p.price)}
-                      </span>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        onClick={() => navigate('product-detail', { id: p.id })}
-                      >
-                        <Plus className="w-4 h-4 text-emerald-600" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  onClick={() => navigate('product-detail', { id: p.id, merchantId: p.merchantId })}
+                />
               ))}
             </div>
           )}
@@ -1098,29 +1114,10 @@ function ProductDetailView() {
 function CartView() {
   const { navigate, goBack } = useClientNav();
   const { items, merchantName, removeItem, updateQuantity, clearCart, getTotal } = useCartStore();
-  const [couponCode, setCouponCode] = useState('');
-  const [couponLoading, setCouponLoading] = useState(false);
-  const [discount, setDiscount] = useState(0);
 
   const subtotal = getTotal();
   const deliveryFee = 500;
-  const total = subtotal - discount + deliveryFee;
-
-  const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) return;
-    setCouponLoading(true);
-    const res = await apiFetch<{ valid: boolean; discount: number; message?: string }>(
-      `/api/coupons/validate?code=${encodeURIComponent(couponCode)}&total=${subtotal}`
-    );
-    if (res.data && (res.data as { valid: boolean }).valid) {
-      const d = res.data as { discount: number };
-      setDiscount(d.discount);
-      toast.success(`Code promo appliqué ! -${formatPrice(d.discount)}`);
-    } else {
-      toast.error(res.data ? (res.data as { message?: string }).message || 'Code invalide' : 'Code invalide');
-    }
-    setCouponLoading(false);
-  };
+  const total = subtotal + deliveryFee;
 
   if (items.length === 0) {
     return (
@@ -1215,19 +1212,6 @@ function CartView() {
         })}
       </div>
 
-      <div className="flex gap-2">
-        <Input
-          value={couponCode}
-          onChange={(e) => setCouponCode(e.target.value)}
-          placeholder="Code promo"
-          className="flex-1"
-          onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
-        />
-        <Button variant="outline" onClick={handleApplyCoupon} disabled={couponLoading || !couponCode.trim()}>
-          {couponLoading ? <Spinner className="w-4 h-4" /> : 'Appliquer'}
-        </Button>
-      </div>
-
       <Card className="rounded-xl">
         <CardContent className="p-4 space-y-2">
           <div className="flex justify-between text-sm">
@@ -1235,15 +1219,9 @@ function CartView() {
             <span>{formatPrice(subtotal)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Livraison</span>
+            <span className="text-muted-foreground">Frais de livraison</span>
             <span>{formatPrice(deliveryFee)}</span>
           </div>
-          {discount > 0 && (
-            <div className="flex justify-between text-sm text-emerald-600">
-              <span>Remise</span>
-              <span>-{formatPrice(discount)}</span>
-            </div>
-          )}
           <Separator />
           <div className="flex justify-between font-bold">
             <span>Total</span>
@@ -1270,7 +1248,7 @@ function CartView() {
 // ============================================
 function CheckoutView() {
   const { navigate, goBack } = useClientNav();
-  const { items, merchantId, merchantName, clearCart, getTotal } = useCartStore();
+  const { items, merchantId, clearCart, getTotal } = useCartStore();
   const { user } = useAuthStore();
 
   const [address, setAddress] = useState('');
@@ -1279,38 +1257,17 @@ function CheckoutView() {
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [merchant, setMerchant] = useState<Merchant | null>(null);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [createdOrderId, setCreatedOrderId] = useState('');
-  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const subtotal = getTotal();
   const deliveryFee = 500;
   const total = subtotal + deliveryFee;
 
-  const enabledPaymentMethods = merchant?.paymentConfigs?.filter((c) => c.isEnabled) || [];
+  const currentQuartiers = city === 'Ségou' ? SEGOU_QUARTIERS : BAMAKO_QUARTIERS;
 
-  useEffect(() => {
-    if (!merchantId) return;
-    let cancelled = false;
-    (async () => {
-      const res = await apiFetch<Merchant>(`/api/merchants/${merchantId}`);
-      if (cancelled) return;
-      if (res.data) {
-        const m = res.data as Merchant;
-        setMerchant(m);
-        if (!m.paymentConfigs?.find((c) => c.method === 'CASH' && c.isEnabled)) {
-          const first = m.paymentConfigs?.find((c) => c.isEnabled);
-          if (first) setPaymentMethod(first.method);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [merchantId]);
-
-  const selectedPaymentConfig = enabledPaymentMethods.find((c) => c.method === paymentMethod);
+  const handleCityChange = (newCity: string) => {
+    setCity(newCity);
+    setQuartier('');
+  };
 
   const handleSubmit = async () => {
     if (!address.trim()) { toast.error('Veuillez entrer votre adresse de livraison'); return; }
@@ -1346,52 +1303,18 @@ function CheckoutView() {
       if (res.error) { toast.error(res.error); setSubmitting(false); return; }
 
       const order = res.data as Order;
-      setCreatedOrderId(order.id);
+      clearCart();
+      toast.success('Commande passée avec succès !');
 
       if (paymentMethod !== 'CASH') {
-        setShowPaymentDialog(true);
+        navigate('tracking', { id: order.id });
       } else {
-        clearCart();
-        toast.success('Commande passée avec succès !');
-        navigate('order-detail', { id: order.id });
+        navigate('orders');
       }
-    } catch { toast.error('Erreur lors de la commande'); }
+    } catch {
+      toast.error('Erreur lors de la commande');
+    }
     setSubmitting(false);
-  };
-
-  const handleUploadProof = async () => {
-    if (!paymentProofFile || !createdOrderId) return;
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('file', paymentProofFile);
-
-    try {
-      const uploadRes = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-        headers: { Authorization: `Bearer ${useAuthStore.getState().token}` },
-      });
-      const uploadData = await uploadRes.json();
-
-      if (!uploadRes.ok || !uploadData.url) {
-        toast.error('Erreur lors du téléchargement');
-        setUploading(false);
-        return;
-      }
-
-      const proofRes = await apiFetch(`/api/orders/${createdOrderId}/payment-proof`, {
-        method: 'POST',
-        body: JSON.stringify({ proofUrl: uploadData.url }),
-      });
-
-      if (proofRes.error) { toast.error(proofRes.error); setUploading(false); return; }
-
-      clearCart();
-      setShowPaymentDialog(false);
-      toast.success('Preuve de paiement envoyée !');
-      navigate('order-detail', { id: createdOrderId });
-    } catch { toast.error('Erreur'); }
-    setUploading(false);
   };
 
   if (items.length === 0) {
@@ -1417,17 +1340,39 @@ function CheckoutView() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label htmlFor="address">Adresse</Label>
-            <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Ex: Quartier Badalabougou, rue 123" />
+            <Label htmlFor="checkout-address">Adresse</Label>
+            <Input
+              id="checkout-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Ex: Rue 123, près de la mosquée"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="city">Ville</Label>
-              <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} />
+              <Label htmlFor="checkout-city">Ville</Label>
+              <Select value={city} onValueChange={handleCityChange}>
+                <SelectTrigger id="checkout-city">
+                  <SelectValue placeholder="Ville" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Bamako">Bamako</SelectItem>
+                  <SelectItem value="Ségou">Ségou</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <Label htmlFor="quartier">Quartier</Label>
-              <Input id="quartier" value={quartier} onChange={(e) => setQuartier(e.target.value)} placeholder="Quartier" />
+              <Label htmlFor="checkout-quartier">Quartier</Label>
+              <Select value={quartier} onValueChange={setQuartier}>
+                <SelectTrigger id="checkout-quartier">
+                  <SelectValue placeholder="Quartier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currentQuartiers.map((q) => (
+                    <SelectItem key={q} value={q}>{q}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>
@@ -1437,72 +1382,31 @@ function CheckoutView() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Mode de paiement</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {enabledPaymentMethods.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CircleAlert className="w-4 h-4" />
-              Aucune méthode configurée. Paiement en espèces par défaut.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {enabledPaymentMethods.map((config) => (
-                <button
-                  key={config.method}
-                  onClick={() => setPaymentMethod(config.method)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${
-                    paymentMethod === config.method
-                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'
-                      : 'border-border hover:border-emerald-600'
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    paymentMethod === config.method ? 'border-emerald-600' : 'border-muted-foreground'
-                  }`}>
-                    {paymentMethod === config.method && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-                    )}
-                  </div>
-                  <span className="text-sm font-medium">
-                    {PAYMENT_METHODS[config.method] || config.method}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {paymentMethod !== 'CASH' && selectedPaymentConfig && (
-            <div className="bg-muted rounded-lg p-3 space-y-2">
-              <p className="text-xs text-muted-foreground font-medium">
-                Envoyez le paiement puis joignez la capture d&apos;écran
-              </p>
-              {selectedPaymentConfig.phoneNumber && (
-                <p className="text-sm">
-                  <span className="text-muted-foreground">Numéro :</span>{' '}
-                  <span className="font-mono font-medium">{selectedPaymentConfig.phoneNumber}</span>
-                </p>
-              )}
-              {selectedPaymentConfig.accountName && (
-                <p className="text-sm">
-                  <span className="text-muted-foreground">Nom :</span>{' '}
-                  <span className="font-medium">{selectedPaymentConfig.accountName}</span>
-                </p>
-              )}
-              {selectedPaymentConfig.accountNumber && (
-                <p className="text-sm">
-                  <span className="text-muted-foreground">N° :</span>{' '}
-                  <span className="font-mono font-medium">{selectedPaymentConfig.accountNumber}</span>
-                </p>
-              )}
-              {selectedPaymentConfig.qrCode && (
-                <div className="mt-2">
-                  <img src={selectedPaymentConfig.qrCode} alt="QR Code" className="w-32 h-32 mx-auto rounded" />
+        <CardContent className="space-y-2">
+          <div className="space-y-2">
+            {AVAILABLE_PAYMENT_METHODS.map((method) => (
+              <button
+                key={method}
+                onClick={() => setPaymentMethod(method)}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${
+                  paymentMethod === method
+                    ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'
+                    : 'border-border hover:border-emerald-600'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  paymentMethod === method ? 'border-emerald-600' : 'border-muted-foreground'
+                }`}>
+                  {paymentMethod === method && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+                  )}
                 </div>
-              )}
-              {selectedPaymentConfig.instructions && (
-                <p className="text-xs text-muted-foreground mt-1">{selectedPaymentConfig.instructions}</p>
-              )}
-            </div>
-          )}
+                <span className="text-sm font-medium">
+                  {PAYMENT_METHODS[method] || method}
+                </span>
+              </button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -1511,13 +1415,27 @@ function CheckoutView() {
           <CardTitle className="text-base">Notes pour la commande</CardTitle>
         </CardHeader>
         <CardContent>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Instructions spéciales, allergies..." rows={3} />
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Instructions spéciales, allergies..."
+            rows={3}
+          />
         </CardContent>
       </Card>
 
       <Card className="rounded-xl">
         <CardContent className="p-4 space-y-2">
           <p className="text-sm font-medium mb-1">Résumé de la commande</p>
+          {items.map((item) => (
+            <div key={item.productId} className="flex justify-between text-sm">
+              <span className="text-muted-foreground truncate mr-2">
+                {item.name} x{item.quantity}
+              </span>
+              <span className="shrink-0">{formatPrice(item.price * item.quantity)}</span>
+            </div>
+          ))}
+          <Separator className="my-1" />
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Sous-total ({items.length} articles)</span>
             <span>{formatPrice(subtotal)}</span>
@@ -1548,53 +1466,6 @@ function CheckoutView() {
           Confirmer la commande — {formatPrice(total)}
         </Button>
       </div>
-
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Preuve de paiement</DialogTitle>
-            <DialogDescription>
-              Veuillez envoyer le paiement à {selectedPaymentConfig?.phoneNumber || 'le marchand'} puis télécharger la capture d&apos;écran de votre paiement.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files?.[0]) setPaymentProofFile(e.target.files[0]);
-              }}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed rounded-lg p-8 flex flex-col items-center gap-2 hover:border-emerald-600 transition-colors"
-            >
-              <Upload className="w-8 h-8 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {paymentProofFile ? paymentProofFile.name : 'Télécharger la capture d\'écran'}
-              </span>
-              {paymentProofFile && (
-                <img src={URL.createObjectURL(paymentProofFile)} alt="Aperçu" className="w-32 h-32 object-cover rounded-lg mt-2" />
-              )}
-            </button>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowPaymentDialog(false); clearCart(); navigate('order-detail', { id: createdOrderId }); }}>
-              Plus tard
-            </Button>
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
-              onClick={handleUploadProof}
-              disabled={!paymentProofFile || uploading}
-            >
-              {uploading ? <Spinner className="w-4 h-4 mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-              Envoyer la preuve
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -2003,7 +1874,7 @@ function OrderDetailView() {
             onClick={() => fileRef.current?.click()}
             className="w-full border-2 border-dashed rounded-lg p-8 flex flex-col items-center gap-2 hover:border-emerald-600 transition-colors"
           >
-            <Camera className="w-8 h-8 text-muted-foreground" />
+            <Upload className="w-8 h-8 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">{proofFile ? proofFile.name : 'Choisir une image'}</span>
           </button>
           <DialogFooter>
@@ -2047,20 +1918,38 @@ function FavoritesView() {
     return () => { cancelled = true; };
   }, [retryCount]);
 
-  const handleRemove = async (productId: string) => {
-    const res = await apiFetch('/api/favorites', {
+  const handleRemove = async (productId: string, favoriteId: string) => {
+    const res = await apiFetch(`/api/favorites/${favoriteId}`, {
       method: 'DELETE',
-      body: JSON.stringify({ productId }),
     });
     if (res.error) toast.error(res.error);
     else {
       toast.success('Retiré des favoris');
-      setFavorites((prev) => prev.filter((f) => f.productId !== productId));
+      setFavorites((prev) => prev.filter((f) => f.id !== favoriteId));
     }
   };
 
-  if (loading) return <LoadingState />;
-  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+  if (loading) {
+    return (
+      <div className="p-4 pb-24 space-y-4">
+        <h1 className="font-semibold text-lg">Mes favoris</h1>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-52 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 pb-24 space-y-4">
+        <h1 className="font-semibold text-lg">Mes favoris</h1>
+        <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 pb-24 space-y-4">
@@ -2087,7 +1976,7 @@ function FavoritesView() {
                     </div>
                   )}
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleRemove(fav.productId); }}
+                    onClick={(e) => { e.stopPropagation(); handleRemove(fav.productId, fav.id); }}
                     className="absolute top-2 right-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                   >
                     <Heart className="w-4 h-4 text-red-500 fill-red-500" />
@@ -2113,6 +2002,7 @@ function FavoritesView() {
 // 11. WALLET VIEW
 // ============================================
 function WalletView() {
+  const { goBack } = useClientNav();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2137,12 +2027,43 @@ function WalletView() {
     return () => { cancelled = true; };
   }, [retryCount]);
 
-  if (loading) return <LoadingState />;
-  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+  if (loading) {
+    return (
+      <div className="p-4 pb-24 space-y-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={goBack}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="font-semibold text-lg">Mon portefeuille</h1>
+        </div>
+        <Skeleton className="h-36 rounded-xl" />
+        <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 pb-24 space-y-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={goBack}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="font-semibold text-lg">Mon portefeuille</h1>
+        </div>
+        <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 pb-24 space-y-4">
-      <h1 className="font-semibold text-lg">Mon portefeuille</h1>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={goBack}>
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
+        <h1 className="font-semibold text-lg">Mon portefeuille</h1>
+      </div>
 
       <Card className="rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-500 text-white border-0">
         <CardContent className="p-6">
@@ -2153,16 +2074,34 @@ function WalletView() {
         </CardContent>
       </Card>
 
+      <div className="grid grid-cols-2 gap-3">
+        <Button
+          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-12"
+          onClick={() => toast.info('Le dépôt nécessite une intégration bancaire. Fonctionnalité bientôt disponible.')}
+        >
+          <ArrowDownLeft className="w-4 h-4 mr-2" />
+          Déposer
+        </Button>
+        <Button
+          variant="outline"
+          className="rounded-xl h-12"
+          onClick={() => toast.info('Le retrait nécessite une intégration bancaire. Fonctionnalité bientôt disponible.')}
+        >
+          <ArrowUpRight className="w-4 h-4 mr-2" />
+          Retirer
+        </Button>
+      </div>
+
       <div>
         <h2 className="font-semibold text-sm mb-3">Historique des transactions</h2>
         {transactions.length === 0 ? (
           <EmptyState icon={Wallet} message="Aucune transaction" />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-96 overflow-y-auto">
             {transactions.map((tx) => (
               <Card key={tx.id} className="rounded-xl">
                 <CardContent className="p-3 flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                     tx.type === 'CREDIT' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30'
                   }`}>
                     {tx.type === 'CREDIT'
@@ -2178,7 +2117,7 @@ function WalletView() {
                       })}
                     </p>
                   </div>
-                  <span className={`font-semibold text-sm ${tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <span className={`font-semibold text-sm shrink-0 ${tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-600'}`}>
                     {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
                   </span>
                 </CardContent>
@@ -2192,88 +2131,7 @@ function WalletView() {
 }
 
 // ============================================
-// 12. NOTIFICATIONS VIEW
-// ============================================
-function NotificationsView() {
-  const { goBack } = useClientNav();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      const res = await apiFetch<Notification[]>('/api/notifications');
-      if (cancelled) return;
-      if (res.error && !res.data) setError(res.error);
-      if (res.data) setNotifications(Array.isArray(res.data) ? res.data : []);
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [retryCount]);
-
-  const handleMarkRead = async (id: string) => {
-    const notif = notifications.find((n) => n.id === id);
-    if (notif?.isRead) return;
-    await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
-  };
-
-  if (loading) return <LoadingState />;
-  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
-
-  return (
-    <div className="p-4 pb-24 space-y-4">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={goBack}>
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
-        <h1 className="font-semibold text-lg">Notifications</h1>
-      </div>
-
-      {notifications.length === 0 ? (
-        <EmptyState icon={Bell} message="Aucune notification" />
-      ) : (
-        <div className="space-y-2">
-          {notifications.map((notif) => (
-            <button
-              key={notif.id}
-              onClick={() => handleMarkRead(notif.id)}
-              className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                notif.isRead
-                  ? 'bg-card border-border'
-                  : 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-900/30'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${
-                  notif.isRead ? 'bg-transparent' : 'bg-emerald-500'
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <h4 className={`text-sm font-medium ${notif.isRead ? '' : 'font-semibold'}`}>{notif.title}</h4>
-                    <span className="text-[10px] text-muted-foreground shrink-0">
-                      {new Date(notif.createdAt).toLocaleDateString('fr-FR', {
-                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{notif.message}</p>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================
-// 13. PROFILE VIEW
+// 12. PROFILE VIEW
 // ============================================
 function ProfileView() {
   const { user, logout, updateUser } = useAuthStore();
@@ -2282,36 +2140,31 @@ function ProfileView() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [saving, setSaving] = useState(false);
-  const [referralCode, setReferralCode] = useState('');
   const editInitialized = useRef(false);
 
-  // Derive display values from user, initialize edit fields on first edit
   const displayFirstName = user?.firstName || '';
   const displayLastName = user?.lastName || '';
   const displayPhone = user?.phone || '';
+  const displayAddress = (user as unknown as { address?: string })?.address || '';
 
   const startEditing = () => {
     if (!editInitialized.current) {
       setFirstName(displayFirstName);
       setLastName(displayLastName);
       setPhone(displayPhone);
+      setAddress(displayAddress);
       editInitialized.current = true;
     }
     setEditing(true);
   };
 
-  useEffect(() => {
-    apiFetch<{ referralCode: string }>('/api/auth/me').then((res) => {
-      if (res.data) setReferralCode((res.data as { referralCode: string }).referralCode || '');
-    });
-  }, []);
-
   const handleSave = async () => {
     setSaving(true);
     const res = await apiFetch('/api/auth/me', {
       method: 'PUT',
-      body: JSON.stringify({ firstName, lastName, phone }),
+      body: JSON.stringify({ firstName, lastName, phone, address }),
     });
     if (res.error) { toast.error(res.error); }
     else {
@@ -2328,11 +2181,11 @@ function ProfileView() {
   };
 
   const menuItems = [
-    { icon: Package, label: 'Mes commandes', view: 'orders' as const },
+    { icon: ClipboardList, label: 'Mes commandes', view: 'orders' as const },
     { icon: Heart, label: 'Mes favoris', view: 'favorites' as const },
     { icon: Wallet, label: 'Mon portefeuille', view: 'wallet' as const },
+    { icon: Gift, label: 'Parrainage', view: 'referral' as const },
     { icon: HelpCircle, label: 'Support', view: 'support' as const },
-    { icon: Bell, label: 'Notifications', view: 'notifications' as const },
   ];
 
   return (
@@ -2347,9 +2200,9 @@ function ProfileView() {
                 {(user?.firstName?.[0] || '')}{(user?.lastName?.[0] || '')}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <h2 className="font-bold text-lg">{displayFirstName} {displayLastName}</h2>
-              <p className="text-sm text-muted-foreground">{user?.email}</p>
+            <div className="flex-1 min-w-0">
+              <h2 className="font-bold text-lg truncate">{displayFirstName} {displayLastName}</h2>
+              <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
               <p className="text-sm text-muted-foreground">{displayPhone}</p>
             </div>
           </div>
@@ -2369,6 +2222,10 @@ function ProfileView() {
               <div>
                 <Label htmlFor="profilePhone">Téléphone</Label>
                 <Input id="profilePhone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="profileAddress">Adresse</Label>
+                <Input id="profileAddress" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Votre adresse" />
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => setEditing(false)}>Annuler</Button>
@@ -2390,26 +2247,6 @@ function ProfileView() {
         </CardContent>
       </Card>
 
-      {referralCode && (
-        <Card className="rounded-xl">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Code de parrainage</p>
-                <p className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400">{referralCode}</p>
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => { navigator.clipboard.writeText(referralCode); toast.success('Code copié !'); }}
-              >
-                <Copy className="w-4 h-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Card className="rounded-xl">
         <CardContent className="p-0">
           {menuItems.map((item) => (
@@ -2418,7 +2255,7 @@ function ProfileView() {
               onClick={() => navigate(item.view)}
               className="w-full flex items-center gap-3 p-4 hover:bg-muted transition-colors text-left"
             >
-              <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
                 <item.icon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
               <span className="text-sm font-medium flex-1">{item.label}</span>
@@ -2435,6 +2272,139 @@ function ProfileView() {
       >
         Se déconnecter
       </Button>
+    </div>
+  );
+}
+
+// ============================================
+// 13. NOTIFICATIONS VIEW
+// ============================================
+function NotificationsView() {
+  const { goBack } = useClientNav();
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [markingAll, setMarkingAll] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      const res = await apiFetch<AppNotification[]>('/api/notifications');
+      if (cancelled) return;
+      if (res.error && !res.data) setError(res.error);
+      if (res.data) setNotifications(Array.isArray(res.data) ? res.data : []);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [retryCount]);
+
+  const handleMarkRead = async (id: string) => {
+    const notif = notifications.find((n) => n.id === id);
+    if (notif?.isRead) return;
+    await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+  };
+
+  const handleMarkAllRead = async () => {
+    setMarkingAll(true);
+    await apiFetch('/api/notifications', { method: 'PUT', body: JSON.stringify({ markAllRead: true }) });
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    toast.success('Toutes les notifications marquées comme lues');
+    setMarkingAll(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 pb-24 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={goBack}>
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+            <h1 className="font-semibold text-lg">Notifications</h1>
+          </div>
+        </div>
+        <div className="space-y-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 pb-24 space-y-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={goBack}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="font-semibold text-lg">Notifications</h1>
+        </div>
+        <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
+      </div>
+    );
+  }
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  return (
+    <div className="p-4 pb-24 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={goBack}>
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="font-semibold text-lg">Notifications</h1>
+        </div>
+        {unreadCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-emerald-600 text-xs"
+            onClick={handleMarkAllRead}
+            disabled={markingAll}
+          >
+            {markingAll ? <Spinner className="w-3 h-3 mr-1" /> : null}
+            Tout marquer comme lu
+          </Button>
+        )}
+      </div>
+
+      {notifications.length === 0 ? (
+        <EmptyState icon={Bell} message="Aucune notification" />
+      ) : (
+        <div className="space-y-2 max-h-[calc(100vh-12rem)] overflow-y-auto">
+          {notifications.map((notif) => (
+            <button
+              key={notif.id}
+              onClick={() => handleMarkRead(notif.id)}
+              className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                notif.isRead
+                  ? 'bg-card border-border'
+                  : 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-900/30'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${
+                  notif.isRead ? 'bg-transparent' : 'bg-emerald-500'
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className={`text-sm ${notif.isRead ? 'font-medium' : 'font-semibold'}`}>{notif.title}</h4>
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {new Date(notif.createdAt).toLocaleDateString('fr-FR', {
+                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{notif.message}</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2489,7 +2459,7 @@ function SupportView() {
   };
 
   const statusColors: Record<string, string> = {
-    OPEN: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+    OPEN: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
     IN_PROGRESS: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
     RESOLVED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
     CLOSED: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
@@ -2570,7 +2540,132 @@ function SupportView() {
 }
 
 // ============================================
-// 15. TRACKING VIEW
+// 15. REFERRAL VIEW
+// ============================================
+function ReferralView() {
+  const { goBack } = useClientNav();
+  const { user } = useAuthStore();
+  const [referralCode, setReferralCode] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiFetch<{ referralCode: string }>('/api/auth/me').then((res) => {
+      if (res.data) setReferralCode((res.data as { referralCode: string }).referralCode || '');
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const handleCopy = () => {
+    if (!referralCode) return;
+    navigator.clipboard.writeText(referralCode).then(() => {
+      toast.success('Code copié dans le presse-papier !');
+    }).catch(() => {
+      toast.error('Impossible de copier le code');
+    });
+  };
+
+  const handleShare = () => {
+    if (!referralCode) return;
+    if (navigator.share) {
+      navigator.share({
+        title: 'Rejoignez Rapigo Mali',
+        text: `Utilisez mon code de parrainage ${referralCode} pour obtenir des avantages sur Rapigo Mali !`,
+        url: typeof window !== 'undefined' ? window.location.origin : '',
+      }).catch(() => {});
+    } else {
+      handleCopy();
+    }
+  };
+
+  return (
+    <div className="p-4 pb-24 space-y-4">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={goBack}>
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
+        <h1 className="font-semibold text-lg">Parrainage</h1>
+      </div>
+
+      <Card className="rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-500 text-white border-0">
+        <CardContent className="p-6 text-center">
+          <Gift className="w-12 h-12 mx-auto mb-3 text-white/90" />
+          <h2 className="text-xl font-bold">Parrainez vos amis</h2>
+          <p className="text-sm text-white/80 mt-2">
+            Partagez votre code et gagnez des récompenses à chaque ami qui rejoint Rapigo
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-xl">
+        <CardContent className="p-4">
+          <p className="text-sm font-medium mb-2">Votre code de parrainage</p>
+          {loading ? (
+            <Skeleton className="h-12 rounded-lg" />
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-muted rounded-lg p-3 text-center">
+                <span className="text-xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                  {referralCode || `${(user?.firstName || 'U').toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`}
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-12 w-12 shrink-0"
+                onClick={handleCopy}
+              >
+                <Copy className="w-5 h-5" />
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Button
+        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-12"
+        onClick={handleShare}
+      >
+        <Send className="w-4 h-4 mr-2" />
+        Partager le code
+      </Button>
+
+      <Card className="rounded-xl">
+        <CardContent className="p-4 space-y-3">
+          <h3 className="font-semibold text-sm">Comment ça marche ?</h3>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0 text-sm font-bold text-emerald-600">
+                1
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Partagez votre code de parrainage avec vos amis et famille
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0 text-sm font-bold text-emerald-600">
+                2
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Votre ami s&apos;inscrit sur Rapigo en utilisant votre code
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0 text-sm font-bold text-emerald-600">
+                3
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Vous recevez tous les deux une récompense sur votre portefeuille
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================
+// 16. TRACKING VIEW
 // ============================================
 function TrackingView() {
   const { data, goBack } = useClientNav();
@@ -2696,12 +2791,12 @@ function TrackingView() {
                       }`} />
                     )}
                   </div>
-                  <div className={`pb-6 ${index === allSteps.length - 1 ? 'pb-0' : ''}`}>
+                  <div className={index === allSteps.length - 1 ? '' : 'pb-6'}>
                     <p className={`text-sm font-medium ${isCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
                       {step.label}
                     </p>
                     {isCurrent && (
-                      <Badge className={ORDER_STATUS_COLORS[order.status] || 'mt-1 text-[10px]'}>
+                      <Badge className={`mt-1 text-[10px] ${ORDER_STATUS_COLORS[order.status] || ''}`}>
                         En cours
                       </Badge>
                     )}
@@ -2726,7 +2821,7 @@ export default function ClientApp() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    apiFetch<Notification[]>('/api/notifications?unread=true').then((res) => {
+    apiFetch<AppNotification[]>('/api/notifications?unread=true').then((res) => {
       if (res.data) {
         const list = Array.isArray(res.data) ? res.data : [];
         setUnreadCount(list.length);
@@ -2744,6 +2839,23 @@ export default function ClientApp() {
     { view: 'profile' as const, label: 'Profil', icon: User },
   ];
 
+  const isHome = view === 'home';
+
+  const viewTitles: Record<string, string> = {
+    search: 'Recherche',
+    cart: 'Mon panier',
+    checkout: 'Passer la commande',
+    orders: 'Mes commandes',
+    'order-detail': 'Détails de la commande',
+    favorites: 'Mes favoris',
+    wallet: 'Mon portefeuille',
+    profile: 'Mon profil',
+    notifications: 'Notifications',
+    support: 'Support',
+    referral: 'Parrainage',
+    tracking: 'Suivi de livraison',
+  };
+
   const renderView = () => {
     switch (view) {
       case 'home': return <HomeView />;
@@ -2760,6 +2872,7 @@ export default function ClientApp() {
       case 'notifications': return <NotificationsView />;
       case 'profile': return <ProfileView />;
       case 'support': return <SupportView />;
+      case 'referral': return <ReferralView />;
       case 'tracking': return <TrackingView />;
       default: return <HomeView />;
     }
@@ -2768,40 +2881,71 @@ export default function ClientApp() {
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-lg mx-auto relative">
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b px-4 py-3 flex items-center justify-between">
-        <button onClick={() => navigate('home')} className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">R</span>
-          </div>
-          <span className="font-bold text-lg text-emerald-600">Rapigo</span>
-        </button>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative h-9 w-9"
-            onClick={() => navigate('notifications')}
-          >
-            <Bell className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative h-9 w-9"
-            onClick={() => navigate('cart')}
-          >
-            <ShoppingBag className="w-5 h-5" />
-            {cartCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-emerald-600 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                {cartCount > 9 ? '9+' : cartCount}
-              </span>
-            )}
-          </Button>
-        </div>
+        {isHome ? (
+          <>
+            <button onClick={() => navigate('home')} className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+                <span className="text-white font-bold text-sm">R</span>
+              </div>
+              <span className="font-bold text-lg text-emerald-600">Rapigo</span>
+            </button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative h-9 w-9"
+                onClick={() => navigate('notifications')}
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative h-9 w-9"
+                onClick={() => navigate('cart')}
+              >
+                <ShoppingBag className="w-5 h-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-emerald-600 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                    {cartCount > 9 ? '9+' : cartCount}
+                  </span>
+                )}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 -ml-1"
+                onClick={() => useClientNav.getState().goBack()}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+              <h1 className="font-semibold truncate">{viewTitles[view] || ''}</h1>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative h-9 w-9"
+              onClick={() => navigate('notifications')}
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Button>
+          </>
+        )}
       </header>
 
       <main className="flex-1 overflow-y-auto">
@@ -2811,8 +2955,7 @@ export default function ClientApp() {
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t">
         <div className="max-w-lg mx-auto flex items-center justify-around py-2 px-2">
           {navItems.map((item) => {
-            const isActive = view === item.view ||
-              (item.view === 'home' && ['home', 'category', 'merchant-detail', 'product-detail', 'search'].includes(view));
+            const isActive = view === item.view;
             return (
               <button
                 key={item.view}

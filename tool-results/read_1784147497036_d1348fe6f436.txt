@@ -1,0 +1,2002 @@
+     1→/* eslint-disable react-hooks/set-state-in-effect */
+     2→'use client';
+     3→
+     4→import React, { useState, useEffect, useCallback } from 'react';
+     5→import { motion, AnimatePresence } from 'framer-motion';
+     6→import { toast } from 'sonner';
+     7→import {
+     8→  PieChart,
+     9→  Pie,
+    10→  Cell,
+    11→  ResponsiveContainer,
+    12→  Tooltip as RechartsTooltip,
+    13→} from 'recharts';
+    14→import {
+    15→  LayoutDashboard,
+    16→  Users,
+    17→  Store,
+    18→  Bike,
+    19→  ShoppingBag,
+    20→  CreditCard,
+    21→  Grid3X3,
+    22→  Package,
+    23→  Ticket,
+    24→  Crown,
+    25→  Settings,
+    26→  FileText,
+    27→  LifeBuoy,
+    28→  Bell,
+    29→  Menu,
+    30→  Search,
+    31→  Eye,
+    32→  CheckCircle,
+    33→  XCircle,
+    34→  RefreshCw,
+    35→  Plus,
+    36→  Pencil,
+    37→  Trash2,
+    38→  Ban,
+    39→  LogOut,
+    40→  ChevronDown,
+    41→  ChevronRight,
+    42→  Download,
+    43→  Upload,
+    44→  AlertTriangle,
+    45→  Loader2,
+    46→  ShieldCheck,
+    47→  ShieldX,
+    48→  UserCog,
+    49→  Mail,
+    50→  Phone,
+    51→  MapPin,
+    52→  Star,
+    53→  CircleDot,
+    54→} from 'lucide-react';
+    55→
+    56→import {
+    57→  useAuthStore,
+    58→  useAdminNav,
+    59→  apiFetch,
+    60→  formatPrice,
+    61→  ORDER_STATUS_LABELS,
+    62→  ORDER_STATUS_COLORS,
+    63→  PAYMENT_STATUS_LABELS,
+    64→  BUSINESS_TYPES,
+    65→  PAYMENT_METHODS,
+    66→} from '@/lib/store';
+    67→import type { AdminView } from '@/lib/store';
+    68→
+    69→import { Button } from '@/components/ui/button';
+    70→import { Input } from '@/components/ui/input';
+    71→import {
+    72→  Card,
+    73→  CardContent,
+    74→  CardHeader,
+    75→  CardTitle,
+    76→  CardDescription,
+    77→} from '@/components/ui/card';
+    78→import { Badge } from '@/components/ui/badge';
+    79→import {
+    80→  Tabs,
+    81→  TabsList,
+    82→  TabsTrigger,
+    83→  TabsContent,
+    84→} from '@/components/ui/tabs';
+    85→import {
+    86→  Dialog,
+    87→  DialogContent,
+    88→  DialogHeader,
+    89→  DialogTitle,
+    90→  DialogDescription,
+    91→  DialogFooter,
+    92→} from '@/components/ui/dialog';
+    93→import {
+    94→  AlertDialog,
+    95→  AlertDialogContent,
+    96→  AlertDialogHeader,
+    97→  AlertDialogTitle,
+    98→  AlertDialogDescription,
+    99→  AlertDialogFooter,
+   100→  AlertDialogCancel,
+   101→  AlertDialogAction,
+   102→} from '@/components/ui/alert-dialog';
+   103→import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+   104→import { Separator } from '@/components/ui/separator';
+   105→import { Skeleton } from '@/components/ui/skeleton';
+   106→import { ScrollArea } from '@/components/ui/scroll-area';
+   107→import {
+   108→  Table,
+   109→  TableHeader,
+   110→  TableBody,
+   111→  TableRow,
+   112→  TableHead,
+   113→  TableCell,
+   114→} from '@/components/ui/table';
+   115→import {
+   116→  Select,
+   117→  SelectTrigger,
+   118→  SelectContent,
+   119→  SelectItem,
+   120→  SelectValue,
+   121→} from '@/components/ui/select';
+   122→import { Switch } from '@/components/ui/switch';
+   123→import { Label } from '@/components/ui/label';
+   124→import { Textarea } from '@/components/ui/textarea';
+   125→import {
+   126→  Sheet,
+   127→  SheetTrigger,
+   128→  SheetContent,
+   129→  SheetHeader,
+   130→  SheetTitle,
+   131→  SheetDescription,
+   132→} from '@/components/ui/sheet';
+   133→
+   134→// ─── Constants ────────────────────────────────────────────────────────────────
+   135→
+   136→const CHART_COLORS = ['#059669', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#ef4444', '#8b5cf6', '#14b8a6'];
+   137→
+   138→interface MenuItem {
+   139→  id: AdminView;
+   140→  label: string;
+   141→  icon: React.ElementType;
+   142→}
+   143→
+   144→const MENU_ITEMS: MenuItem[] = [
+   145→  { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+   146→  { id: 'users', label: 'Utilisateurs', icon: Users },
+   147→  { id: 'merchants', label: 'Marchands', icon: Store },
+   148→  { id: 'drivers', label: 'Livreurs', icon: Bike },
+   149→  { id: 'orders', label: 'Commandes', icon: ShoppingBag },
+   150→  { id: 'payments', label: 'Paiements', icon: CreditCard },
+   151→  { id: 'categories', label: 'Catégories', icon: Grid3X3 },
+   152→  { id: 'products', label: 'Produits', icon: Package },
+   153→  { id: 'coupons', label: 'Coupons', icon: Ticket },
+   154→  { id: 'subscriptions', label: 'Abonnements', icon: Crown },
+   155→  { id: 'settings', label: 'Paramètres', icon: Settings },
+   156→  { id: 'audit-logs', label: "Journaux d'audit", icon: FileText },
+   157→  { id: 'support', label: 'Support', icon: LifeBuoy },
+   158→];
+   159→
+   160→const ROLE_LABELS: Record<string, string> = {
+   161→  CLIENT: 'Client',
+   162→  MERCHANT: 'Marchand',
+   163→  DRIVER: 'Livreur',
+   164→  ADMIN: 'Admin',
+   165→};
+   166→
+   167→const SUPPORT_STATUS_COLORS: Record<string, string> = {
+   168→  OPEN: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+   169→  IN_PROGRESS: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+   170→  RESOLVED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+   171→  CLOSED: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+   172→};
+   173→
+   174→const SUPPORT_STATUS_LABELS: Record<string, string> = {
+   175→  OPEN: 'Ouvert',
+   176→  IN_PROGRESS: 'En cours',
+   177→  RESOLVED: 'Résolu',
+   178→  CLOSED: 'Fermé',
+   179→};
+   180→
+   181→const PRIORITY_LABELS: Record<string, string> = {
+   182→  LOW: 'Bas',
+   183→  MEDIUM: 'Moyen',
+   184→  HIGH: 'Haut',
+   185→  URGENT: 'Urgent',
+   186→};
+   187→
+   188→const PRIORITY_COLORS: Record<string, string> = {
+   189→  LOW: 'bg-gray-100 text-gray-800',
+   190→  MEDIUM: 'bg-blue-100 text-blue-800',
+   191→  HIGH: 'bg-orange-100 text-orange-800',
+   192→  URGENT: 'bg-red-100 text-red-800',
+   193→};
+   194→
+   195→// ─── Types ────────────────────────────────────────────────────────────────────
+   196→
+   197→interface DashboardStats {
+   198→  totalUsers: number;
+   199→  totalMerchants: number;
+   200→  totalDrivers: number;
+   201→  totalOrders: number;
+   202→  totalRevenue: number;
+   203→  pendingMerchants: number;
+   204→  pendingDrivers: number;
+   205→  ordersByStatus: { name: string; value: number }[];
+   206→  recentOrders: any[];
+   207→}
+   208→
+   209→// ─── Reusable hooks ────────────────────────────────────────────────────────────
+   210→
+   211→function useApiFetch<T>(url: string, fallback: T) {
+   212→  const [data, setData] = useState<T>(fallback);
+   213→  const [loading, setLoading] = useState(true);
+   214→  const [error, setError] = useState<string | null>(null);
+   215→
+   216→  const fetch_ = useCallback(async () => {
+   217→    setLoading(true);
+   218→    setError(null);
+   219→    const res = await apiFetch<T>(url);
+   220→    if (res.error) {
+   221→      setError(res.error);
+   222→    } else if (res.data) {
+   223→      setData(res.data);
+   224→    }
+   225→    setLoading(false);
+   226→  }, [url]);
+   227→
+   228→  useEffect(() => { fetch_(); }, [fetch_]);
+   229→
+   230→  return { data, loading, error, refetch: fetch_ };
+   231→}
+   232→
+   233→// ─── Reusable components ──────────────────────────────────────────────────────
+   234→
+   235→function PageShell({ title, description, children, actions }: {
+   236→  title: string;
+   237→  description?: string;
+   238→  children: React.ReactNode;
+   239→  actions?: React.ReactNode;
+   240→}) {
+   241→  return (
+   242→    <motion.div
+   243→      initial={{ opacity: 0, y: 12 }}
+   244→      animate={{ opacity: 1, y: 0 }}
+   245→      exit={{ opacity: 0, y: -12 }}
+   246→      transition={{ duration: 0.2 }}
+   247→      className="space-y-6"
+   248→    >
+   249→      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+   250→        <div>
+   251→          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+   252→          {description && (
+   253→            <p className="text-muted-foreground text-sm">{description}</p>
+   254→          )}
+   255→        </div>
+   256→        {actions && <div className="flex items-center gap-2">{actions}</div>}
+   257→      </div>
+   258→      {children}
+   259→    </motion.div>
+   260→  );
+   261→}
+   262→
+   263→function LoadingCards({ count = 4 }: { count?: number }) {
+   264→  return (
+   265→    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+   266→      {Array.from({ length: count }).map((_, i) => (
+   267→        <Card key={i}>
+   268→          <CardContent className="p-6">
+   269→            <Skeleton className="mb-2 h-4 w-24" />
+   270→            <Skeleton className="h-8 w-32" />
+   271→          </CardContent>
+   272→        </Card>
+   273→      ))}
+   274→    </div>
+   275→  );
+   276→}
+   277→
+   278→function EmptyState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+   279→  return (
+   280→    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+   281→      <div className="text-muted-foreground">
+   282→        <FileText className="mx-auto h-12 w-12 opacity-30" />
+   283→      </div>
+   284→      <p className="text-muted-foreground text-sm">{message}</p>
+   285→      {onRetry && (
+   286→        <Button variant="outline" size="sm" onClick={onRetry}>
+   287→          <RefreshCw className="h-4 w-4" />
+   288→          Réessayer
+   289→        </Button>
+   290→      )}
+   291→    </div>
+   292→  );
+   293→}
+   294→
+   295→function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+   296→  return (
+   297→    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+   298→      <AlertTriangle className="h-12 w-12 text-destructive" />
+   299→      <p className="text-sm text-destructive">{message}</p>
+   300→      {onRetry && (
+   301→        <Button variant="outline" size="sm" onClick={onRetry}>
+   302→          <RefreshCw className="h-4 w-4" />
+   303→          Réessayer
+   304→        </Button>
+   305→      )}
+   306→    </div>
+   307→  );
+   308→}
+   309→
+   310→function Spinner({ className = '' }: { className?: string }) {
+   311→  return <Loader2 className={`h-4 w-4 animate-spin ${className}`} />;
+   312→}
+   313→
+   314→// ─── Sidebar ──────────────────────────────────────────────────────────────────
+   315→
+   316→function SidebarNav({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+   317→  const { view, navigate } = useAdminNav();
+   318→
+   319→  const handleNav = (id: AdminView) => {
+   320→    navigate(id);
+   321→    onNavigate?.();
+   322→  };
+   323→
+   324→  return (
+   325→    <nav className="flex flex-col gap-1 px-3">
+   326→      {MENU_ITEMS.map((item) => {
+   327→        const Icon = item.icon;
+   328→        const active = view === item.id;
+   329→        return (
+   330→          <button
+   331→            key={item.id}
+   332→            onClick={() => handleNav(item.id)}
+   333→            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+   334→              active
+   335→                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+   336→                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+   337→            }`}
+   338→          >
+   339→            <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : ''}`} />
+   340→            {!collapsed && <span>{item.label}</span>}
+   341→          </button>
+   342→        );
+   343→      })}
+   344→    </nav>
+   345→  );
+   346→}
+   347→
+   348→// ─── Top Bar ──────────────────────────────────────────────────────────────────
+   349→
+   350→function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
+   351→  const { user, logout } = useAuthStore();
+   352→  const { navigate } = useAdminNav();
+   353→
+   354→  return (
+   355→    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+   356→      <div className="flex items-center gap-3">
+   357→        <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
+   358→          <Menu className="h-5 w-5" />
+   359→        </Button>
+   360→        <div className="hidden items-center gap-2 lg:flex">
+   361→          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-sm font-bold text-white">
+   362→            R
+   363→          </div>
+   364→          <span className="text-sm font-semibold">Rapigo Admin</span>
+   365→        </div>
+   366→      </div>
+   367→
+   368→      <div className="flex items-center gap-2">
+   369→        <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('support' as AdminView)}>
+   370→          <Bell className="h-4 w-4" />
+   371→          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
+   372→            3
+   373→          </span>
+   374→        </Button>
+   375→        <Separator orientation="vertical" className="mx-1 h-6" />
+   376→        <div className="flex items-center gap-2">
+   377→          <Avatar className="h-8 w-8">
+   378→            <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs dark:bg-emerald-900/40 dark:text-emerald-400">
+   379→              {user?.firstName?.[0]}{user?.lastName?.[0]}
+   380→            </AvatarFallback>
+   381→          </Avatar>
+   382→          <div className="hidden sm:block">
+   383→            <p className="text-sm font-medium leading-none">
+   384→              {user?.firstName} {user?.lastName}
+   385→            </p>
+   386→            <p className="text-muted-foreground text-xs">{user?.email}</p>
+   387→          </div>
+   388→        </div>
+   389→        <Button variant="ghost" size="icon" onClick={() => { logout(); navigate('dashboard'); }}>
+   390→          <LogOut className="h-4 w-4" />
+   391→        </Button>
+   392→      </div>
+   393→    </header>
+   394→  );
+   395→}
+   396→
+   397→// ─── Dashboard View ───────────────────────────────────────────────────────────
+   398→
+   399→function DashboardView() {
+   400→  const { data, loading, error, refetch } = useApiFetch<DashboardStats>('/api/stats', {
+   401→    totalUsers: 0,
+   402→    totalMerchants: 0,
+   403→    totalDrivers: 0,
+   404→    totalOrders: 0,
+   405→    totalRevenue: 0,
+   406→    pendingMerchants: 0,
+   407→    pendingDrivers: 0,
+   408→    ordersByStatus: [],
+   409→    recentOrders: [],
+   410→  });
+   411→
+   412→  if (error) return <ErrorState message={error} onRetry={refetch} />;
+   413→
+   414→  const statCards = [
+   415→    { label: 'Utilisateurs', value: data.totalUsers, icon: Users, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' },
+   416→    { label: 'Marchands', value: data.totalMerchants, icon: Store, color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30' },
+   417→    { label: 'Livreurs', value: data.totalDrivers, icon: Bike, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
+   418→    { label: 'Commandes', value: data.totalOrders, icon: ShoppingBag, color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' },
+   419→    { label: 'Revenus', value: formatPrice(data.totalRevenue), icon: CreditCard, color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30' },
+   420→  ];
+   421→
+   422→  return (
+   423→    <PageShell title="Tableau de bord" description="Vue d'ensemble de la plateforme Rapigo">
+   424→      {loading ? (
+   425→        <LoadingCards count={5} />
+   426→      ) : (
+   427→        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+   428→          {statCards.map((s) => (
+   429→            <Card key={s.label}>
+   430→              <CardContent className="flex items-center gap-4 p-4">
+   431→                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${s.color}`}>
+   432→                  <s.icon className="h-5 w-5" />
+   433→                </div>
+   434→                <div>
+   435→                  <p className="text-muted-foreground text-xs">{s.label}</p>
+   436→                  <p className="text-lg font-bold">{s.value}</p>
+   437→                </div>
+   438→              </CardContent>
+   439→            </Card>
+   440→          ))}
+   441→        </div>
+   442→      )}
+   443→
+   444→      <div className="grid gap-6 lg:grid-cols-2">
+   445→        {/* Orders by Status Chart */}
+   446→        <Card>
+   447→          <CardHeader className="pb-2">
+   448→            <CardTitle className="text-base">Commandes par statut</CardTitle>
+   449→          </CardHeader>
+   450→          <CardContent>
+   451→            {loading ? (
+   452→              <Skeleton className="h-64 w-full" />
+   453→            ) : data.ordersByStatus.length === 0 ? (
+   454→              <p className="py-12 text-center text-sm text-muted-foreground">Aucune donnée</p>
+   455→            ) : (
+   456→              <div className="h-64">
+   457→                <ResponsiveContainer width="100%" height="100%">
+   458→                  <PieChart>
+   459→                    <Pie
+   460→                      data={data.ordersByStatus}
+   461→                      cx="50%"
+   462→                      cy="50%"
+   463→                      innerRadius={50}
+   464→                      outerRadius={90}
+   465→                      paddingAngle={3}
+   466→                      dataKey="value"
+   467→                    >
+   468→                      {data.ordersByStatus.map((_, index) => (
+   469→                        <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+   470→                      ))}
+   471→                    </Pie>
+   472→                    <RechartsTooltip />
+   473→                  </PieChart>
+   474→                </ResponsiveContainer>
+   475→              </div>
+   476→            )}
+   477→            {data.ordersByStatus.length > 0 && (
+   478→              <div className="mt-2 flex flex-wrap gap-2">
+   479→                {data.ordersByStatus.map((item, i) => (
+   480→                  <div key={item.name} className="flex items-center gap-1.5 text-xs">
+   481→                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+   482→                    <span className="text-muted-foreground">{item.name}</span>
+   483→                    <span className="font-medium">({item.value})</span>
+   484→                  </div>
+   485→                ))}
+   486→              </div>
+   487→            )}
+   488→          </CardContent>
+   489→        </Card>
+   490→
+   491→        {/* Pending Approvals */}
+   492→        <Card>
+   493→          <CardHeader className="pb-2">
+   494→            <CardTitle className="text-base">En attente d'approbation</CardTitle>
+   495→          </CardHeader>
+   496→          <CardContent className="space-y-3">
+   497→            {loading ? (
+   498→              <Skeleton className="h-24 w-full" />
+   499→            ) : (
+   500→              <>
+   501→                <div className="flex items-center justify-between rounded-lg border p-3">
+   502→                  <div className="flex items-center gap-3">
+   503→                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+   504→                      <Store className="h-4 w-4 text-yellow-600" />
+   505→                    </div>
+   506→                    <div>
+   507→                      <p className="text-sm font-medium">Marchands en attente</p>
+   508→                      <p className="text-xs text-muted-foreground">Nécessitent une vérification</p>
+   509→                    </div>
+   510→                  </div>
+   511→                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" variant="secondary">
+   512→                    {data.pendingMerchants}
+   513→                  </Badge>
+   514→                </div>
+   515→                <div className="flex items-center justify-between rounded-lg border p-3">
+   516→                  <div className="flex items-center gap-3">
+   517→                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
+   518→                      <Bike className="h-4 w-4 text-orange-600" />
+   519→                    </div>
+   520→                    <div>
+   521→                      <p className="text-sm font-medium">Livreurs en attente</p>
+   522→                      <p className="text-xs text-muted-foreground">Documents à vérifier</p>
+   523→                    </div>
+   524→                  </div>
+   525→                  <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" variant="secondary">
+   526→                    {data.pendingDrivers}
+   527→                  </Badge>
+   528→                </div>
+   529→              </>
+   530→            )}
+   531→          </CardContent>
+   532→        </Card>
+   533→      </div>
+   534→
+   535→      {/* Recent Orders */}
+   536→      <Card>
+   537→        <CardHeader className="pb-2">
+   538→          <CardTitle className="text-base">Commandes récentes</CardTitle>
+   539→        </CardHeader>
+   540→        <CardContent>
+   541→          {loading ? (
+   542→            <div className="space-y-2">
+   543→              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+   544→            </div>
+   545→          ) : !data.recentOrders || data.recentOrders.length === 0 ? (
+   546→            <p className="py-8 text-center text-sm text-muted-foreground">Aucune commande récente</p>
+   547→          ) : (
+   548→            <div className="max-h-96 overflow-y-auto">
+   549→              <Table>
+   550→                <TableHeader>
+   551→                  <TableRow>
+   552→                    <TableHead>N°</TableHead>
+   553→                    <TableHead>Client</TableHead>
+   554→                    <TableHead>Marchand</TableHead>
+   555→                    <TableHead>Montant</TableHead>
+   556→                    <TableHead>Statut</TableHead>
+   557→                    <TableHead>Date</TableHead>
+   558→                  </TableRow>
+   559→                </TableHeader>
+   560→                <TableBody>
+   561→                  {data.recentOrders.slice(0, 10).map((order: any) => (
+   562→                    <TableRow key={order.id}>
+   563→                      <TableCell className="font-mono text-xs">{order.orderNumber}</TableCell>
+   564→                      <TableCell className="text-sm">{order.clientName || '-'}</TableCell>
+   565→                      <TableCell className="text-sm">{order.merchantName || '-'}</TableCell>
+   566→                      <TableCell className="text-sm font-medium">{formatPrice(order.total)}</TableCell>
+   567→                      <TableCell>
+   568→                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ORDER_STATUS_COLORS[order.status] || ''}`}>
+   569→                          {ORDER_STATUS_LABELS[order.status] || order.status}
+   570→                        </span>
+   571→                      </TableCell>
+   572→                      <TableCell className="text-xs text-muted-foreground">
+   573→                        {new Date(order.createdAt).toLocaleDateString('fr-FR')}
+   574→                      </TableCell>
+   575→                    </TableRow>
+   576→                  ))}
+   577→                </TableBody>
+   578→              </Table>
+   579→            </div>
+   580→          )}
+   581→        </CardContent>
+   582→      </Card>
+   583→    </PageShell>
+   584→  );
+   585→}
+   586→
+   587→// ─── Users View ───────────────────────────────────────────────────────────────
+   588→
+   589→function UsersView() {
+   590→  const [search, setSearch] = useState('');
+   591→  const [roleFilter, setRoleFilter] = useState('');
+   592→  const [offset, setOffset] = useState(0);
+   593→  const [users, setUsers] = useState<any[]>([]);
+   594→  const [loading, setLoading] = useState(true);
+   595→  const [total, setTotal] = useState(0);
+   596→  const limit = 20;
+   597→
+   598→  const fetchUsers = useCallback(async () => {
+   599→    setLoading(true);
+   600→    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+   601→    if (roleFilter) params.set('role', roleFilter);
+   602→    if (search) params.set('search', search);
+   603→    const res = await apiFetch<any>(`/api/users?${params}`);
+   604→    if (res.data) {
+   605→      setUsers(Array.isArray(res.data) ? res.data : res.data.users || []);
+   606→      setTotal(res.data.total || res.data.length || 0);
+   607→    }
+   608→    setLoading(false);
+   609→  }, [search, roleFilter, offset]);
+   610→
+   611→  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+   612→
+   613→  const handleBlock = async (userId: string, action: 'block' | 'unblock') => {
+   614→    const res = await apiFetch(`/api/users/${userId}/block`, {
+   615→      method: 'POST',
+   616→      body: JSON.stringify({ action }),
+   617→    });
+   618→    if (res.error) { toast.error(res.error); return; }
+   619→    toast.success(action === 'block' ? 'Utilisateur bloqué' : 'Utilisateur débloqué');
+   620→    fetchUsers();
+   621→  };
+   622→
+   623→  const handleSuspend = async (userId: string, action: 'suspend' | 'reactivate') => {
+   624→    const res = await apiFetch(`/api/users/${userId}/suspend`, {
+   625→      method: 'POST',
+   626→      body: JSON.stringify({ action }),
+   627→    });
+   628→    if (res.error) { toast.error(res.error); return; }
+   629→    toast.success(action === 'suspend' ? 'Utilisateur suspendu' : 'Utilisateur réactivé');
+   630→    fetchUsers();
+   631→  };
+   632→
+   633→  return (
+   634→    <PageShell title="Utilisateurs" description="Gérer tous les utilisateurs de la plateforme">
+   635→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+   636→        <div className="relative flex-1">
+   637→          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   638→          <Input
+   639→            placeholder="Rechercher par nom, email, téléphone..."
+   640→            value={search}
+   641→            onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
+   642→            className="pl-9"
+   643→          />
+   644→        </div>
+   645→        <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v === 'all' ? '' : v); setOffset(0); }}>
+   646→          <SelectTrigger className="w-full sm:w-40">
+   647→            <SelectValue placeholder="Tous les rôles" />
+   648→          </SelectTrigger>
+   649→          <SelectContent>
+   650→            <SelectItem value="all">Tous les rôles</SelectItem>
+   651→            <SelectItem value="CLIENT">Clients</SelectItem>
+   652→            <SelectItem value="MERCHANT">Marchands</SelectItem>
+   653→            <SelectItem value="DRIVER">Livreurs</SelectItem>
+   654→            <SelectItem value="ADMIN">Admins</SelectItem>
+   655→          </SelectContent>
+   656→        </Select>
+   657→      </div>
+   658→
+   659→      <Card>
+   660→        <CardContent className="p-0">
+   661→          {loading ? (
+   662→            <div className="space-y-2 p-4">
+   663→              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+   664→            </div>
+   665→          ) : users.length === 0 ? (
+   666→            <EmptyState message="Aucun utilisateur trouvé" onRetry={fetchUsers} />
+   667→          ) : (
+   668→            <div className="max-h-[500px] overflow-y-auto">
+   669→              <Table>
+   670→                <TableHeader>
+   671→                  <TableRow>
+   672→                    <TableHead>Nom</TableHead>
+   673→                    <TableHead>Email</TableHead>
+   674→                    <TableHead className="hidden md:table-cell">Téléphone</TableHead>
+   675→                    <TableHead>Rôle</TableHead>
+   676→                    <TableHead>Statut</TableHead>
+   677→                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+   678→                    <TableHead className="text-right">Actions</TableHead>
+   679→                  </TableRow>
+   680→                </TableHeader>
+   681→                <TableBody>
+   682→                  {users.map((u: any) => {
+   683→                    const isSuper = u.isSuperAdmin;
+   684→                    return (
+   685→                      <TableRow key={u.id}>
+   686→                        <TableCell className="font-medium">{u.firstName} {u.lastName}</TableCell>
+   687→                        <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
+   688→                        <TableCell className="hidden text-sm md:table-cell">{u.phone}</TableCell>
+   689→                        <TableCell>
+   690→                          <Badge variant="outline">{ROLE_LABELS[u.role] || u.role}</Badge>
+   691→                        </TableCell>
+   692→                        <TableCell>
+   693→                          <Badge variant={u.isActive ? 'default' : 'destructive'} className={u.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
+   694→                            {u.isActive ? 'Actif' : 'Inactif'}
+   695→                          </Badge>
+   696→                        </TableCell>
+   697→                        <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+   698→                          {new Date(u.createdAt).toLocaleDateString('fr-FR')}
+   699→                        </TableCell>
+   700→                        <TableCell className="text-right">
+   701→                          <div className="flex items-center justify-end gap-1">
+   702→                            {!isSuper && (
+   703→                              <>
+   704→                                <Button
+   705→                                  variant="ghost"
+   706→                                  size="sm"
+   707→                                  onClick={() => handleBlock(u.id, u.isActive ? 'block' : 'unblock')}
+   708→                                  disabled={!u.isActive && u.role === 'ADMIN'}
+   709→                                >
+   710→                                  {u.isActive ? <Ban className="h-3.5 w-3.5 text-red-500" /> : <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />}
+   711→                                </Button>
+   712→                                <Button
+   713→                                  variant="ghost"
+   714→                                  size="sm"
+   715→                                  onClick={() => handleSuspend(u.id, u.isActive ? 'suspend' : 'reactivate')}
+   716→                                  disabled={!u.isActive && u.role === 'ADMIN'}
+   717→                                >
+   718→                                  {u.isActive ? <ShieldX className="h-3.5 w-3.5 text-orange-500" /> : <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />}
+   719→                                </Button>
+   720→                              </>
+   721→                            )}
+   722→                            {isSuper && (
+   723→                              <span className="text-xs text-muted-foreground">Super Admin</span>
+   724→                            )}
+   725→                          </div>
+   726→                        </TableCell>
+   727→                      </TableRow>
+   728→                    );
+   729→                  })}
+   730→                </TableBody>
+   731→              </Table>
+   732→            </div>
+   733→          )}
+   734→        </CardContent>
+   735→      </Card>
+   736→
+   737→      <div className="flex items-center justify-between">
+   738→        <p className="text-sm text-muted-foreground">{total} utilisateur(s) au total</p>
+   739→        <div className="flex gap-2">
+   740→          <Button variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset((p) => Math.max(0, p - limit))}>
+   741→            Précédent
+   742→          </Button>
+   743→          <Button variant="outline" size="sm" disabled={offset + limit >= total} onClick={() => setOffset((p) => p + limit)}>
+   744→            Suivant
+   745→          </Button>
+   746→        </div>
+   747→      </div>
+   748→    </PageShell>
+   749→  );
+   750→}
+   751→
+   752→// ─── Merchants View ───────────────────────────────────────────────────────────
+   753→
+   754→function MerchantsView() {
+   755→  const [search, setSearch] = useState('');
+   756→  const [typeFilter, setTypeFilter] = useState('');
+   757→  const [approvalFilter, setApprovalFilter] = useState('');
+   758→  const [merchants, setMerchants] = useState<any[]>([]);
+   759→  const [loading, setLoading] = useState(true);
+   760→  const [detailOpen, setDetailOpen] = useState(false);
+   761→  const [selectedMerchant, setSelectedMerchant] = useState<any>(null);
+   762→
+   763→  const fetchMerchants = useCallback(async () => {
+   764→    setLoading(true);
+   765→    const params = new URLSearchParams({ all: 'true' });
+   766→    if (search) params.set('search', search);
+   767→    if (typeFilter) params.set('type', typeFilter);
+   768→    if (approvalFilter) params.set('approved', approvalFilter);
+   769→    const res = await apiFetch<any>(`/api/merchants?${params}`);
+   770→    if (res.data) {
+   771→      setMerchants(Array.isArray(res.data) ? res.data : res.data.merchants || []);
+   772→    }
+   773→    setLoading(false);
+   774→  }, [search, typeFilter, approvalFilter]);
+   775→
+   776→  useEffect(() => { fetchMerchants(); }, [fetchMerchants]);
+   777→
+   778→  const handleApprove = async (id: string, action: 'approve' | 'reject') => {
+   779→    const res = await apiFetch(`/api/merchants/${id}/approve`, {
+   780→      method: 'POST',
+   781→      body: JSON.stringify({ action }),
+   782→    });
+   783→    if (res.error) { toast.error(res.error); return; }
+   784→    toast.success(action === 'approve' ? 'Marchand approuvé' : 'Marchand refusé');
+   785→    fetchMerchants();
+   786→  };
+   787→
+   788→  const handleBlock = async (id: string) => {
+   789→    const res = await apiFetch(`/api/users/${id}/block`, {
+   790→      method: 'POST',
+   791→      body: JSON.stringify({ action: 'block' }),
+   792→    });
+   793→    if (res.error) { toast.error(res.error); return; }
+   794→    toast.success('Marchand bloqué');
+   795→    fetchMerchants();
+   796→  };
+   797→
+   798→  return (
+   799→    <PageShell title="Marchands" description="Gérer les marchands de la plateforme">
+   800→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+   801→        <div className="relative flex-1">
+   802→          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   803→          <Input
+   804→            placeholder="Rechercher un marchand..."
+   805→            value={search}
+   806→            onChange={(e) => setSearch(e.target.value)}
+   807→            className="pl-9"
+   808→          />
+   809→        </div>
+   810→        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v === 'all' ? '' : v)}>
+   811→          <SelectTrigger className="w-full sm:w-44">
+   812→            <SelectValue placeholder="Type de commerce" />
+   813→          </SelectTrigger>
+   814→          <SelectContent>
+   815→            <SelectItem value="all">Tous les types</SelectItem>
+   816→            {Object.entries(BUSINESS_TYPES).map(([k, v]) => (
+   817→              <SelectItem key={k} value={k}>{v}</SelectItem>
+   818→            ))}
+   819→          </SelectContent>
+   820→        </Select>
+   821→        <Select value={approvalFilter} onValueChange={(v) => setApprovalFilter(v === 'all' ? '' : v)}>
+   822→          <SelectTrigger className="w-full sm:w-36">
+   823→            <SelectValue placeholder="Approbation" />
+   824→          </SelectTrigger>
+   825→          <SelectContent>
+   826→            <SelectItem value="all">Tous</SelectItem>
+   827→            <SelectItem value="true">Approuvés</SelectItem>
+   828→            <SelectItem value="false">En attente</SelectItem>
+   829→          </SelectContent>
+   830→        </Select>
+   831→      </div>
+   832→
+   833→      <Card>
+   834→        <CardContent className="p-0">
+   835→          {loading ? (
+   836→            <div className="space-y-2 p-4">
+   837→              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+   838→            </div>
+   839→          ) : merchants.length === 0 ? (
+   840→            <EmptyState message="Aucun marchand trouvé" onRetry={fetchMerchants} />
+   841→          ) : (
+   842→            <div className="max-h-[500px] overflow-y-auto">
+   843→              <Table>
+   844→                <TableHeader>
+   845→                  <TableRow>
+   846→                    <TableHead>Entreprise</TableHead>
+   847→                    <TableHead>Type</TableHead>
+   848→                    <TableHead className="hidden md:table-cell">Téléphone</TableHead>
+   849→                    <TableHead>Statut</TableHead>
+   850→                    <TableHead className="hidden lg:table-cell">Note</TableHead>
+   851→                    <TableHead className="text-right">Actions</TableHead>
+   852→                  </TableRow>
+   853→                </TableHeader>
+   854→                <TableBody>
+   855→                  {merchants.map((m: any) => (
+   856→                    <TableRow key={m.id} className={!m.isApproved ? 'bg-yellow-50/50 dark:bg-yellow-950/10' : ''}>
+   857→                      <TableCell>
+   858→                        <div className="flex items-center gap-2">
+   859→                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+   860→                            {m.businessName?.[0]}
+   861→                          </div>
+   862→                          <div>
+   863→                            <p className="text-sm font-medium">{m.businessName}</p>
+   864→                            <p className="text-xs text-muted-foreground">{m.city}{m.quartier ? ` - ${m.quartier}` : ''}</p>
+   865→                          </div>
+   866→                        </div>
+   867→                      </TableCell>
+   868→                      <TableCell>
+   869→                        <Badge variant="outline">{BUSINESS_TYPES[m.businessType] || m.businessType}</Badge>
+   870→                      </TableCell>
+   871→                      <TableCell className="hidden text-sm md:table-cell">{m.phone}</TableCell>
+   872→                      <TableCell>
+   873→                        {!m.isApproved ? (
+   874→                          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" variant="secondary">
+   875→                            En attente
+   876→                          </Badge>
+   877→                        ) : (
+   878→                          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" variant="secondary">
+   879→                            Approuvé
+   880→                          </Badge>
+   881→                        )}
+   882→                      </TableCell>
+   883→                      <TableCell className="hidden lg:table-cell">
+   884→                        <div className="flex items-center gap-1">
+   885→                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+   886→                          <span className="text-sm">{m.rating?.toFixed(1) || '0.0'}</span>
+   887→                        </div>
+   888→                      </TableCell>
+   889→                      <TableCell className="text-right">
+   890→                        <div className="flex items-center justify-end gap-1">
+   891→                          <Button variant="ghost" size="sm" onClick={() => { setSelectedMerchant(m); setDetailOpen(true); }}>
+   892→                            <Eye className="h-3.5 w-3.5" />
+   893→                          </Button>
+   894→                          {!m.isApproved && (
+   895→                            <>
+   896→                              <Button variant="ghost" size="sm" onClick={() => handleApprove(m.id, 'approve')}>
+   897→                                <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+   898→                              </Button>
+   899→                              <Button variant="ghost" size="sm" onClick={() => handleApprove(m.id, 'reject')}>
+   900→                                <XCircle className="h-3.5 w-3.5 text-red-500" />
+   901→                              </Button>
+   902→                            </>
+   903→                          )}
+   904→                          {m.isApproved && (
+   905→                            <Button variant="ghost" size="sm" onClick={() => handleBlock(m.userId)}>
+   906→                              <Ban className="h-3.5 w-3.5 text-red-500" />
+   907→                            </Button>
+   908→                          )}
+   909→                        </div>
+   910→                      </TableCell>
+   911→                    </TableRow>
+   912→                  ))}
+   913→                </TableBody>
+   914→              </Table>
+   915→            </div>
+   916→          )}
+   917→        </CardContent>
+   918→      </Card>
+   919→
+   920→      {/* Merchant Detail Dialog */}
+   921→      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+   922→        <DialogContent className="max-w-lg">
+   923→          <DialogHeader>
+   924→            <DialogTitle>{selectedMerchant?.businessName}</DialogTitle>
+   925→            <DialogDescription>Détails du marchand</DialogDescription>
+   926→          </DialogHeader>
+   927→          {selectedMerchant && (
+   928→            <div className="space-y-3 text-sm">
+   929→              <div className="grid grid-cols-2 gap-3">
+   930→                <div><span className="text-muted-foreground">Type:</span> <span className="ml-1 font-medium">{BUSINESS_TYPES[selectedMerchant.businessType]}</span></div>
+   931→                <div><span className="text-muted-foreground">Ville:</span> <span className="ml-1 font-medium">{selectedMerchant.city}</span></div>
+   932→                <div><span className="text-muted-foreground">Téléphone:</span> <span className="ml-1 font-medium">{selectedMerchant.phone}</span></div>
+   933→                <div><span className="text-muted-foreground">Email:</span> <span className="ml-1 font-medium">{selectedMerchant.email || '-'}</span></div>
+   934→                <div><span className="text-muted-foreground">Commission:</span> <span className="ml-1 font-medium">{selectedMerchant.commissionRate}%</span></div>
+   935→                <div><span className="text-muted-foreground">Note:</span> <span className="ml-1 font-medium">{selectedMerchant.rating?.toFixed(1)}/5</span></div>
+   936→              </div>
+   937→              {selectedMerchant.description && (
+   938→                <div>
+   939→                  <span className="text-muted-foreground">Description:</span>
+   940→                  <p className="mt-1">{selectedMerchant.description}</p>
+   941→                </div>
+   942→              )}
+   943→              <div>
+   944→                <span className="text-muted-foreground">Adresse:</span>
+   945→                <p className="mt-1">{selectedMerchant.address}</p>
+   946→              </div>
+   947→              <div>
+   948→                <span className="text-muted-foreground">Horaires:</span>
+   949→                <p className="mt-1">{selectedMerchant.operatingHours}</p>
+   950→              </div>
+   951→            </div>
+   952→          )}
+   953→        </DialogContent>
+   954→      </Dialog>
+   955→    </PageShell>
+   956→  );
+   957→}
+   958→
+   959→// ─── Drivers View ─────────────────────────────────────────────────────────────
+   960→
+   961→function DriversView() {
+   962→  const [search, setSearch] = useState('');
+   963→  const [drivers, setDrivers] = useState<any[]>([]);
+   964→  const [loading, setLoading] = useState(true);
+   965→  const [detailOpen, setDetailOpen] = useState(false);
+   966→  const [selectedDriver, setSelectedDriver] = useState<any>(null);
+   967→
+   968→  const fetchDrivers = useCallback(async () => {
+   969→    setLoading(true);
+   970→    const params = new URLSearchParams();
+   971→    if (search) params.set('search', search);
+   972→    const res = await apiFetch<any>(`/api/drivers?${params}`);
+   973→    if (res.data) {
+   974→      setDrivers(Array.isArray(res.data) ? res.data : res.data.drivers || []);
+   975→    }
+   976→    setLoading(false);
+   977→  }, [search]);
+   978→
+   979→  useEffect(() => { fetchDrivers(); }, [fetchDrivers]);
+   980→
+   981→  const handleApprove = async (id: string, action: 'approve' | 'reject') => {
+   982→    const res = await apiFetch(`/api/drivers/${id}/approve`, {
+   983→      method: 'POST',
+   984→      body: JSON.stringify({ action }),
+   985→    });
+   986→    if (res.error) { toast.error(res.error); return; }
+   987→    toast.success(action === 'approve' ? 'Livreur approuvé' : 'Livreur refusé');
+   988→    fetchDrivers();
+   989→  };
+   990→
+   991→  const vehicleLabel: Record<string, string> = { MOTO: 'Moto', VELO: 'Vélo', VOITURE: 'Voiture' };
+   992→
+   993→  return (
+   994→    <PageShell title="Livreurs" description="Gérer les livreurs de la plateforme">
+   995→      <div className="relative">
+   996→        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   997→        <Input
+   998→          placeholder="Rechercher un livreur..."
+   999→          value={search}
+  1000→          onChange={(e) => setSearch(e.target.value)}
+  1001→          className="pl-9 max-w-md"
+  1002→        />
+  1003→      </div>
+  1004→
+  1005→      <Card>
+  1006→        <CardContent className="p-0">
+  1007→          {loading ? (
+  1008→            <div className="space-y-2 p-4">
+  1009→              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+  1010→            </div>
+  1011→          ) : drivers.length === 0 ? (
+  1012→            <EmptyState message="Aucun livreur trouvé" onRetry={fetchDrivers} />
+  1013→          ) : (
+  1014→            <div className="max-h-[500px] overflow-y-auto">
+  1015→              <Table>
+  1016→                <TableHeader>
+  1017→                  <TableRow>
+  1018→                    <TableHead>Livreur</TableHead>
+  1019→                    <TableHead>Véhicule</TableHead>
+  1020→                    <TableHead className="hidden md:table-cell">Documents</TableHead>
+  1021→                    <TableHead>Statut</TableHead>
+  1022→                    <TableHead className="hidden lg:table-cell">Livraisons</TableHead>
+  1023→                    <TableHead className="text-right">Actions</TableHead>
+  1024→                  </TableRow>
+  1025→                </TableHeader>
+  1026→                <TableBody>
+  1027→                  {drivers.map((d: any) => {
+  1028→                    const hasAllDocs = d.idCardImage && d.licenseImage && d.vehicleImage && d.selfieImage;
+  1029→                    return (
+  1030→                      <TableRow key={d.id} className={!d.isApproved ? 'bg-yellow-50/50 dark:bg-yellow-950/10' : ''}>
+  1031→                        <TableCell>
+  1032→                          <div className="flex items-center gap-2">
+  1033→                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-xs font-bold text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+  1034→                              {d.user?.firstName?.[0]}{d.user?.lastName?.[0]}
+  1035→                            </div>
+  1036→                            <div>
+  1037→                              <p className="text-sm font-medium">{d.user?.firstName} {d.user?.lastName}</p>
+  1038→                              <p className="text-xs text-muted-foreground">{d.user?.phone}</p>
+  1039→                            </div>
+  1040→                          </div>
+  1041→                        </TableCell>
+  1042→                        <TableCell>
+  1043→                          <Badge variant="outline">{vehicleLabel[d.vehicleType] || d.vehicleType}</Badge>
+  1044→                          {d.vehiclePlate && (
+  1045→                            <p className="mt-0.5 text-xs text-muted-foreground">{d.vehiclePlate}</p>
+  1046→                          )}
+  1047→                        </TableCell>
+  1048→                        <TableCell className="hidden md:table-cell">
+  1049→                          <div className="flex items-center gap-1">
+  1050→                            {hasAllDocs ? (
+  1051→                              <CheckCircle className="h-4 w-4 text-emerald-500" />
+  1052→                            ) : (
+  1053→                              <XCircle className="h-4 w-4 text-red-400" />
+  1054→                            )}
+  1055→                            <span className="text-xs">{hasAllDocs ? 'Complets' : 'Incomplets'}</span>
+  1056→                          </div>
+  1057→                        </TableCell>
+  1058→                        <TableCell>
+  1059→                          {!d.isApproved ? (
+  1060→                            <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" variant="secondary">
+  1061→                              En attente
+  1062→                            </Badge>
+  1063→                          ) : d.isOnline ? (
+  1064→                            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" variant="secondary">
+  1065→                              En ligne
+  1066→                            </Badge>
+  1067→                          ) : (
+  1068→                            <Badge variant="secondary">Hors ligne</Badge>
+  1069→                          )}
+  1070→                        </TableCell>
+  1071→                        <TableCell className="hidden text-sm lg:table-cell">{d.totalDeliveries}</TableCell>
+  1072→                        <TableCell className="text-right">
+  1073→                          <div className="flex items-center justify-end gap-1">
+  1074→                            <Button variant="ghost" size="sm" onClick={() => { setSelectedDriver(d); setDetailOpen(true); }}>
+  1075→                              <Eye className="h-3.5 w-3.5" />
+  1076→                            </Button>
+  1077→                            {!d.isApproved && (
+  1078→                              <>
+  1079→                                <Button variant="ghost" size="sm" onClick={() => handleApprove(d.id, 'approve')}>
+  1080→                                  <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+  1081→                                </Button>
+  1082→                                <Button variant="ghost" size="sm" onClick={() => handleApprove(d.id, 'reject')}>
+  1083→                                  <XCircle className="h-3.5 w-3.5 text-red-500" />
+  1084→                                </Button>
+  1085→                              </>
+  1086→                            )}
+  1087→                          </div>
+  1088→                        </TableCell>
+  1089→                      </TableRow>
+  1090→                    );
+  1091→                  })}
+  1092→                </TableBody>
+  1093→              </Table>
+  1094→            </div>
+  1095→          )}
+  1096→        </CardContent>
+  1097→      </Card>
+  1098→
+  1099→      {/* Driver Detail Dialog */}
+  1100→      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+  1101→        <DialogContent className="max-w-lg">
+  1102→          <DialogHeader>
+  1103→            <DialogTitle>{selectedDriver?.user?.firstName} {selectedDriver?.user?.lastName}</DialogTitle>
+  1104→            <DialogDescription>Détails du livreur</DialogDescription>
+  1105→          </DialogHeader>
+  1106→          {selectedDriver && (
+  1107→            <div className="space-y-3 text-sm">
+  1108→              <div className="grid grid-cols-2 gap-3">
+  1109→                <div><span className="text-muted-foreground">Véhicule:</span> <span className="ml-1 font-medium">{vehicleLabel[selectedDriver.vehicleType]}</span></div>
+  1110→                <div><span className="text-muted-foreground">Plaque:</span> <span className="ml-1 font-medium">{selectedDriver.vehiclePlate || '-'}</span></div>
+  1111→                <div><span className="text-muted-foreground">Marque:</span> <span className="ml-1 font-medium">{selectedDriver.vehicleBrand || '-'}</span></div>
+  1112→                <div><span className="text-muted-foreground">Couleur:</span> <span className="ml-1 font-medium">{selectedDriver.vehicleColor || '-'}</span></div>
+  1113→                <div><span className="text-muted-foreground">N° permis:</span> <span className="ml-1 font-medium">{selectedDriver.licenseNumber || '-'}</span></div>
+  1114→                <div><span className="text-muted-foreground">N° carte:</span> <span className="ml-1 font-medium">{selectedDriver.idCardNumber || '-'}</span></div>
+  1115→                <div><span className="text-muted-foreground">Livraisons:</span> <span className="ml-1 font-medium">{selectedDriver.totalDeliveries}</span></div>
+  1116→                <div><span className="text-muted-foreground">Gains:</span> <span className="ml-1 font-medium">{formatPrice(selectedDriver.totalEarnings)}</span></div>
+  1117→                <div><span className="text-muted-foreground">Note:</span> <span className="ml-1 font-medium">{selectedDriver.rating?.toFixed(1)}/5</span></div>
+  1118→              </div>
+  1119→              <Separator />
+  1120→              <div>
+  1121→                <p className="mb-2 font-medium">Documents</p>
+  1122→                <div className="grid grid-cols-2 gap-2 text-xs">
+  1123→                  <div className="flex items-center gap-1">{selectedDriver.idCardImage ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : <XCircle className="h-3 w-3 text-red-400" />} Carte d'identité</div>
+  1124→                  <div className="flex items-center gap-1">{selectedDriver.licenseImage ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : <XCircle className="h-3 w-3 text-red-400" />} Permis de conduire</div>
+  1125→                  <div className="flex items-center gap-1">{selectedDriver.vehicleImage ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : <XCircle className="h-3 w-3 text-red-400" />} Photo du véhicule</div>
+  1126→                  <div className="flex items-center gap-1">{selectedDriver.selfieImage ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : <XCircle className="h-3 w-3 text-red-400" />} Selfie</div>
+  1127→                </div>
+  1128→              </div>
+  1129→            </div>
+  1130→          )}
+  1131→        </DialogContent>
+  1132→      </Dialog>
+  1133→    </PageShell>
+  1134→  );
+  1135→}
+  1136→
+  1137→// ─── Orders View ──────────────────────────────────────────────────────────────
+  1138→
+  1139→function OrdersView() {
+  1140→  const [search, setSearch] = useState('');
+  1141→  const [statusFilter, setStatusFilter] = useState('');
+  1142→  const [orders, setOrders] = useState<any[]>([]);
+  1143→  const [loading, setLoading] = useState(true);
+  1144→  const [detailOpen, setDetailOpen] = useState(false);
+  1145→  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  1146→  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  1147→
+  1148→  const fetchOrders = useCallback(async () => {
+  1149→    setLoading(true);
+  1150→    const params = new URLSearchParams({ limit: '100' });
+  1151→    if (search) params.set('search', search);
+  1152→    if (statusFilter) params.set('status', statusFilter);
+  1153→    const res = await apiFetch<any>(`/api/orders?${params}`);
+  1154→    if (res.data) {
+  1155→      setOrders(Array.isArray(res.data) ? res.data : res.data.orders || []);
+  1156→    }
+  1157→    setLoading(false);
+  1158→  }, [search, statusFilter]);
+  1159→
+  1160→  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+  1161→
+  1162→  const viewDetail = (order: any) => {
+  1163→    setSelectedOrder(order);
+  1164→    setDetailOpen(true);
+  1165→  };
+  1166→
+  1167→  return (
+  1168→    <PageShell title="Commandes" description="Gérer toutes les commandes de la plateforme">
+  1169→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+  1170→        <div className="relative flex-1">
+  1171→          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  1172→          <Input
+  1173→            placeholder="Rechercher par N° de commande..."
+  1174→            value={search}
+  1175→            onChange={(e) => setSearch(e.target.value)}
+  1176→            className="pl-9"
+  1177→          />
+  1178→        </div>
+  1179→        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v)}>
+  1180→          <SelectTrigger className="w-full sm:w-44">
+  1181→            <SelectValue placeholder="Tous les statuts" />
+  1182→          </SelectTrigger>
+  1183→          <SelectContent>
+  1184→            <SelectItem value="all">Tous les statuts</SelectItem>
+  1185→            {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => (
+  1186→              <SelectItem key={k} value={k}>{v}</SelectItem>
+  1187→            ))}
+  1188→          </SelectContent>
+  1189→        </Select>
+  1190→        <Button variant="outline" size="sm" onClick={fetchOrders}>
+  1191→          <RefreshCw className="h-4 w-4" />
+  1192→        </Button>
+  1193→      </div>
+  1194→
+  1195→      <Card>
+  1196→        <CardContent className="p-0">
+  1197→          {loading ? (
+  1198→            <div className="space-y-2 p-4">
+  1199→              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+  1200→            </div>
+  1201→          ) : orders.length === 0 ? (
+  1202→            <EmptyState message="Aucune commande trouvée" onRetry={fetchOrders} />
+  1203→          ) : (
+  1204→            <div className="max-h-[500px] overflow-y-auto">
+  1205→              <Table>
+  1206→                <TableHeader>
+  1207→                  <TableRow>
+  1208→                    <TableHead>N°</TableHead>
+  1209→                    <TableHead>Client</TableHead>
+  1210→                    <TableHead className="hidden md:table-cell">Marchand</TableHead>
+  1211→                    <TableHead>Montant</TableHead>
+  1212→                    <TableHead>Statut</TableHead>
+  1213→                    <TableHead className="hidden lg:table-cell">Paiement</TableHead>
+  1214→                    <TableHead className="text-right">Actions</TableHead>
+  1215→                  </TableRow>
+  1216→                </TableHeader>
+  1217→                <TableBody>
+  1218→                  {orders.map((o: any) => (
+  1219→                    <React.Fragment key={o.id}>
+  1220→                      <TableRow
+  1221→                        className="cursor-pointer"
+  1222→                        onClick={() => setExpandedRow(expandedRow === o.id ? null : o.id)}
+  1223→                      >
+  1224→                        <TableCell className="font-mono text-xs">{o.orderNumber}</TableCell>
+  1225→                        <TableCell className="text-sm">{o.client?.user?.firstName || '-'}</TableCell>
+  1226→                        <TableCell className="hidden text-sm md:table-cell">{o.merchant?.businessName || '-'}</TableCell>
+  1227→                        <TableCell className="text-sm font-medium">{formatPrice(o.total)}</TableCell>
+  1228→                        <TableCell>
+  1229→                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ORDER_STATUS_COLORS[o.status] || ''}`}>
+  1230→                            {ORDER_STATUS_LABELS[o.status] || o.status}
+  1231→                          </span>
+  1232→                        </TableCell>
+  1233→                        <TableCell className="hidden lg:table-cell">
+  1234→                          <span className="text-xs text-muted-foreground">
+  1235→                            {PAYMENT_STATUS_LABELS[o.paymentStatus] || o.paymentStatus}
+  1236→                          </span>
+  1237→                        </TableCell>
+  1238→                        <TableCell className="text-right">
+  1239→                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); viewDetail(o); }}>
+  1240→                            <Eye className="h-3.5 w-3.5" />
+  1241→                          </Button>
+  1242→                        </TableCell>
+  1243→                      </TableRow>
+  1244→                      {expandedRow === o.id && (
+  1245→                        <TableRow>
+  1246→                          <TableCell colSpan={7} className="bg-muted/30">
+  1247→                            <div className="p-2 text-sm">
+  1248→                              <div className="grid gap-2 sm:grid-cols-3">
+  1249→                                <div><span className="text-muted-foreground">Sous-total:</span> <span className="ml-1">{formatPrice(o.subtotal)}</span></div>
+  1250→                                <div><span className="text-muted-foreground">Livraison:</span> <span className="ml-1">{formatPrice(o.deliveryFee)}</span></div>
+  1251→                                <div><span className="text-muted-foreground">Remise:</span> <span className="ml-1">{formatPrice(o.discount)}</span></div>
+  1252→                                <div><span className="text-muted-foreground">Méthode:</span> <span className="ml-1">{PAYMENT_METHODS[o.paymentMethod] || o.paymentMethod}</span></div>
+  1253→                                <div><span className="text-muted-foreground">Adresse:</span> <span className="ml-1">{o.deliveryAddress}</span></div>
+  1254→                                <div><span className="text-muted-foreground">Date:</span> <span className="ml-1">{new Date(o.createdAt).toLocaleString('fr-FR')}</span></div>
+  1255→                              </div>
+  1256→                              {o.items && o.items.length > 0 && (
+  1257→                                <div className="mt-2">
+  1258→                                  <p className="mb-1 font-medium">Articles:</p>
+  1259→                                  {o.items.map((item: any, idx: number) => (
+  1260→                                    <div key={idx} className="flex justify-between py-0.5 text-xs">
+  1261→                                      <span>{item.productName} x{item.quantity}</span>
+  1262→                                      <span>{formatPrice(item.totalPrice)}</span>
+  1263→                                    </div>
+  1264→                                  ))}
+  1265→                                </div>
+  1266→                              )}
+  1267→                            </div>
+  1268→                          </TableCell>
+  1269→                        </TableRow>
+  1270→                      )}
+  1271→                    </React.Fragment>
+  1272→                  ))}
+  1273→                </TableBody>
+  1274→              </Table>
+  1275→            </div>
+  1276→          )}
+  1277→        </CardContent>
+  1278→      </Card>
+  1279→
+  1280→      {/* Order Detail Dialog */}
+  1281→      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+  1282→        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+  1283→          <DialogHeader>
+  1284→            <DialogTitle>Commande {selectedOrder?.orderNumber}</DialogTitle>
+  1285→            <DialogDescription>Détails complets de la commande</DialogDescription>
+  1286→          </DialogHeader>
+  1287→          {selectedOrder && (
+  1288→            <div className="space-y-4 text-sm">
+  1289→              <div className="grid gap-3 sm:grid-cols-2">
+  1290→                <div className="rounded-lg border p-3 space-y-1">
+  1291→                  <p className="font-medium">Client</p>
+  1292→                  <p>{selectedOrder.client?.user?.firstName} {selectedOrder.client?.user?.lastName}</p>
+  1293→                  <p className="text-xs text-muted-foreground">{selectedOrder.client?.user?.phone}</p>
+  1294→                </div>
+  1295→                <div className="rounded-lg border p-3 space-y-1">
+  1296→                  <p className="font-medium">Marchand</p>
+  1297→                  <p>{selectedOrder.merchant?.businessName}</p>
+  1298→                  <p className="text-xs text-muted-foreground">{selectedOrder.merchant?.phone}</p>
+  1299→                </div>
+  1300→                <div className="rounded-lg border p-3 space-y-1">
+  1301→                  <p className="font-medium">Livraison</p>
+  1302→                  <p>{selectedOrder.deliveryAddress}</p>
+  1303→                  <p className="text-xs text-muted-foreground">{selectedOrder.deliveryCity} - {selectedOrder.deliveryQuartier || '-'}</p>
+  1304→                </div>
+  1305→                <div className="rounded-lg border p-3 space-y-1">
+  1306→                  <p className="font-medium">Livreur</p>
+  1307→                  <p>{selectedOrder.driver?.user?.firstName ? `${selectedOrder.driver.user.firstName} ${selectedOrder.driver.user.lastName}` : 'Non assigné'}</p>
+  1308→                </div>
+  1309→              </div>
+  1310→              <div className="grid gap-2 sm:grid-cols-3 text-xs">
+  1311→                <div><span className="text-muted-foreground">Sous-total:</span> <span className="ml-1 font-medium">{formatPrice(selectedOrder.subtotal)}</span></div>
+  1312→                <div><span className="text-muted-foreground">Frais de livraison:</span> <span className="ml-1 font-medium">{formatPrice(selectedOrder.deliveryFee)}</span></div>
+  1313→                <div><span className="text-muted-foreground">Frais de service:</span> <span className="ml-1 font-medium">{formatPrice(selectedOrder.serviceFee)}</span></div>
+  1314→                <div><span className="text-muted-foreground">Remise:</span> <span className="ml-1 font-medium">{formatPrice(selectedOrder.discount)}</span></div>
+  1315→                <div><span className="text-muted-foreground">Total:</span> <span className="ml-1 text-base font-bold text-emerald-600">{formatPrice(selectedOrder.total)}</span></div>
+  1316→                <div><span className="text-muted-foreground">Méthode:</span> <span className="ml-1">{PAYMENT_METHODS[selectedOrder.paymentMethod]}</span></div>
+  1317→              </div>
+  1318→              {selectedOrder.items && selectedOrder.items.length > 0 && (
+  1319→                <div>
+  1320→                  <p className="mb-2 font-medium">Articles ({selectedOrder.items.length})</p>
+  1321→                  <div className="space-y-1">
+  1322→                    {selectedOrder.items.map((item: any, idx: number) => (
+  1323→                      <div key={idx} className="flex items-center justify-between rounded border p-2 text-xs">
+  1324→                        <div>
+  1325→                          <p className="font-medium">{item.productName}</p>
+  1326→                          <p className="text-muted-foreground">{formatPrice(item.unitPrice)} x {item.quantity}</p>
+  1327→                        </div>
+  1328→                        <p className="font-medium">{formatPrice(item.totalPrice)}</p>
+  1329→                      </div>
+  1330→                    ))}
+  1331→                  </div>
+  1332→                </div>
+  1333→              )}
+  1334→            </div>
+  1335→          )}
+  1336→        </DialogContent>
+  1337→      </Dialog>
+  1338→    </PageShell>
+  1339→  );
+  1340→}
+  1341→
+  1342→// ─── Payments View ────────────────────────────────────────────────────────────
+  1343→
+  1344→function PaymentsView() {
+  1345→  const [statusFilter, setStatusFilter] = useState('');
+  1346→  const [orders, setOrders] = useState<any[]>([]);
+  1347→  const [loading, setLoading] = useState(true);
+  1348→
+  1349→  const fetchPayments = useCallback(async () => {
+  1350→    setLoading(true);
+  1351→    const res = await apiFetch<any>('/api/orders?limit=100');
+  1352→    if (res.data) {
+  1353→      setOrders(Array.isArray(res.data) ? res.data : res.data.orders || []);
+  1354→    }
+  1355→    setLoading(false);
+  1356→  }, []);
+  1357→
+  1358→  useEffect(() => { fetchPayments(); }, [fetchPayments]);
+  1359→
+  1360→  const filteredOrders = statusFilter
+  1361→    ? orders.filter((o: any) => o.paymentStatus === statusFilter)
+  1362→    : orders;
+  1363→
+  1364→  const totalAmount = filteredOrders.reduce((sum: number, o: any) => sum + (o.total || 0), 0);
+  1365→
+  1366→  return (
+  1367→    <PageShell title="Paiements" description="Suivi de tous les paiements">
+  1368→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+  1369→        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v)}>
+  1370→          <SelectTrigger className="w-full sm:w-48">
+  1371→            <SelectValue placeholder="Tous les statuts" />
+  1372→          </SelectTrigger>
+  1373→          <SelectContent>
+  1374→            <SelectItem value="all">Tous les statuts</SelectItem>
+  1375→            {Object.entries(PAYMENT_STATUS_LABELS).map(([k, v]) => (
+  1376→              <SelectItem key={k} value={k}>{v}</SelectItem>
+  1377→            ))}
+  1378→          </SelectContent>
+  1379→        </Select>
+  1380→        <Button variant="outline" size="sm" onClick={fetchPayments}>
+  1381→          <RefreshCw className="h-4 w-4" />
+  1382→        </Button>
+  1383→      </div>
+  1384→
+  1385→      <div className="grid gap-4 sm:grid-cols-3">
+  1386→        <Card>
+  1387→          <CardContent className="p-4">
+  1388→            <p className="text-muted-foreground text-xs">Total transactions</p>
+  1389→            <p className="text-lg font-bold">{filteredOrders.length}</p>
+  1390→          </CardContent>
+  1391→        </Card>
+  1392→        <Card>
+  1393→          <CardContent className="p-4">
+  1394→            <p className="text-muted-foreground text-xs">Montant total</p>
+  1395→            <p className="text-lg font-bold text-emerald-600">{formatPrice(totalAmount)}</p>
+  1396→          </CardContent>
+  1397→        </Card>
+  1398→        <Card>
+  1399→          <CardContent className="p-4">
+  1400→            <p className="text-muted-foreground text-xs">Paiements acceptés</p>
+  1401→            <p className="text-lg font-bold">
+  1402→              {filteredOrders.filter((o: any) => o.paymentStatus === 'ACCEPTED' || o.paymentStatus === 'COMPLETED').length}
+  1403→            </p>
+  1404→          </CardContent>
+  1405→        </Card>
+  1406→      </div>
+  1407→
+  1408→      <Card>
+  1409→        <CardContent className="p-0">
+  1410→          {loading ? (
+  1411→            <div className="space-y-2 p-4">
+  1412→              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+  1413→            </div>
+  1414→          ) : filteredOrders.length === 0 ? (
+  1415→            <EmptyState message="Aucun paiement trouvé" onRetry={fetchPayments} />
+  1416→          ) : (
+  1417→            <div className="max-h-[500px] overflow-y-auto">
+  1418→              <Table>
+  1419→                <TableHeader>
+  1420→                  <TableRow>
+  1421→                    <TableHead>N° Commande</TableHead>
+  1422→                    <TableHead>Client</TableHead>
+  1423→                    <TableHead className="hidden md:table-cell">Méthode</TableHead>
+  1424→                    <TableHead>Montant</TableHead>
+  1425→                    <TableHead>Statut paiement</TableHead>
+  1426→                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+  1427→                  </TableRow>
+  1428→                </TableHeader>
+  1429→                <TableBody>
+  1430→                  {filteredOrders.map((o: any) => (
+  1431→                    <TableRow key={o.id}>
+  1432→                      <TableCell className="font-mono text-xs">{o.orderNumber}</TableCell>
+  1433→                      <TableCell className="text-sm">{o.client?.user?.firstName || '-'}</TableCell>
+  1434→                      <TableCell className="hidden text-sm md:table-cell">{PAYMENT_METHODS[o.paymentMethod] || o.paymentMethod}</TableCell>
+  1435→                      <TableCell className="text-sm font-medium">{formatPrice(o.total)}</TableCell>
+  1436→                      <TableCell>
+  1437→                        <Badge variant={o.paymentStatus === 'ACCEPTED' || o.paymentStatus === 'COMPLETED' ? 'default' : o.paymentStatus === 'FAILED' || o.paymentStatus === 'REJECTED' ? 'destructive' : 'secondary'}>
+  1438→                          {PAYMENT_STATUS_LABELS[o.paymentStatus] || o.paymentStatus}
+  1439→                        </Badge>
+  1440→                      </TableCell>
+  1441→                      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+  1442→                        {new Date(o.createdAt).toLocaleDateString('fr-FR')}
+  1443→                      </TableCell>
+  1444→                    </TableRow>
+  1445→                  ))}
+  1446→                </TableBody>
+  1447→              </Table>
+  1448→            </div>
+  1449→          )}
+  1450→        </CardContent>
+  1451→      </Card>
+  1452→    </PageShell>
+  1453→  );
+  1454→}
+  1455→
+  1456→// ─── Categories View ──────────────────────────────────────────────────────────
+  1457→
+  1458→function CategoriesView() {
+  1459→  const [categories, setCategories] = useState<any[]>([]);
+  1460→  const [loading, setLoading] = useState(true);
+  1461→  const [dialogOpen, setDialogOpen] = useState(false);
+  1462→  const [editing, setEditing] = useState<any>(null);
+  1463→  const [form, setForm] = useState({ name: '', icon: '', sortOrder: 0, isActive: true });
+  1464→  const [saving, setSaving] = useState(false);
+  1465→
+  1466→  const fetchCategories = useCallback(async () => {
+  1467→    setLoading(true);
+  1468→    const res = await apiFetch<any>('/api/categories');
+  1469→    if (res.data) {
+  1470→      setCategories(Array.isArray(res.data) ? res.data : res.data.categories || []);
+  1471→    }
+  1472→    setLoading(false);
+  1473→  }, []);
+  1474→
+  1475→  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  1476→
+  1477→  const openNew = () => {
+  1478→    setEditing(null);
+  1479→    setForm({ name: '', icon: '', sortOrder: 0, isActive: true });
+  1480→    setDialogOpen(true);
+  1481→  };
+  1482→
+  1483→  const openEdit = (cat: any) => {
+  1484→    setEditing(cat);
+  1485→    setForm({ name: cat.name, icon: cat.icon || '', sortOrder: cat.sortOrder, isActive: cat.isActive });
+  1486→    setDialogOpen(true);
+  1487→  };
+  1488→
+  1489→  const handleSave = async () => {
+  1490→    setSaving(true);
+  1491→    const slug = form.name.toLowerCase().replace(/[^a-z0-9àâçéèêëîïôùûüÿñæœ\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
+  1492→    const body = { ...form, slug };
+  1493→
+  1494→    let res;
+  1495→    if (editing) {
+  1496→      res = await apiFetch(`/api/categories/${editing.id}`, { method: 'PUT', body: JSON.stringify(body) });
+  1497→    } else {
+  1498→      res = await apiFetch('/api/categories', { method: 'POST', body: JSON.stringify(body) });
+  1499→    }
+  1500→
+  1501→    if (res.error) { toast.error(res.error); setSaving(false); return; }
+  1502→    toast.success(editing ? 'Catégorie modifiée' : 'Catégorie créée');
+  1503→    setDialogOpen(false);
+  1504→    setSaving(false);
+  1505→    fetchCategories();
+  1506→  };
+  1507→
+  1508→  const handleDelete = async (id: string) => {
+  1509→    const res = await apiFetch(`/api/categories/${id}`, { method: 'DELETE' });
+  1510→    if (res.error) { toast.error(res.error); return; }
+  1511→    toast.success('Catégorie supprimée');
+  1512→    fetchCategories();
+  1513→  };
+  1514→
+  1515→  return (
+  1516→    <PageShell
+  1517→      title="Catégories"
+  1518→      description="Gérer les catégories de produits"
+  1519→      actions={
+  1520→        <Button onClick={openNew} className="bg-emerald-600 hover:bg-emerald-700">
+  1521→          <Plus className="h-4 w-4" />
+  1522→          <span className="hidden sm:inline">Ajouter</span>
+  1523→        </Button>
+  1524→      }
+  1525→    >
+  1526→      <Card>
+  1527→        <CardContent className="p-0">
+  1528→          {loading ? (
+  1529→            <div className="space-y-2 p-4">
+  1530→              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+  1531→            </div>
+  1532→          ) : categories.length === 0 ? (
+  1533→            <EmptyState message="Aucune catégorie trouvée" onRetry={fetchCategories} />
+  1534→          ) : (
+  1535→            <div className="max-h-[500px] overflow-y-auto">
+  1536→              <Table>
+  1537→                <TableHeader>
+  1538→                  <TableRow>
+  1539→                    <TableHead>Nom</TableHead>
+  1540→                    <TableHead>Slug</TableHead>
+  1541→                    <TableHead>Icône</TableHead>
+  1542→                    <TableHead>Ordre</TableHead>
+  1543→                    <TableHead>Statut</TableHead>
+  1544→                    <TableHead className="text-right">Actions</TableHead>
+  1545→                  </TableRow>
+  1546→                </TableHeader>
+  1547→                <TableBody>
+  1548→                  {categories.sort((a: any, b: any) => a.sortOrder - b.sortOrder).map((cat: any) => (
+  1549→                    <TableRow key={cat.id}>
+  1550→                      <TableCell className="font-medium">{cat.name}</TableCell>
+  1551→                      <TableCell className="font-mono text-xs text-muted-foreground">{cat.slug}</TableCell>
+  1552→                      <TableCell className="text-lg">{cat.icon || '-'}</TableCell>
+  1553→                      <TableCell className="text-sm">{cat.sortOrder}</TableCell>
+  1554→                      <TableCell>
+  1555→                        <Badge variant={cat.isActive ? 'default' : 'secondary'} className={cat.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
+  1556→                          {cat.isActive ? 'Active' : 'Inactive'}
+  1557→                        </Badge>
+  1558→                      </TableCell>
+  1559→                      <TableCell className="text-right">
+  1560→                        <div className="flex items-center justify-end gap-1">
+  1561→                          <Button variant="ghost" size="sm" onClick={() => openEdit(cat)}>
+  1562→                            <Pencil className="h-3.5 w-3.5" />
+  1563→                          </Button>
+  1564→                          <Button variant="ghost" size="sm" onClick={() => handleDelete(cat.id)}>
+  1565→                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+  1566→                          </Button>
+  1567→                        </div>
+  1568→                      </TableCell>
+  1569→                    </TableRow>
+  1570→                  ))}
+  1571→                </TableBody>
+  1572→              </Table>
+  1573→            </div>
+  1574→          )}
+  1575→        </CardContent>
+  1576→      </Card>
+  1577→
+  1578→      {/* Add/Edit Dialog */}
+  1579→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+  1580→        <DialogContent>
+  1581→          <DialogHeader>
+  1582→            <DialogTitle>{editing ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</DialogTitle>
+  1583→            <DialogDescription>
+  1584→              {editing ? 'Modifiez les informations de la catégorie' : 'Remplissez les informations pour créer une catégorie'}
+  1585→            </DialogDescription>
+  1586→          </DialogHeader>
+  1587→          <div className="space-y-4">
+  1588→            <div className="space-y-2">
+  1589→              <Label htmlFor="cat-name">Nom</Label>
+  1590→              <Input
+  1591→                id="cat-name"
+  1592→                value={form.name}
+  1593→                onChange={(e) => setForm({ ...form, name: e.target.value })}
+  1594→                placeholder="Ex: Restaurants"
+  1595→              />
+  1596→            </div>
+  1597→            <div className="space-y-2">
+  1598→              <Label htmlFor="cat-icon">Icône (emoji)</Label>
+  1599→              <Input
+  1600→                id="cat-icon"
+  1601→                value={form.icon}
+  1602→                onChange={(e) => setForm({ ...form, icon: e.target.value })}
+  1603→                placeholder="Ex: 🍽️"
+  1604→              />
+  1605→            </div>
+  1606→            <div className="space-y-2">
+  1607→              <Label htmlFor="cat-order">Ordre de tri</Label>
+  1608→              <Input
+  1609→                id="cat-order"
+  1610→                type="number"
+  1611→                value={form.sortOrder}
+  1612→                onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value) || 0 })}
+  1613→              />
+  1614→            </div>
+  1615→            <div className="flex items-center gap-2">
+  1616→              <Switch
+  1617→                checked={form.isActive}
+  1618→                onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
+  1619→              />
+  1620→              <Label>Active</Label>
+  1621→            </div>
+  1622→          </div>
+  1623→          <DialogFooter>
+  1624→            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+  1625→            <Button onClick={handleSave} disabled={saving || !form.name} className="bg-emerald-600 hover:bg-emerald-700">
+  1626→              {saving && <Spinner />}
+  1627→              {editing ? 'Enregistrer' : 'Créer'}
+  1628→            </Button>
+  1629→          </DialogFooter>
+  1630→        </DialogContent>
+  1631→      </Dialog>
+  1632→    </PageShell>
+  1633→  );
+  1634→}
+  1635→
+  1636→// ─── Products View ────────────────────────────────────────────────────────────
+  1637→
+  1638→function ProductsView() {
+  1639→  const [search, setSearch] = useState('');
+  1640→  const [merchantFilter, setMerchantFilter] = useState('');
+  1641→  const [categoryFilter, setCategoryFilter] = useState('');
+  1642→  const [products, setProducts] = useState<any[]>([]);
+  1643→  const [loading, setLoading] = useState(true);
+  1644→
+  1645→  const fetchProducts = useCallback(async () => {
+  1646→    setLoading(true);
+  1647→    const params = new URLSearchParams({ limit: '100' });
+  1648→    if (search) params.set('search', search);
+  1649→    if (merchantFilter) params.set('merchantId', merchantFilter);
+  1650→    if (categoryFilter) params.set('categoryId', categoryFilter);
+  1651→    const res = await apiFetch<any>(`/api/products?${params}`);
+  1652→    if (res.data) {
+  1653→      setProducts(Array.isArray(res.data) ? res.data : res.data.products || []);
+  1654→    }
+  1655→    setLoading(false);
+  1656→  }, [search, merchantFilter, categoryFilter]);
+  1657→
+  1658→  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+  1659→
+  1660→  return (
+  1661→    <PageShell title="Produits" description="Catalogue de produits de la plateforme">
+  1662→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+  1663→        <div className="relative flex-1">
+  1664→          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  1665→          <Input
+  1666→            placeholder="Rechercher un produit..."
+  1667→            value={search}
+  1668→            onChange={(e) => setSearch(e.target.value)}
+  1669→            className="pl-9"
+  1670→          />
+  1671→        </div>
+  1672→        <Button variant="outline" size="sm" onClick={fetchProducts}>
+  1673→          <RefreshCw className="h-4 w-4" />
+  1674→        </Button>
+  1675→      </div>
+  1676→
+  1677→      <Card>
+  1678→        <CardContent className="p-0">
+  1679→          {loading ? (
+  1680→            <div className="space-y-2 p-4">
+  1681→              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+  1682→            </div>
+  1683→          ) : products.length === 0 ? (
+  1684→            <EmptyState message="Aucun produit trouvé" onRetry={fetchProducts} />
+  1685→          ) : (
+  1686→            <div className="max-h-[500px] overflow-y-auto">
+  1687→              <Table>
+  1688→                <TableHeader>
+  1689→                  <TableRow>
+  1690→                    <TableHead>Produit</TableHead>
+  1691→                    <TableHead className="hidden md:table-cell">Marchand</TableHead>
+  1692→                    <TableHead className="hidden lg:table-cell">Catégorie</TableHead>
+  1693→                    <TableHead>Prix</TableHead>
+  1694→                    <TableHead>Stock</TableHead>
+  1695→                    <TableHead className="hidden lg:table-cell">Ventes</TableHead>
+  1696→                    <TableHead>Statut</TableHead>
+  1697→                  </TableRow>
+  1698→                </TableHeader>
+  1699→                <TableBody>
+  1700→                  {products.map((p: any) => (
+  1701→                    <TableRow key={p.id}>
+  1702→                      <TableCell>
+  1703→                        <div className="flex items-center gap-2">
+  1704→                          {p.image ? (
+  1705→                            <img src={p.image} alt="" className="h-8 w-8 rounded object-cover" />
+  1706→                          ) : (
+  1707→                            <div className="flex h-8 w-8 items-center justify-center rounded bg-muted text-xs">?</div>
+  1708→                          )}
+  1709→                          <div>
+  1710→                            <p className="text-sm font-medium">{p.name}</p>
+  1711→                            <p className="text-xs text-muted-foreground">{p.slug}</p>
+  1712→                          </div>
+  1713→                        </div>
+  1714→                      </TableCell>
+  1715→                      <TableCell className="hidden text-sm md:table-cell">{p.merchant?.businessName || '-'}</TableCell>
+  1716→                      <TableCell className="hidden text-sm lg:table-cell">{p.category?.name || '-'}</TableCell>
+  1717→                      <TableCell className="text-sm font-medium">{formatPrice(p.price)}</TableCell>
+  1718→                      <TableCell>
+  1719→                        <Badge variant={p.stock > 0 ? 'secondary' : 'destructive'}>
+  1720→                          {p.stock}
+  1721→                        </Badge>
+  1722→                      </TableCell>
+  1723→                      <TableCell className="hidden text-sm lg:table-cell">{p.totalSold || 0}</TableCell>
+  1724→                      <TableCell>
+  1725→                        <Badge variant={p.isAvailable ? 'default' : 'secondary'} className={p.isAvailable ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
+  1726→                          {p.isAvailable ? 'Disponible' : 'Indisponible'}
+  1727→                        </Badge>
+  1728→                      </TableCell>
+  1729→                    </TableRow>
+  1730→                  ))}
+  1731→                </TableBody>
+  1732→              </Table>
+  1733→            </div>
+  1734→          )}
+  1735→        </CardContent>
+  1736→      </Card>
+  1737→    </PageShell>
+  1738→  );
+  1739→}
+  1740→
+  1741→// ─── Coupons View ─────────────────────────────────────────────────────────────
+  1742→
+  1743→function CouponsView() {
+  1744→  const [coupons, setCoupons] = useState<any[]>([]);
+  1745→  const [loading, setLoading] = useState(true);
+  1746→  const [dialogOpen, setDialogOpen] = useState(false);
+  1747→  const [editing, setEditing] = useState<any>(null);
+  1748→  const [form, setForm] = useState({
+  1749→    code: '',
+  1750→    type: 'PERCENTAGE' as string,
+  1751→    value: 0,
+  1752→    minOrder: 0,
+  1753→    maxUses: 0,
+  1754→    startDate: new Date().toISOString().split('T')[0],
+  1755→    endDate: '',
+  1756→  });
+  1757→  const [saving, setSaving] = useState(false);
+  1758→
+  1759→  const fetchCoupons = useCallback(async () => {
+  1760→    setLoading(true);
+  1761→    const res = await apiFetch<any>('/api/coupons');
+  1762→    if (res.data) {
+  1763→      setCoupons(Array.isArray(res.data) ? res.data : res.data.coupons || []);
+  1764→    }
+  1765→    setLoading(false);
+  1766→  }, []);
+  1767→
+  1768→  useEffect(() => { fetchCoupons(); }, [fetchCoupons]);
+  1769→
+  1770→  const openNew = () => {
+  1771→    setEditing(null);
+  1772→    setForm({
+  1773→      code: '',
+  1774→      type: 'PERCENTAGE',
+  1775→      value: 0,
+  1776→      minOrder: 0,
+  1777→      maxUses: 0,
+  1778→      startDate: new Date().toISOString().split('T')[0],
+  1779→      endDate: '',
+  1780→    });
+  1781→    setDialogOpen(true);
+  1782→  };
+  1783→
+  1784→  const openEdit = (coupon: any) => {
+  1785→    setEditing(coupon);
+  1786→    setForm({
+  1787→      code: coupon.code,
+  1788→      type: coupon.type,
+  1789→      value: coupon.value,
+  1790→      minOrder: coupon.minOrder || 0,
+  1791→      maxUses: coupon.maxUses || 0,
+  1792→      startDate: new Date(coupon.startDate).toISOString().split('T')[0],
+  1793→      endDate: coupon.endDate ? new Date(coupon.endDate).toISOString().split('T')[0] : '',
+  1794→    });
+  1795→    setDialogOpen(true);
+  1796→  };
+  1797→
+  1798→  const handleSave = async () => {
+  1799→    setSaving(true);
+  1800→    const body = {
+  1801→      ...form,
+  1802→      maxUses: form.maxUses > 0 ? form.maxUses : null,
+  1803→      endDate: form.endDate ? new Date(form.endDate).toISOString() : null,
+  1804→    };
+  1805→
+  1806→    let res;
+  1807→    if (editing) {
+  1808→      res = await apiFetch(`/api/coupons/${editing.id}`, { method: 'PUT', body: JSON.stringify(body) });
+  1809→    } else {
+  1810→      res = await apiFetch('/api/coupons', { method: 'POST', body: JSON.stringify(body) });
+  1811→    }
+  1812→
+  1813→    if (res.error) { toast.error(res.error); setSaving(false); return; }
+  1814→    toast.success(editing ? 'Coupon modifié' : 'Coupon créé');
+  1815→    setDialogOpen(false);
+  1816→    setSaving(false);
+  1817→    fetchCoupons();
+  1818→  };
+  1819→
+  1820→  const handleDelete = async (id: string) => {
+  1821→    const res = await apiFetch(`/api/coupons/${id}`, { method: 'DELETE' });
+  1822→    if (res.error) { toast.error(res.error); return; }
+  1823→    toast.success('Coupon supprimé');
+  1824→    fetchCoupons();
+  1825→  };
+  1826→
+  1827→  const typeLabels: Record<string, string> = {
+  1828→    PERCENTAGE: 'Pourcentage',
+  1829→    FIXED: 'Montant fixe',
+  1830→    FREE_DELIVERY: 'Livraison gratuite',
+  1831→  };
+  1832→
+  1833→  return (
+  1834→    <PageShell
+  1835→      title="Coupons"
+  1836→      description="Gérer les codes promo et réductions"
+  1837→      actions={
+  1838→        <Button onClick={openNew} className="bg-emerald-600 hover:bg-emerald-700">
+  1839→          <Plus className="h-4 w-4" />
+  1840→          <span className="hidden sm:inline">Nouveau coupon</span>
+  1841→        </Button>
+  1842→      }
+  1843→    >
+  1844→      <Card>
+  1845→        <CardContent className="p-0">
+  1846→          {loading ? (
+  1847→            <div className="space-y-2 p-4">
+  1848→              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+  1849→            </div>
+  1850→          ) : coupons.length === 0 ? (
+  1851→            <EmptyState message="Aucun coupon trouvé" onRetry={fetchCoupons} />
+  1852→          ) : (
+  1853→            <div className="max-h-[500px] overflow-y-auto">
+  1854→              <Table>
+  1855→                <TableHeader>
+  1856→                  <TableRow>
+  1857→                    <TableHead>Code</TableHead>
+  1858→                    <TableHead>Type</TableHead>
+  1859→                    <TableHead>Valeur</TableHead>
+  1860→                    <TableHead className="hidden md:table-cell">Min. commande</TableHead>
+  1861→                    <TableHead>Utilisations</TableHead>
+  1862→                    <TableHead>Statut</TableHead>
+  1863→                    <TableHead className="hidden lg:table-cell">Expiration</TableHead>
+  1864→                    <TableHead className="text-right">Actions</TableHead>
+  1865→                  </TableRow>
+  1866→                </TableHeader>
+  1867→                <TableBody>
+  1868→                  {coupons.map((c: any) => (
+  1869→                    <TableRow key={c.id}>
+  1870→                      <TableCell className="font-mono text-sm font-bold">{c.code}</TableCell>
+  1871→                      <TableCell>
+  1872→                        <Badge variant="outline">{typeLabels[c.type] || c.type}</Badge>
+  1873→                      </TableCell>
+  1874→                      <TableCell className="text-sm font-medium">
+  1875→                        {c.type === 'FREE_DELIVERY' ? 'Gratuit' : c.type === 'PERCENTAGE' ? `${c.value}%` : formatPrice(c.value)}
+  1876→                      </TableCell>
+  1877→                      <TableCell className="hidden text-sm md:table-cell">{formatPrice(c.minOrder || 0)}</TableCell>
+  1878→                      <TableCell className="text-sm">
+  1879→                        {c.usedCount}/{c.maxUses || '∞'}
+  1880→                      </TableCell>
+  1881→                      <TableCell>
+  1882→                        <Badge variant={c.isActive ? 'default' : 'secondary'} className={c.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
+  1883→                          {c.isActive ? 'Actif' : 'Inactif'}
+  1884→                        </Badge>
+  1885→                      </TableCell>
+  1886→                      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+  1887→                        {c.endDate ? new Date(c.endDate).toLocaleDateString('fr-FR') : '-'}
+  1888→                      </TableCell>
+  1889→                      <TableCell className="text-right">
+  1890→                        <div className="flex items-center justify-end gap-1">
+  1891→                          <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>
+  1892→                            <Pencil className="h-3.5 w-3.5" />
+  1893→                          </Button>
+  1894→                          <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>
+  1895→                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+  1896→                          </Button>
+  1897→                        </div>
+  1898→                      </TableCell>
+  1899→                    </TableRow>
+  1900→                  ))}
+  1901→                </TableBody>
+  1902→              </Table>
+  1903→            </div>
+  1904→          )}
+  1905→        </CardContent>
+  1906→      </Card>
+  1907→
+  1908→      {/* Add/Edit Dialog */}
+  1909→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+  1910→        <DialogContent>
+  1911→          <DialogHeader>
+  1912→            <DialogTitle>{editing ? 'Modifier le coupon' : 'Nouveau coupon'}</DialogTitle>
+  1913→            <DialogDescription>
+  1914→              {editing ? 'Modifiez les détails du coupon' : 'Créez un nouveau code promo'}
+  1915→            </DialogDescription>
+  1916→          </DialogHeader>
+  1917→          <div className="space-y-4">
+  1918→            <div className="space-y-2">
+  1919→              <Label htmlFor="coupon-code">Code</Label>
+  1920→              <Input
+  1921→                id="coupon-code"
+  1922→                value={form.code}
+  1923→                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+  1924→                placeholder="PROMO2024"
+  1925→                disabled={!!editing}
+  1926→              />
+  1927→            </div>
+  1928→            <div className="grid grid-cols-2 gap-4">
+  1929→              <div className="space-y-2">
+  1930→                <Label>Type</Label>
+  1931→                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+  1932→                  <SelectTrigger className="w-full">
+  1933→                    <SelectValue />
+  1934→                  </SelectTrigger>
+  1935→                  <SelectContent>
+  1936→                    <SelectItem value="PERCENTAGE">Pourcentage</SelectItem>
+  1937→                    <SelectItem value="FIXED">Montant fixe</SelectItem>
+  1938→                    <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
+  1939→                  </SelectContent>
+  1940→                </Select>
+  1941→              </div>
+  1942→              <div className="space-y-2">
+  1943→                <Label htmlFor="coupon-value">Valeur</Label>
+  1944→                <Input
+  1945→                  id="coupon-value"
+  1946→                  type="number"
+  1947→                  value={form.value}
+  1948→                  onChange={(e) => setForm({ ...form, value: parseFloat(e.target.value) || 0 })}
+  1949→                />
+  1950→              </div>
+  1951→            </div>
+  1952→            <div className="grid grid-cols-2 gap-4">
+  1953→              <div className="space-y-2">
+  1954→                <Label htmlFor="coupon-min">Min. commande (FCFA)</Label>
+  1955→                <Input
+  1956→                  id="coupon-min"
+  1957→                  type="number"
+  1958→                  value={form.minOrder}
+  1959→                  onChange={(e) => setForm({ ...form, minOrder: parseInt(e.target.value) || 0 })}
+  1960→                />
+  1961→              </div>
+  1962→              <div className="space-y-2">
+  1963→                <Label htmlFor="coupon-max">Max. utilisations</Label>
+  1964→                <Input
+  1965→                  id="coupon-max"
+  1966→                  type="number"
+  1967→                  value={form.maxUses}
+  1968→                  onChange={(e) => setForm({ ...form, maxUses: parseInt(e.target.value) || 0 })}
+  1969→                  placeholder="0 = illimité"
+  1970→                />
+  1971→              </div>
+  1972→            </div>
+  1973→            <div className="grid grid-cols-2 gap-4">
+  1974→              <div className="space-y-2">
+  1975→                <Label htmlFor="coupon-start">Date début</Label>
+  1976→                <Input
+  1977→                  id="coupon-start"
+  1978→                  type="date"
+  1979→                  value={form.startDate}
+  1980→                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+  1981→                />
+  1982→              </div>
+  1983→              <div className="space-y-2">
+  1984→                <Label htmlFor="coupon-end">Date fin</Label>
+  1985→                <Input
+  1986→                  id="coupon-end"
+  1987→                  type="date"
+  1988→                  value={form.endDate}
+  1989→                  onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+  1990→                />
+  1991→              </div>
+  1992→            </div>
+  1993→          </div>
+  1994→          <DialogFooter>
+  1995→            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+  1996→            <Button onClick={handleSave} disabled={saving || !form.code} className="bg-emerald-600 hover:bg-emerald-700">
+  1997→              {saving && <Spinner />}
+  1998→              {editing ? 'Enregistrer' : 'Créer'}
+  1999→            </Button>
+  2000→          </DialogFooter>
+
+[showing lines 1-2000 of 2793; use offset=2001 with limit to continue reading]
