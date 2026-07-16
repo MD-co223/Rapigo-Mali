@@ -32,6 +32,7 @@ import {
   BUSINESS_TYPES, PAYMENT_METHODS, PAYMENT_STATUS_LABELS,
 } from '@/lib/store';
 import { toast } from 'sonner';
+import { SupportContactCard } from '@/components/support-contact';
 
 // ============================================
 // TYPES
@@ -469,7 +470,7 @@ function HomeView() {
         ) : error ? (
           <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
         ) : merchants.length === 0 ? (
-          <EmptyState icon={Store} message="Aucun marchand disponible pour le moment" onRetry={() => setRetryCount((c) => c + 1)} />
+          <EmptyState icon={Store} message="Aucun marchand disponible pour le moment" action="Réessayer" onAction={() => setRetryCount((c) => c + 1)} />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {merchants.slice(0, 6).map((m) => (
@@ -2538,28 +2539,9 @@ function SupportView() {
           ))}
         </div>
       )}
-      {/* Developer support info */}
-      <div className="mt-6 bg-muted/50 rounded-xl p-4 space-y-3">
-        <p className="text-sm font-semibold text-center">Support &amp; Contact</p>
-        <div className="flex items-center gap-2 text-sm">
-          <User className="h-4 w-4 text-emerald-600 shrink-0" />
-          <span><strong>Développeur:</strong> Mr. Diarra Moussa</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <Phone className="h-4 w-4 text-emerald-600 shrink-0" />
-          <span><strong>Téléphone:</strong> +223 77 16 38 62</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <Mail className="h-4 w-4 text-emerald-600 shrink-0" />
-          <span><strong>Email:</strong> diarramoussaka7@gmail.com</span>
-        </div>
-        <Button
-          className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700"
-          onClick={() => window.open('tel:+22377163862')}
-        >
-          <Phone className="h-4 w-4 mr-2" />
-          Contacter le support
-        </Button>
+      {/* Informations de support */}
+      <div className="mt-6 bg-muted/50 rounded-xl p-4">
+        <SupportContactCard />
       </div>
     </div>
   );

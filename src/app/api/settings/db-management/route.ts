@@ -75,7 +75,7 @@ async function handleExport() {
     }
 
     data.exportedAt = new Date().toISOString();
-    data.version = 'Rapigo Mali V2.1';
+    data.version = 'Rapigo Mali V2.2';
 
     return NextResponse.json({ data });
   } catch (error) {
@@ -94,7 +94,7 @@ async function handleBackup() {
     }
 
     data.backupAt = new Date().toISOString();
-    data.version = 'Rapigo Mali V2.1';
+    data.version = 'Rapigo Mali V2.2';
 
     // In a production environment this would save to cloud storage.
     // For now we return the data so the admin can download it.

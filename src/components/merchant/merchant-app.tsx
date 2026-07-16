@@ -41,6 +41,7 @@ import {
 } from '@/lib/store';
 import type { MerchantView } from '@/lib/store';
 import { toast } from 'sonner';
+import { SupportContactCard } from '@/components/support-contact';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -2207,6 +2208,13 @@ function SupportView() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Informations de contact développeur */}
+      <Card>
+        <CardContent className="p-4">
+          <SupportContactCard />
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -2302,29 +2310,10 @@ export default function MerchantApp() {
                 Merci de votre patience. Le processus prend généralement 24 à 48 heures.
               </p>
 
-              {/* Support info */}
+              {/* Informations de support */}
               <Separator className="my-6 w-full" />
-              <div className="w-full space-y-3 text-left bg-muted/50 rounded-lg p-4">
-                <p className="text-sm font-semibold text-center">Support &amp; Contact</p>
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <span><strong>Développeur:</strong> Mr. Diarra Moussa</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Phone className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <span><strong>Téléphone:</strong> +223 77 16 38 62</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Mail className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <span><strong>Email:</strong> diarramoussaka7@gmail.com</span>
-                </div>
-                <Button
-                  className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => window.open('tel:+22377163862')}
-                >
-                  <Phone className="h-4 w-4 mr-2" />
-                  Contacter le support
-                </Button>
+              <div className="w-full bg-muted/50 rounded-lg p-4">
+                <SupportContactCard />
               </div>
             </CardContent>
           </Card>

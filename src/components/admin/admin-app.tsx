@@ -55,6 +55,7 @@ import {
   PAYMENT_METHODS,
 } from '@/lib/store';
 import type { AdminView } from '@/lib/store';
+import { SupportContactCard } from '@/components/support-contact';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -2791,29 +2792,10 @@ function SupportView() {
         </>
       )}
 
-      {/* Developer support info */}
+      {/* Informations de support développeur */}
       <Card className="mt-6">
-        <CardContent className="p-4 space-y-3">
-          <p className="text-sm font-semibold text-center">Support &amp; Contact Développeur</p>
-          <div className="flex items-center gap-2 text-sm">
-            <User className="h-4 w-4 text-emerald-600 shrink-0" />
-            <span><strong>Développeur:</strong> Mr. Diarra Moussa</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Phone className="h-4 w-4 text-emerald-600 shrink-0" />
-            <span><strong>Téléphone:</strong> +223 77 16 38 62</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="h-4 w-4 text-emerald-600 shrink-0" />
-            <span><strong>Email:</strong> diarramoussaka7@gmail.com</span>
-          </div>
-          <Button
-            className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => window.open('tel:+22377163862')}
-          >
-            <Phone className="h-4 w-4 mr-2" />
-            Contacter le support
-          </Button>
+        <CardContent className="p-4">
+          <SupportContactCard />
         </CardContent>
       </Card>
 
@@ -3331,7 +3313,7 @@ export default function AdminApp() {
           </div>
           <div>
             <p className="text-sm font-semibold">Rapigo Admin</p>
-            <p className="text-[10px] text-muted-foreground">V2.1 Mali</p>
+            <p className="text-[10px] text-muted-foreground">V2.2 Mali</p>
           </div>
         </div>
         <ScrollArea className="h-[calc(100vh-3.5rem)]">
@@ -3351,7 +3333,7 @@ export default function AdminApp() {
               </div>
               <span>Rapigo Admin</span>
             </SheetTitle>
-            <SheetDescription>V2.1 Mali</SheetDescription>
+            <SheetDescription>V2.2 Mali</SheetDescription>
           </SheetHeader>
           <ScrollArea className="h-[calc(100vh-5rem)]">
             <div className="py-4">

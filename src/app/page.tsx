@@ -11,6 +11,7 @@ import {
   Eye, EyeOff, Mail, Phone, Lock, UserPlus, Loader2,
   ChevronRight, UtensilsCrossed, Laptop, Bike, Car,
   Shield, CreditCard, Leaf, CheckCircle2, Search, ClipboardList,
+  MessageCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 
 import { useAuthStore, useSpaceStore, AppSpace, apiFetch, AuthUser } from '@/lib/store';
+import { SUPPORT_INFO } from '@/components/support-contact';
 
 // ============================================
 // Lazy-loaded space components
@@ -245,7 +247,7 @@ export default function Page() {
               </div>
               <span className="text-xl font-bold gradient-text">Rapigo</span>
               <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] px-1.5 py-0 h-5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
-                V2.1
+                V2.2
               </Badge>
             </div>
             <div className="flex items-center gap-2">
@@ -549,25 +551,86 @@ export default function Page() {
       {/* ── Footer ── */}
       <footer className="py-10 border-t bg-card/50 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center">
-                <Truck className="w-4 h-4 text-white" />
+          <div className="grid sm:grid-cols-3 gap-8 mb-8">
+            {/* Brand */}
+            <div>
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center">
+                  <Truck className="w-4 h-4 text-white" />
+                </div>
+                <span className="font-bold gradient-text">Rapigo Mali</span>
               </div>
-              <span className="font-bold gradient-text">Rapigo Mali</span>
-              <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                V2.1
-              </Badge>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                La super-app de livraison N°1 au Mali. Restaurants, supermarchés, pharmacies et plus encore, livrés chez vous en quelques minutes.
+              </p>
             </div>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1"><Leaf className="w-3.5 h-3.5" /> Éco-responsable</span>
-              <Separator orientation="vertical" className="h-4" />
-              <span className="flex items-center gap-1"><Shield className="w-3.5 h-3.5" /> Paiements sécurisés</span>
+
+            {/* Support */}
+            <div>
+              <h4 className="font-semibold text-sm mb-3">Support &amp; Contact</h4>
+              <div className="space-y-2 text-sm">
+                <p className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>Développeur :</strong> {SUPPORT_INFO.developer}</span>
+                </p>
+                <p className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{SUPPORT_INFO.phone}</span>
+                </p>
+                <p className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{SUPPORT_INFO.email}</span>
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-8"
+                  onClick={() => window.open(`tel:${SUPPORT_INFO.phoneRaw}`)}
+                >
+                  <Phone className="h-3 w-3 mr-1" /> Appeler
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-8 border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+                  onClick={() =>
+                    window.open(
+                      `https://wa.me/${SUPPORT_INFO.whatsapp}?text=${encodeURIComponent('Bonjour Mr. Diarra Moussa, je vous contacte depuis Rapigo Mali.')}`,
+                      '_blank'
+                    )
+                  }
+                >
+                  <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-8"
+                  onClick={() =>
+                    window.open(`mailto:${SUPPORT_INFO.email}?subject=${encodeURIComponent('Assistance Rapigo Mali')}`)
+                  }
+                >
+                  <Mail className="h-3 w-3 mr-1" /> Envoyer un e-mail
+                </Button>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              &copy; {new Date().getFullYear()} Rapigo Mali. Tous droits réservés.
-            </p>
+
+            {/* Trust */}
+            <div>
+              <h4 className="font-semibold text-sm mb-3">Confiance</h4>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p className="flex items-center gap-2"><Leaf className="w-3.5 h-3.5" /> Éco-responsable</p>
+                <p className="flex items-center gap-2"><Shield className="w-3.5 h-3.5" /> Paiements sécurisés</p>
+                <p className="flex items-center gap-2"><Truck className="w-3.5 h-3.5" /> Livraison rapide</p>
+              </div>
+            </div>
           </div>
+          <Separator className="mb-4" />
+          <p className="text-sm text-muted-foreground text-center">
+            &copy; {new Date().getFullYear()} Rapigo Mali. Tous droits réservés. Développé par {SUPPORT_INFO.developer} — {SUPPORT_INFO.phone}
+          </p>
         </div>
       </footer>
 
