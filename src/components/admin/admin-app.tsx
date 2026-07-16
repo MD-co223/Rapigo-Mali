@@ -41,6 +41,7 @@ import {
   ChevronDown,
   MapPinned,
   CircleUserRound,
+  Database,
 } from 'lucide-react';
 
 import {
@@ -2100,6 +2101,8 @@ function SettingsView() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [dbResetOpen, setDbResetOpen] = useState(false);
+  const [dbLoading, setDbLoading] = useState<'export' | 'reset' | null>(null);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -2195,6 +2198,45 @@ function SettingsView() {
     toast.success('Données réinitialisées avec succès');
     setResetOpen(false);
     fetchSettings();
+  };
+
+  const handleDbExport = async () => {
+    setDbLoading('export');
+    try {
+      const res = await apiFetch<{ data: Record<string, unknown> }>('/api/settings/db-management', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'export' }),
+      });
+      if (res.error) { toast.error(res.error); return; }
+      if (res.data?.data) {
+        const blob = new Blob([JSON.stringify(res.data.data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rapigo-db-export-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Base de données exportée avec succès');
+      }
+    } finally {
+      setDbLoading(null);
+    }
+  };
+
+  const handleDbReset = async () => {
+    setDbLoading('reset');
+    try {
+      const res = await apiFetch('/api/settings/db-management', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'reset' }),
+      });
+      if (res.error) { toast.error(res.error); return; }
+      toast.success('Base de données réinitialisée avec succès');
+      setDbResetOpen(false);
+      fetchSettings();
+    } finally {
+      setDbLoading(null);
+    }
   };
 
   const getGroupSettings = (group: string) => rawSettings.filter((s: any) => (s.group || 'GENERAL') === group);
@@ -2327,6 +2369,41 @@ function SettingsView() {
         </CardContent>
       </Card>
 
+      {/* Database Management Section */}
+      <Card className="mt-6 border-orange-200 dark:border-orange-900/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base text-orange-600 dark:text-orange-400">
+            <Database className="h-5 w-5" />
+            Gestion de la base de données
+          </CardTitle>
+          <CardDescription>
+            Exporter ou réinitialiser l'intégralité de la base de données
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDbExport}
+              disabled={dbLoading !== null}
+            >
+              {dbLoading === 'export' ? <Spinner /> : <Database className="mr-2 h-4 w-4" />}
+              {dbLoading === 'export' ? 'Export en cours…' : 'Exporter la base'}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setDbResetOpen(true)}
+              disabled={dbLoading !== null}
+            >
+              {dbLoading === 'reset' ? <Spinner /> : <AlertTriangle className="mr-2 h-4 w-4" />}
+              {dbLoading === 'reset' ? 'Réinitialisation en cours…' : 'Réinitialiser la base'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Reset Confirmation */}
       <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
         <AlertDialogContent>
@@ -2341,6 +2418,25 @@ function SettingsView() {
             <AlertDialogAction onClick={handleResetData} className="bg-red-600 hover:bg-red-700">
               <AlertTriangle className="mr-1 h-4 w-4" />
               Réinitialiser
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* DB Reset Confirmation */}
+      <AlertDialog open={dbResetOpen} onOpenChange={setDbResetOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Réinitialiser la base de données</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr ? Cette action supprimera toutes les données sauf le Super Administrateur et les paramètres système. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDbReset} className="bg-red-600 hover:bg-red-700">
+              <AlertTriangle className="mr-1 h-4 w-4" />
+              Réinitialiser la base
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2694,6 +2790,32 @@ function SupportView() {
           </Card>
         </>
       )}
+
+      {/* Developer support info */}
+      <Card className="mt-6">
+        <CardContent className="p-4 space-y-3">
+          <p className="text-sm font-semibold text-center">Support &amp; Contact Développeur</p>
+          <div className="flex items-center gap-2 text-sm">
+            <User className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span><strong>Développeur:</strong> Mr. Diarra Moussa</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Phone className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span><strong>Téléphone:</strong> +223 77 16 38 62</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Mail className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span><strong>Email:</strong> diarramoussaka7@gmail.com</span>
+          </div>
+          <Button
+            className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700"
+            onClick={() => window.open('tel:+22377163862')}
+          >
+            <Phone className="h-4 w-4 mr-2" />
+            Contacter le support
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Ticket Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>

@@ -2218,6 +2218,7 @@ function SupportView() {
 export default function MerchantApp() {
   const { view, navigate } = useMerchantNav();
   const { user } = useAuthStore();
+  const logout = useAuthStore((s) => s.logout);
   const [merchant, setMerchant] = useState<MerchantProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -2269,23 +2270,65 @@ export default function MerchantApp() {
   }
 
   if (!merchant.isApproved) {
+    const handleLogout = () => {
+      logout();
+      toast.success('Déconnexion réussie');
+    };
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="flex flex-col items-center py-12 text-center">
-            <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center mb-6">
-              <Clock className="h-10 w-10 text-amber-600" />
-            </div>
-            <h2 className="text-2xl font-bold">En attente d&apos;approbation</h2>
-            <p className="text-muted-foreground mt-3 max-w-sm">
-              Votre compte marchand <strong>{merchant.businessName}</strong> est en cours de vérification par notre équipe.
-              Vous recevrez une notification une fois votre compte approuvé.
-            </p>
-            <p className="text-sm text-muted-foreground mt-4">
-              Merci de votre patience. Le processus prend généralement 24 à 48 heures.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex flex-col bg-background">
+        {/* Header bar */}
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <span className="text-lg font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+            Rapigo Mali
+          </span>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-destructive hover:text-destructive">
+            <LogOut className="h-4 w-4 mr-1" />
+            Déconnexion
+          </Button>
+        </header>
+
+        <div className="flex-1 flex items-center justify-center p-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="flex flex-col items-center py-12 text-center">
+              <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center mb-6">
+                <Clock className="h-10 w-10 text-amber-600" />
+              </div>
+              <h2 className="text-2xl font-bold">En attente d&apos;approbation</h2>
+              <p className="text-muted-foreground mt-3 max-w-sm">
+                Votre compte marchand <strong>{merchant.businessName}</strong> est en cours de vérification par notre équipe.
+                Vous recevrez une notification une fois votre compte approuvé.
+              </p>
+              <p className="text-sm text-muted-foreground mt-4">
+                Merci de votre patience. Le processus prend généralement 24 à 48 heures.
+              </p>
+
+              {/* Support info */}
+              <Separator className="my-6 w-full" />
+              <div className="w-full space-y-3 text-left bg-muted/50 rounded-lg p-4">
+                <p className="text-sm font-semibold text-center">Support &amp; Contact</p>
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span><strong>Développeur:</strong> Mr. Diarra Moussa</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span><strong>Téléphone:</strong> +223 77 16 38 62</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Mail className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span><strong>Email:</strong> diarramoussaka7@gmail.com</span>
+                </div>
+                <Button
+                  className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => window.open('tel:+22377163862')}
+                >
+                  <Phone className="h-4 w-4 mr-2" />
+                  Contacter le support
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

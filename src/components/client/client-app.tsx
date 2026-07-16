@@ -6,7 +6,7 @@ import {
   Bell, Plus, Minus, Trash2, ShoppingBag, Phone, X, ArrowRight,
   Truck, Loader2, ChevronLeft, Store, Send, Copy,
   ArrowUpRight, ArrowDownLeft, CircleAlert,
-  Wallet, HelpCircle, Package, ChevronDown, Upload, Gift,
+  Wallet, HelpCircle, Package, ChevronDown, Upload, Gift, Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -383,7 +383,10 @@ function HomeView() {
       if (cancelled) return;
       if (mRes.error && !mRes.data) setError(mRes.error);
       const allMerchants = mRes.data ? (Array.isArray(mRes.data) ? mRes.data : []) : [];
-      setMerchants(allMerchants.filter((m) => m.isFeatured));
+      // Featured first, then all others
+      const featured = allMerchants.filter((m) => m.isFeatured);
+      const others = allMerchants.filter((m) => !m.isFeatured);
+      setMerchants([...featured, ...others]);
       if (cRes.data) setCategories(Array.isArray(cRes.data) ? cRes.data : []);
       setLoading(false);
     })();
@@ -466,7 +469,7 @@ function HomeView() {
         ) : error ? (
           <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
         ) : merchants.length === 0 ? (
-          <EmptyState icon={Store} message="Aucun marchand disponible pour le moment" />
+          <EmptyState icon={Store} message="Aucun marchand disponible pour le moment" onRetry={() => setRetryCount((c) => c + 1)} />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {merchants.slice(0, 6).map((m) => (
@@ -2535,6 +2538,29 @@ function SupportView() {
           ))}
         </div>
       )}
+      {/* Developer support info */}
+      <div className="mt-6 bg-muted/50 rounded-xl p-4 space-y-3">
+        <p className="text-sm font-semibold text-center">Support &amp; Contact</p>
+        <div className="flex items-center gap-2 text-sm">
+          <User className="h-4 w-4 text-emerald-600 shrink-0" />
+          <span><strong>Développeur:</strong> Mr. Diarra Moussa</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <Phone className="h-4 w-4 text-emerald-600 shrink-0" />
+          <span><strong>Téléphone:</strong> +223 77 16 38 62</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <Mail className="h-4 w-4 text-emerald-600 shrink-0" />
+          <span><strong>Email:</strong> diarramoussaka7@gmail.com</span>
+        </div>
+        <Button
+          className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700"
+          onClick={() => window.open('tel:+22377163862')}
+        >
+          <Phone className="h-4 w-4 mr-2" />
+          Contacter le support
+        </Button>
+      </div>
     </div>
   );
 }

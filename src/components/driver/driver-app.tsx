@@ -7,7 +7,7 @@ import {
   X, AlertCircle, Loader2, Plus, MessageSquare, FileText, Camera,
   Send, Shield, TrendingUp, CreditCard, CircleDot, ArrowRight,
   Store, UserCircle, CheckCircle2, XCircle, Eye, RefreshCw,
-  Home, FileUp, Image as ImageIcon
+  Home, FileUp, Image as ImageIcon, Mail
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -220,19 +220,62 @@ function StarDisplay({ rating, size = 16 }: { rating: number; size?: number }) {
 // ─── Approval Screen ─────────────────────────────────────────────────────────
 
 function ApprovalScreen() {
+  const logout = useAuthStore((s) => s.logout);
+  const handleLogout = () => {
+    logout();
+    toast.success('Déconnexion réussie');
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-      <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6">
-        <Clock className="w-10 h-10 text-emerald-500" />
-      </div>
-      <h2 className="text-xl font-bold mb-2">En attente d&apos;approbation</h2>
-      <p className="text-muted-foreground max-w-sm">
-        Votre profil de livreur est en cours de vérification par notre équipe. 
-        Vous recevrez une notification dès que votre compte sera approuvé.
-      </p>
-      <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
-        Vérification en cours...
+    <div className="flex flex-col min-h-screen bg-background">
+      {/* Header bar */}
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <span className="text-lg font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+          Rapigo Mali
+        </span>
+        <Button variant="ghost" size="sm" onClick={handleLogout} className="text-destructive hover:text-destructive">
+          <LogOut className="h-4 w-4 mr-1" />
+          Déconnexion
+        </Button>
+      </header>
+
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6">
+          <Clock className="w-10 h-10 text-emerald-500" />
+        </div>
+        <h2 className="text-xl font-bold mb-2">En attente d&apos;approbation</h2>
+        <p className="text-muted-foreground max-w-sm">
+          Votre profil de livreur est en cours de vérification par notre équipe. 
+          Vous recevrez une notification dès que votre compte sera approuvé.
+        </p>
+        <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+          Vérification en cours...
+        </div>
+
+        {/* Support info */}
+        <div className="w-full max-w-sm mt-8 space-y-3 text-left bg-muted/50 rounded-lg p-4">
+          <p className="text-sm font-semibold text-center">Support &amp; Contact</p>
+          <div className="flex items-center gap-2 text-sm">
+            <UserCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span><strong>Développeur:</strong> Mr. Diarra Moussa</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Phone className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span><strong>Téléphone:</strong> +223 77 16 38 62</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Mail className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span><strong>Email:</strong> diarramoussaka7@gmail.com</span>
+          </div>
+          <Button
+            className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700"
+            onClick={() => window.open('tel:+22377163862')}
+          >
+            <Phone className="h-4 w-4 mr-2" />
+            Contacter le support
+          </Button>
+        </div>
       </div>
     </div>
   );

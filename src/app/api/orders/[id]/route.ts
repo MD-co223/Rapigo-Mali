@@ -123,14 +123,17 @@ export async function PUT(
       }
     }
 
+    const bodyData = body as { status: string; cancelReason?: string; driverId?: string };
     const updateData: Record<string, unknown> = { status };
     if (status === 'CANCELLED') {
       updateData.cancelledAt = new Date();
-      updateData.cancelReason = cancelReason || null;
+      updateData.cancelReason = bodyData.cancelReason || null;
     }
     if (status === 'DELIVERED') {
       updateData.deliveredAt = new Date();
-      // Update merchant and driver ratings count handled in rating endpoint
+    }
+    if (status === 'ASSIGNED' && bodyData.driverId) {
+      updateData.driverId = bodyData.driverId;
     }
 
     const updated = await db.order.update({
