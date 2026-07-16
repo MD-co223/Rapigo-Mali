@@ -1572,7 +1572,7 @@ function CategoriesView() {
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={form.isActive} onCheckedChange={(checked) => setForm({ ...form, isActive: checked })} />
-              <Label>Active</Label>
+              <Label>Actif</Label>
             </div>
           </div>
           <DialogFooter>
