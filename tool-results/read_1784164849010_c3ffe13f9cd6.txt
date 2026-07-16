@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from 'react';
+     4→import {
+     5→  Radio, Navigation, Clock, Wallet, User, Bell, LogOut, Phone,
+     6→  MapPin, Package, Star, ChevronRight, ChevronLeft, Upload, Check,
+     7→  X, AlertCircle, Loader2, Plus, MessageSquare, FileText, Camera,
+     8→  Send, Shield, TrendingUp, CreditCard, CircleDot, ArrowRight,
+     9→  Store, UserCircle, CheckCircle2, XCircle, Eye, RefreshCw,
+    10→  Home, FileUp, Image as ImageIcon
+    11→} from 'lucide-react';
+    12→import { Button } from '@/components/ui/button';
+    13→import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+    14→import { Input } from '@/components/ui/input';
+    15→import { Badge } from '@/components/ui/badge';
+    16→import { Separator } from '@/components/ui/separator';
+    17→import { Label } from '@/components/ui/label';
+    18→import { Switch } from '@/components/ui/switch';
+    19→import { Textarea } from '@/components/ui/textarea';
+    20→import { Skeleton } from '@/components/ui/skeleton';
+    21→import { ScrollArea } from '@/components/ui/scroll-area';
+    22→import {
+    23→  Select,
+    24→  SelectContent,
+    25→  SelectItem,
+    26→  SelectTrigger,
+    27→  SelectValue,
+    28→} from '@/components/ui/select';
+    29→import {
+    30→  useDriverNav, useAuthStore, apiFetch, formatPrice,
+    31→  ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type DriverView
+    32→} from '@/lib/store';
+    33→import { toast } from 'sonner';
+    34→
+    35→// ─── Types ───────────────────────────────────────────────────────────────────
+    36→
+    37→interface DriverProfile {
+    38→  id: string;
+    39→  userId: string;
+    40→  vehicleType: string;
+    41→  vehiclePlate: string | null;
+    42→  vehicleBrand: string | null;
+    43→  vehicleColor: string | null;
+    44→  idCardNumber: string | null;
+    45→  licenseNumber: string | null;
+    46→  idCardImage: string | null;
+    47→  licenseImage: string | null;
+    48→  vehicleImage: string | null;
+    49→  selfieImage: string | null;
+    50→  isApproved: boolean;
+    51→  isAvailable: boolean;
+    52→  rating: number | null;
+    53→  totalDeliveries: number;
+    54→  totalEarnings: number;
+    55→  user: {
+    56→    firstName: string;
+    57→    lastName: string;
+    58→    avatar: string | null;
+    59→    phone: string;
+    60→    email: string;
+    61→    isActive: boolean;
+    62→  };
+    63→}
+    64→
+    65→interface OrderItem {
+    66→  id: string;
+    67→  productName: string;
+    68→  productImage: string | null;
+    69→  quantity: number;
+    70→  unitPrice: number;
+    71→  totalPrice: number;
+    72→  variants: string | null;
+    73→  supplements: string | null;
+    74→  notes: string | null;
+    75→}
+    76→
+    77→interface Order {
+    78→  id: string;
+    79→  orderNumber: string;
+    80→  status: string;
+    81→  subtotal: number;
+    82→  deliveryFee: number;
+    83→  serviceFee: number;
+    84→  discount: number;
+    85→  total: number;
+    86→  paymentMethod: string;
+    87→  deliveryAddress: string;
+    88→  deliveryCity: string;
+    89→  deliveryQuartier: string | null;
+    90→  notes: string | null;
+    91→  createdAt: string;
+    92→  deliveredAt: string | null;
+    93→  cancelledAt: string | null;
+    94→  cancelReason: string | null;
+    95→  clientId: string;
+    96→  merchantId: string;
+    97→  driverId: string | null;
+    98→  items: OrderItem[];
+    99→  client?: {
+   100→    id: string;
+   101→    userId: string;
+   102→    user: {
+   103→      firstName: string;
+   104→      lastName: string;
+   105→      phone: string;
+   106→      avatar: string | null;
+   107→    };
+   108→  };
+   109→  merchant?: {
+   110→    id: string;
+   111→    businessName: string;
+   112→    logo: string | null;
+   113→    address: string;
+   114→    phone?: string;
+   115→    user?: {
+   116→      firstName: string;
+   117→      lastName: string;
+   118→      phone: string;
+   119→    };
+   120→  };
+   121→  driver?: {
+   122→    id: string;
+   123→    userId: string;
+   124→    user: {
+   125→      firstName: string;
+   126→      lastName: string;
+   127→      phone: string;
+   128→      avatar: string | null;
+   129→    };
+   130→  };
+   131→  delivery?: {
+   132→    id: string;
+   133→    status: string;
+   134→    pickupAddress: string;
+   135→    dropoffAddress: string;
+   136→  };
+   137→  ratings?: Array<{
+   138→    id: string;
+   139→    rating: number;
+   140→    comment: string | null;
+   141→    createdAt: string;
+   142→    client?: {
+   143→      user: { firstName: string; lastName: string; };
+   144→    };
+   145→  }>;
+   146→}
+   147→
+   148→interface WalletData {
+   149→  id: string;
+   150→  userId: string;
+   151→  balance: number;
+   152→  transactions: Transaction[];
+   153→}
+   154→
+   155→interface Transaction {
+   156→  id: string;
+   157→  walletId: string;
+   158→  type: string;
+   159→  amount: number;
+   160→  description: string | null;
+   161→  reference: string | null;
+   162→  createdAt: string;
+   163→}
+   164→
+   165→interface Notification {
+   166→  id: string;
+   167→  userId: string;
+   168→  title: string;
+   169→  message: string;
+   170→  type: string;
+   171→  isRead: boolean;
+   172→  data: string | null;
+   173→  createdAt: string;
+   174→}
+   175→
+   176→// ─── Helpers ─────────────────────────────────────────────────────────────────
+   177→
+   178→function formatDate(dateStr: string): string {
+   179→  return new Date(dateStr).toLocaleDateString('fr-FR', {
+   180→    day: '2-digit',
+   181→    month: 'short',
+   182→    year: 'numeric',
+   183→    hour: '2-digit',
+   184→    minute: '2-digit',
+   185→  });
+   186→}
+   187→
+   188→function formatDateShort(dateStr: string): string {
+   189→  return new Date(dateStr).toLocaleDateString('fr-FR', {
+   190→    day: '2-digit',
+   191→    month: 'short',
+   192→    hour: '2-digit',
+   193→    minute: '2-digit',
+   194→  });
+   195→}
+   196→
+   197→function timeAgo(dateStr: string): string {
+   198→  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+   199→  if (seconds < 60) return 'À l\'instant';
+   200→  if (seconds < 3600) return `Il y a ${Math.floor(seconds / 60)} min`;
+   201→  if (seconds < 86400) return `Il y a ${Math.floor(seconds / 3600)} h`;
+   202→  return `Il y a ${Math.floor(seconds / 86400)} j`;
+   203→}
+   204→
+   205→function StarDisplay({ rating, size = 16 }: { rating: number; size?: number }) {
+   206→  return (
+   207→    <div className="flex items-center gap-0.5">
+   208→      {[1, 2, 3, 4, 5].map((i) => (
+   209→        <Star
+   210→          key={i}
+   211→          size={size}
+   212→          className={i <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}
+   213→        />
+   214→      ))}
+   215→      <span className="ml-1 text-sm font-medium">{rating.toFixed(1)}</span>
+   216→    </div>
+   217→  );
+   218→}
+   219→
+   220→// ─── Approval Screen ─────────────────────────────────────────────────────────
+   221→
+   222→function ApprovalScreen() {
+   223→  return (
+   224→    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+   225→      <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6">
+   226→        <Clock className="w-10 h-10 text-emerald-500" />
+   227→      </div>
+   228→      <h2 className="text-xl font-bold mb-2">En attente d&apos;approbation</h2>
+   229→      <p className="text-muted-foreground max-w-sm">
+   230→        Votre profil de livreur est en cours de vérification par notre équipe. 
+   231→        Vous recevrez une notification dès que votre compte sera approuvé.
+   232→      </p>
+   233→      <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+   234→        <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+   235→        Vérification en cours...
+   236→      </div>
+   237→    </div>
+   238→  );
+   239→}
+   240→
+   241→// ─── Top Bar ─────────────────────────────────────────────────────────────────
+   242→
+   243→function TopBar({ unreadCount }: { unreadCount: number }) {
+   244→  const { view, goBack, navigate } = useDriverNav();
+   245→  const isHome = view === 'home';
+   246→  const user = useAuthStore((s) => s.user);
+   247→  const logout = useAuthStore((s) => s.logout);
+   248→
+   249→  const handleLogout = () => {
+   250→    logout();
+   251→    toast.success('Déconnexion réussie');
+   252→  };
+   253→
+   254→  return (
+   255→    <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b">
+   256→      <div className="flex items-center justify-between h-14 px-4">
+   257→        <div className="flex items-center gap-3">
+   258→          {!isHome && (
+   259→            <Button variant="ghost" size="icon" onClick={goBack} className="h-9 w-9">
+   260→              <ChevronLeft className="w-5 h-5" />
+   261→            </Button>
+   262→          )}
+   263→          <div className="flex items-center gap-2">
+   264→            <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+   265→              <Navigation className="w-4 h-4 text-white" />
+   266→            </div>
+   267→            <span className="font-bold text-base">Rapigo Livreur</span>
+   268→          </div>
+   269→        </div>
+   270→        <div className="flex items-center gap-1">
+   271→          <Button
+   272→            variant="ghost"
+   273→            size="icon"
+   274→            className="h-9 w-9 relative"
+   275→            onClick={() => navigate('notifications')}
+   276→          >
+   277→            <Bell className="w-4 h-4" />
+   278→            {unreadCount > 0 && (
+   279→              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold">
+   280→                {unreadCount > 9 ? '9+' : unreadCount}
+   281→              </span>
+   282→            )}
+   283→          </Button>
+   284→          {user && (
+   285→            <Button
+   286→              variant="ghost"
+   287→              size="icon"
+   288→              className="h-9 w-9"
+   289→              onClick={handleLogout}
+   290→            >
+   291→              <LogOut className="w-4 h-4" />
+   292→            </Button>
+   293→          )}
+   294→        </div>
+   295→      </div>
+   296→    </header>
+   297→  );
+   298→}
+   299→
+   300→// ─── Bottom Navigation ───────────────────────────────────────────────────────
+   301→
+   302→const bottomTabs: { view: DriverView; label: string; icon: typeof Home }[] = [
+   303→  { view: 'home', label: 'Accueil', icon: Home },
+   304→  { view: 'history', label: 'Historique', icon: Clock },
+   305→  { view: 'earnings', label: 'Revenus', icon: Wallet },
+   306→  { view: 'profile', label: 'Profil', icon: User },
+   307→];
+   308→
+   309→function BottomNav() {
+   310→  const { view, navigate } = useDriverNav();
+   311→
+   312→  return (
+   313→    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-md border-t">
+   314→      <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
+   315→        {bottomTabs.map((tab) => {
+   316→          const isActive = view === tab.view || (view === 'ride' && tab.view === 'home');
+   317→          const Icon = tab.icon;
+   318→          return (
+   319→            <button
+   320→              key={tab.view}
+   321→              onClick={() => navigate(tab.view)}
+   322→              className={`flex flex-col items-center justify-center gap-0.5 px-4 py-1 rounded-lg transition-colors ${
+   323→                isActive
+   324→                  ? 'text-emerald-500'
+   325→                  : 'text-muted-foreground hover:text-foreground'
+   326→              }`}
+   327→            >
+   328→              <Icon className="w-5 h-5" />
+   329→              <span className="text-[10px] font-medium">{tab.label}</span>
+   330→            </button>
+   331→          );
+   332→        })}
+   333→      </div>
+   334→    </nav>
+   335→  );
+   336→}
+   337→
+   338→// ─── Home View ───────────────────────────────────────────────────────────────
+   339→
+   340→function HomeView() {
+   341→  const [isOnline, setIsOnline] = useState(false);
+   342→  const [availableOrders, setAvailableOrders] = useState<Order[]>([]);
+   343→  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+   344→  const [loading, setLoading] = useState(true);
+   345→  const [accepting, setAccepting] = useState<string | null>(null);
+   346→  const [stats, setStats] = useState({ today: 0, revenue: 0, avgRating: 0 });
+   347→  const { navigate } = useDriverNav();
+   348→  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+   349→
+   350→  const fetchActiveOrder = useCallback(async () => {
+   351→    const res = await apiFetch<Order[]>('/api/orders?limit=50');
+   352→    if (res.data) {
+   353→      const active = (Array.isArray(res.data) ? res.data : (res.data as unknown as { orders: Order[] }).orders || [])
+   354→        .find((o: Order) => ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status));
+   355→      setActiveOrder(active || null);
+   356→    }
+   357→  }, []);
+   358→
+   359→  const fetchAvailable = useCallback(async () => {
+   360→    const res = await apiFetch<Order[]>('/api/drivers/available-orders');
+   361→    if (res.data) {
+   362→      setAvailableOrders(Array.isArray(res.data) ? res.data : []);
+   363→    }
+   364→  }, []);
+   365→
+   366→  const fetchStats = useCallback(async () => {
+   367→    const res = await apiFetch<Order[]>('/api/orders?limit=200');
+   368→    if (res.data) {
+   369→      const orders = Array.isArray(res.data) ? res.data : (res.data as unknown as { orders: Order[] }).orders || [];
+   370→      const today = new Date();
+   371→      today.setHours(0, 0, 0, 0);
+   372→      const todayOrders = orders.filter(
+   373→        (o: Order) => o.status === 'DELIVERED' && new Date(o.deliveredAt || o.createdAt) >= today
+   374→      );
+   375→      const deliveredOrders = orders.filter((o: Order) => o.status === 'DELIVERED');
+   376→      const totalRevenue = deliveredOrders.reduce((sum: number, o: Order) => sum + o.deliveryFee, 0);
+   377→      const ratings = orders
+   378→        .filter((o: Order) => o.ratings && o.ratings.length > 0)
+   379→        .flatMap((o: Order) => o.ratings || [])
+   380→        .map((r: { rating: number }) => r.rating);
+   381→      const avgRating = ratings.length > 0 ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length : 0;
+   382→      setStats({ today: todayOrders.length, revenue: totalRevenue, avgRating });
+   383→    }
+   384→  }, []);
+   385→
+   386→  useEffect(() => {
+   387→    let mounted = true;
+   388→    const init = async () => {
+   389→      const [ordersRes, availableRes, statsRes] = await Promise.all([
+   390→        apiFetch<Order[]>('/api/orders?limit=50'),
+   391→        apiFetch<Order[]>('/api/drivers/available-orders'),
+   392→        apiFetch<Order[]>('/api/orders?limit=200'),
+   393→      ]);
+   394→      if (!mounted) return;
+   395→      if (ordersRes.data) {
+   396→        const list = Array.isArray(ordersRes.data) ? ordersRes.data : (ordersRes.data as unknown as { orders: Order[] }).orders || [];
+   397→        setActiveOrder(list.find((o: Order) => ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)) || null);
+   398→      }
+   399→      if (availableRes.data) {
+   400→        setAvailableOrders(Array.isArray(availableRes.data) ? availableRes.data : []);
+   401→      }
+   402→      if (statsRes.data) {
+   403→        const orders = Array.isArray(statsRes.data) ? statsRes.data : (statsRes.data as unknown as { orders: Order[] }).orders || [];
+   404→        const today = new Date();
+   405→        today.setHours(0, 0, 0, 0);
+   406→        const todayOrders = orders.filter(
+   407→          (o: Order) => o.status === 'DELIVERED' && new Date(o.deliveredAt || o.createdAt) >= today
+   408→        );
+   409→        const deliveredOrders = orders.filter((o: Order) => o.status === 'DELIVERED');
+   410→        const totalRevenue = deliveredOrders.reduce((sum: number, o: Order) => sum + o.deliveryFee, 0);
+   411→        const ratings = orders
+   412→          .filter((o: Order) => o.ratings && o.ratings.length > 0)
+   413→          .flatMap((o: Order) => o.ratings || [])
+   414→          .map((r: { rating: number }) => r.rating);
+   415→        const avgRating = ratings.length > 0 ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length : 0;
+   416→        setStats({ today: todayOrders.length, revenue: totalRevenue, avgRating });
+   417→      }
+   418→      setLoading(false);
+   419→    };
+   420→    init();
+   421→    return () => { mounted = false; };
+   422→  }, []);
+   423→
+   424→  useEffect(() => {
+   425→    if (isOnline && !activeOrder) {
+   426→      timerRef.current = setInterval(() => {
+   427→        fetchAvailable();
+   428→        fetchActiveOrder();
+   429→      }, 15000);
+   430→    }
+   431→    return () => {
+   432→      if (timerRef.current) clearInterval(timerRef.current);
+   433→    };
+   434→  }, [isOnline, activeOrder, fetchAvailable, fetchActiveOrder]);
+   435→
+   436→  const handleToggle = () => {
+   437→    const next = !isOnline;
+   438→    setIsOnline(next);
+   439→    toast.success(next ? 'Vous êtes en ligne' : 'Vous êtes hors ligne');
+   440→    if (next) {
+   441→      fetchAvailable();
+   442→    } else {
+   443→      setAvailableOrders([]);
+   444→    }
+   445→  };
+   446→
+   447→  const handleAccept = async (orderId: string) => {
+   448→    setAccepting(orderId);
+   449→    const res = await apiFetch<Order>(`/api/drivers/${orderId}/accept`, { method: 'POST' });
+   450→    if (res.error) {
+   451→      toast.error(res.error);
+   452→    } else {
+   453→      toast.success('Commande acceptée !');
+   454→      setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId));
+   455→      navigate('ride', { id: orderId });
+   456→    }
+   457→    setAccepting(null);
+   458→  };
+   459→
+   460→  const handleStatusUpdate = async (order: Order, newStatus: string) => {
+   461→    const res = await apiFetch<Order>(`/api/orders/${order.id}`, {
+   462→      method: 'PUT',
+   463→      body: JSON.stringify({ status: newStatus }),
+   464→    });
+   465→    if (res.error) {
+   466→      toast.error(res.error);
+   467→    } else {
+   468→      toast.success('Statut mis à jour');
+   469→      fetchActiveOrder();
+   470→      if (newStatus === 'DELIVERED') {
+   471→        navigate('home');
+   472→        fetchStats();
+   473→      } else {
+   474→        fetchActiveOrder();
+   475→      }
+   476→    }
+   477→  };
+   478→
+   479→  if (loading) {
+   480→    return (
+   481→      <div className="p-4 space-y-4">
+   482→        <Skeleton className="h-12 w-full rounded-lg" />
+   483→        <div className="grid grid-cols-3 gap-3">
+   484→          {[1, 2, 3].map((i) => (
+   485→            <Skeleton key={i} className="h-24 rounded-lg" />
+   486→          ))}
+   487→        </div>
+   488→        <Skeleton className="h-40 w-full rounded-lg" />
+   489→      </div>
+   490→    );
+   491→  }
+   492→
+   493→  return (
+   494→    <div className="p-4 space-y-4 pb-20">
+   495→      {/* Online/Offline Toggle */}
+   496→      <Card className="border-emerald-500/20">
+   497→        <CardContent className="p-4">
+   498→          <div className="flex items-center justify-between">
+   499→            <div className="flex items-center gap-3">
+   500→              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+   501→                isOnline ? 'bg-emerald-500' : 'bg-muted'
+   502→              }`}>
+   503→                <Radio className={`w-5 h-5 ${isOnline ? 'text-white' : 'text-muted-foreground'}`} />
+   504→              </div>
+   505→              <div>
+   506→                <p className="font-semibold text-sm">{isOnline ? 'En ligne' : 'Hors ligne'}</p>
+   507→                <p className="text-xs text-muted-foreground">
+   508→                  {isOnline ? 'Vous recevez des commandes' : 'Passez en ligne pour recevoir des commandes'}
+   509→                </p>
+   510→              </div>
+   511→            </div>
+   512→            <Switch checked={isOnline} onCheckedChange={handleToggle} />
+   513→          </div>
+   514→        </CardContent>
+   515→      </Card>
+   516→
+   517→      {/* Stats Cards */}
+   518→      <div className="grid grid-cols-3 gap-3">
+   519→        <Card className="p-3 text-center">
+   520→          <Package className="w-5 h-5 mx-auto text-emerald-500 mb-1" />
+   521→          <p className="text-lg font-bold">{stats.today}</p>
+   522→          <p className="text-[10px] text-muted-foreground leading-tight">Livraisons aujourd&apos;hui</p>
+   523→        </Card>
+   524→        <Card className="p-3 text-center">
+   525→          <TrendingUp className="w-5 h-5 mx-auto text-emerald-500 mb-1" />
+   526→          <p className="text-lg font-bold">{formatPrice(stats.revenue)}</p>
+   527→          <p className="text-[10px] text-muted-foreground leading-tight">Revenus</p>
+   528→        </Card>
+   529→        <Card className="p-3 text-center">
+   530→          <Star className="w-5 h-5 mx-auto text-amber-400 mb-1" />
+   531→          <p className="text-lg font-bold">{stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '—'}</p>
+   532→          <p className="text-[10px] text-muted-foreground leading-tight">Note moyenne</p>
+   533→        </Card>
+   534→      </div>
+   535→
+   536→      {/* Active Delivery */}
+   537→      {activeOrder && (
+   538→        <Card className="border-emerald-500/30 bg-emerald-500/5">
+   539→          <CardHeader className="pb-2 pt-4 px-4">
+   540→            <div className="flex items-center justify-between">
+   541→              <CardTitle className="text-sm font-semibold">Livraison en cours</CardTitle>
+   542→              <Badge className={ORDER_STATUS_COLORS[activeOrder.status] || ''}>
+   543→                {ORDER_STATUS_LABELS[activeOrder.status] || activeOrder.status}
+   544→              </Badge>
+   545→            </div>
+   546→          </CardHeader>
+   547→          <CardContent className="px-4 pb-4 space-y-3">
+   548→            <button
+   549→              className="w-full text-left"
+   550→              onClick={() => navigate('ride', { id: activeOrder.id })}
+   551→            >
+   552→              <div className="flex items-center justify-between">
+   553→                <div>
+   554→                  <p className="font-medium text-sm">{activeOrder.orderNumber}</p>
+   555→                  <p className="text-xs text-muted-foreground">{activeOrder.merchant?.businessName}</p>
+   556→                </div>
+   557→                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+   558→              </div>
+   559→              <div className="flex items-start gap-2 mt-2">
+   560→                <MapPin className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+   561→                <p className="text-xs text-muted-foreground line-clamp-1">{activeOrder.deliveryAddress}</p>
+   562→              </div>
+   563→            </button>
+   564→            {activeOrder.status === 'ASSIGNED' && (
+   565→              <Button
+   566→                size="sm"
+   567→                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   568→                onClick={() => handleStatusUpdate(activeOrder, 'PICKED_UP')}
+   569→              >
+   570→                <Package className="w-4 h-4 mr-2" />
+   571→                Récupérer au marchand
+   572→              </Button>
+   573→            )}
+   574→            {activeOrder.status === 'PICKED_UP' && (
+   575→              <Button
+   576→                size="sm"
+   577→                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   578→                onClick={() => handleStatusUpdate(activeOrder, 'IN_TRANSIT')}
+   579→              >
+   580→                <Navigation className="w-4 h-4 mr-2" />
+   581→                En route vers le client
+   582→              </Button>
+   583→            )}
+   584→            {activeOrder.status === 'IN_TRANSIT' && (
+   585→              <Button
+   586→                size="sm"
+   587→                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   588→                onClick={() => handleStatusUpdate(activeOrder, 'DELIVERED')}
+   589→              >
+   590→                <CheckCircle2 className="w-4 h-4 mr-2" />
+   591→                Confirmer la livraison
+   592→              </Button>
+   593→            )}
+   594→          </CardContent>
+   595→        </Card>
+   596→      )}
+   597→
+   598→      {/* Available Orders */}
+   599→      {isOnline && !activeOrder && (
+   600→        <div className="space-y-3">
+   601→          <div className="flex items-center justify-between">
+   602→            <h3 className="font-semibold text-sm">Commandes disponibles</h3>
+   603→            <Button variant="ghost" size="sm" onClick={fetchAvailable} className="h-7 text-xs">
+   604→              <RefreshCw className="w-3 h-3 mr-1" />
+   605→              Actualiser
+   606→            </Button>
+   607→          </div>
+   608→          {availableOrders.length === 0 ? (
+   609→            <Card className="p-6 text-center">
+   610→              <Package className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+   611→              <p className="text-sm text-muted-foreground">Aucune commande disponible</p>
+   612→              <p className="text-xs text-muted-foreground mt-1">Les nouvelles commandes apparaîtront ici</p>
+   613→            </Card>
+   614→          ) : (
+   615→            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+   616→              {availableOrders.map((order) => (
+   617→                <Card key={order.id} className="overflow-hidden">
+   618→                  <CardContent className="p-4 space-y-3">
+   619→                    <div className="flex items-center justify-between">
+   620→                      <span className="font-mono text-sm font-semibold text-emerald-600">{order.orderNumber}</span>
+   621→                      <span className="text-sm font-bold">{formatPrice(order.total)}</span>
+   622→                    </div>
+   623→                    <div className="flex items-start gap-2">
+   624→                      <Store className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+   625→                      <p className="text-xs text-muted-foreground">{order.merchant?.businessName}</p>
+   626→                    </div>
+   627→                    <div className="flex items-start gap-2">
+   628→                      <MapPin className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+   629→                      <p className="text-xs text-muted-foreground line-clamp-2">{order.deliveryAddress}</p>
+   630→                    </div>
+   631→                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   632→                      <Clock className="w-3 h-3" />
+   633→                      {timeAgo(order.createdAt)}
+   634→                    </div>
+   635→                    <Button
+   636→                      size="sm"
+   637→                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   638→                      disabled={accepting === order.id}
+   639→                      onClick={() => handleAccept(order.id)}
+   640→                    >
+   641→                      {accepting === order.id ? (
+   642→                        <Loader2 className="w-4 h-4 animate-spin" />
+   643→                      ) : (
+   644→                        <Check className="w-4 h-4 mr-2" />
+   645→                      )}
+   646→                      Accepter
+   647→                    </Button>
+   648→                  </CardContent>
+   649→                </Card>
+   650→              ))}
+   651→            </div>
+   652→          )}
+   653→        </div>
+   654→      )}
+   655→
+   656→      {/* Offline Message */}
+   657→      {!isOnline && !activeOrder && (
+   658→        <Card className="p-8 text-center">
+   659→          <Radio className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+   660→          <p className="font-semibold">Vous êtes hors ligne</p>
+   661→          <p className="text-sm text-muted-foreground mt-1">
+   662→            Passez en ligne pour voir les commandes disponibles
+   663→          </p>
+   664→        </Card>
+   665→      )}
+   666→
+   667→      {/* Quick Links */}
+   668→      <div className="grid grid-cols-2 gap-3">
+   669→        <Card
+   670→          className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+   671→          onClick={() => navigate('wallet')}
+   672→        >
+   673→          <div className="flex items-center gap-3">
+   674→            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+   675→              <Wallet className="w-4 h-4 text-emerald-500" />
+   676→            </div>
+   677→            <span className="text-sm font-medium">Portefeuille</span>
+   678→          </div>
+   679→        </Card>
+   680→        <Card
+   681→          className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+   682→          onClick={() => navigate('support')}
+   683→        >
+   684→          <div className="flex items-center gap-3">
+   685→            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+   686→              <MessageSquare className="w-4 h-4 text-emerald-500" />
+   687→            </div>
+   688→            <span className="text-sm font-medium">Support</span>
+   689→          </div>
+   690→        </Card>
+   691→      </div>
+   692→    </div>
+   693→  );
+   694→}
+   695→
+   696→// ─── Ride View ───────────────────────────────────────────────────────────────
+   697→
+   698→function RideView() {
+   699→  const { data } = useDriverNav();
+   700→  const orderId = data?.id;
+   701→  const [order, setOrder] = useState<Order | null>(null);
+   702→  const [loading, setLoading] = useState(true);
+   703→  const [updating, setUpdating] = useState(false);
+   704→
+   705→  useEffect(() => {
+   706→    if (!orderId) return;
+   707→    const fetchOrder = async () => {
+   708→      setLoading(true);
+   709→      const res = await apiFetch<Order>(`/api/orders/${orderId}`);
+   710→      if (res.data) setOrder(res.data);
+   711→      setLoading(false);
+   712→    };
+   713→    fetchOrder();
+   714→  }, [orderId]);
+   715→
+   716→  const handleStatusUpdate = async (newStatus: string) => {
+   717→    if (!order) return;
+   718→    setUpdating(true);
+   719→    const res = await apiFetch<Order>(`/api/orders/${order.id}`, {
+   720→      method: 'PUT',
+   721→      body: JSON.stringify({ status: newStatus }),
+   722→    });
+   723→    if (res.error) {
+   724→      toast.error(res.error);
+   725→    } else {
+   726→      toast.success('Statut mis à jour');
+   727→      if (res.data) setOrder(res.data);
+   728→    }
+   729→    setUpdating(false);
+   730→  };
+   731→
+   732→  const handleCall = (phone: string | undefined, name: string) => {
+   733→    if (phone) {
+   734→      toast.info(`Appeler ${name}: ${phone}`);
+   735→    } else {
+   736→      toast.error('Numéro de téléphone non disponible');
+   737→    }
+   738→  };
+   739→
+   740→  if (loading) {
+   741→    return (
+   742→      <div className="p-4 space-y-4">
+   743→        <Skeleton className="h-20 w-full rounded-lg" />
+   744→        <Skeleton className="h-40 w-full rounded-lg" />
+   745→        <Skeleton className="h-12 w-full rounded-lg" />
+   746→      </div>
+   747→    );
+   748→  }
+   749→
+   750→  if (!order) {
+   751→    return (
+   752→      <div className="p-4 text-center py-20">
+   753→        <AlertCircle className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+   754→        <p className="text-muted-foreground">Commande non trouvée</p>
+   755→      </div>
+   756→    );
+   757→  }
+   758→
+   759→  const clientPhone = order.client?.user?.phone;
+   760→  const merchantPhone = order.merchant?.user?.phone || order.merchant?.phone;
+   761→
+   762→  return (
+   763→    <div className="p-4 space-y-4 pb-20">
+   764→      {/* Status Badge */}
+   765→      <Card className="overflow-hidden border-emerald-500/20">
+   766→        <div className="bg-emerald-500/10 px-4 py-3">
+   767→          <div className="flex items-center justify-between">
+   768→            <span className="font-mono font-bold text-sm">{order.orderNumber}</span>
+   769→            <Badge className={ORDER_STATUS_COLORS[order.status] || ''}>
+   770→              {ORDER_STATUS_LABELS[order.status] || order.status}
+   771→            </Badge>
+   772→          </div>
+   773→        </div>
+   774→        <CardContent className="p-4 space-y-4">
+   775→          {/* Progress Steps */}
+   776→          <div className="flex items-center gap-1">
+   777→            {['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'].map((s, i) => {
+   778→              const steps = ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'];
+   779→              const currentIdx = steps.indexOf(order.status);
+   780→              const stepIdx = i;
+   781→              const isActive = stepIdx <= currentIdx;
+   782→              const isCurrent = stepIdx === currentIdx;
+   783→              return (
+   784→                <div key={s} className="flex-1 flex items-center">
+   785→                  <div className={`w-full h-1.5 rounded-full transition-colors ${
+   786→                    isActive ? 'bg-emerald-500' : 'bg-muted'
+   787→                  } ${isCurrent ? 'ring-2 ring-emerald-500/30' : ''}`} />
+   788→                  {i < 3 && <div className="w-1" />}
+   789→                </div>
+   790→              );
+   791→            })}
+   792→          </div>
+   793→          <div className="flex justify-between text-[9px] text-muted-foreground px-0.5">
+   794→            <span>Assigné</span>
+   795→            <span>Récupéré</span>
+   796→            <span>En route</span>
+   797→            <span>Livré</span>
+   798→          </div>
+   799→        </CardContent>
+   800→      </Card>
+   801→
+   802→      {/* Pickup Info */}
+   803→      <Card className="p-4">
+   804→        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+   805→          Point de récupération
+   806→        </p>
+   807→        <div className="flex items-start gap-3">
+   808→          <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+   809→            <Store className="w-4 h-4 text-amber-500" />
+   810→          </div>
+   811→          <div className="flex-1 min-w-0">
+   812→            <p className="text-sm font-medium">{order.merchant?.businessName}</p>
+   813→            <p className="text-xs text-muted-foreground">{order.merchant?.address || order.delivery?.pickupAddress}</p>
+   814→          </div>
+   815→        </div>
+   816→      </Card>
+   817→
+   818→      {/* Delivery Info */}
+   819→      <Card className="p-4">
+   820→        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+   821→          Adresse de livraison
+   822→        </p>
+   823→        <div className="flex items-start gap-3">
+   824→          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+   825→            <MapPin className="w-4 h-4 text-emerald-500" />
+   826→          </div>
+   827→          <div className="flex-1 min-w-0">
+   828→            <p className="text-sm font-medium">
+   829→              {order.client?.user?.firstName} {order.client?.user?.lastName}
+   830→            </p>
+   831→            <p className="text-xs text-muted-foreground">{order.deliveryAddress}</p>
+   832→            {order.deliveryCity && (
+   833→              <p className="text-xs text-muted-foreground">{order.deliveryCity}{order.deliveryQuartier ? ` — ${order.deliveryQuartier}` : ''}</p>
+   834→            )}
+   835→          </div>
+   836→        </div>
+   837→      </Card>
+   838→
+   839→      {/* Client & Merchant Contact */}
+   840→      <Card className="p-4">
+   841→        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+   842→          Contact
+   843→        </p>
+   844→        <div className="space-y-3">
+   845→          <Button
+   846→            variant="outline"
+   847→            className="w-full justify-start"
+   848→            onClick={() => handleCall(clientPhone, 'le client')}
+   849→          >
+   850→            <Phone className="w-4 h-4 mr-3 text-emerald-500" />
+   851→            <div className="text-left">
+   852→              <p className="text-sm font-medium">Appeler le client</p>
+   853→              <p className="text-xs text-muted-foreground">{clientPhone || 'Non disponible'}</p>
+   854→            </div>
+   855→          </Button>
+   856→          <Button
+   857→            variant="outline"
+   858→            className="w-full justify-start"
+   859→            onClick={() => handleCall(merchantPhone, 'le marchand')}
+   860→          >
+   861→            <Phone className="w-4 h-4 mr-3 text-amber-500" />
+   862→            <div className="text-left">
+   863→              <p className="text-sm font-medium">Appeler le marchand</p>
+   864→              <p className="text-xs text-muted-foreground">{merchantPhone || 'Non disponible'}</p>
+   865→            </div>
+   866→          </Button>
+   867→        </div>
+   868→      </Card>
+   869→
+   870→      {/* Items */}
+   871→      {order.items && order.items.length > 0 && (
+   872→        <Card className="p-4">
+   873→          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+   874→            Articles ({order.items.length})
+   875→          </p>
+   876→          <div className="space-y-2.5 max-h-48 overflow-y-auto">
+   877→            {order.items.map((item) => (
+   878→              <div key={item.id} className="flex items-center gap-3">
+   879→                {item.productImage && (
+   880→                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+   881→                    <img src={item.productImage} alt="" className="w-full h-full object-cover" />
+   882→                  </div>
+   883→                )}
+   884→                <div className="flex-1 min-w-0">
+   885→                  <p className="text-sm font-medium truncate">{item.productName}</p>
+   886→                  <p className="text-xs text-muted-foreground">
+   887→                    {item.quantity} × {formatPrice(item.unitPrice)}
+   888→                  </p>
+   889→                </div>
+   890→                <span className="text-sm font-medium shrink-0">{formatPrice(item.totalPrice)}</span>
+   891→              </div>
+   892→            ))}
+   893→          </div>
+   894→          <Separator className="my-3" />
+   895→          <div className="flex justify-between text-sm">
+   896→            <span className="text-muted-foreground">Sous-total</span>
+   897→            <span>{formatPrice(order.subtotal)}</span>
+   898→          </div>
+   899→          <div className="flex justify-between text-sm mt-1">
+   900→            <span className="text-muted-foreground">Livraison</span>
+   901→            <span>{formatPrice(order.deliveryFee)}</span>
+   902→          </div>
+   903→          {order.serviceFee > 0 && (
+   904→            <div className="flex justify-between text-sm mt-1">
+   905→              <span className="text-muted-foreground">Frais de service</span>
+   906→              <span>{formatPrice(order.serviceFee)}</span>
+   907→            </div>
+   908→          )}
+   909→          <Separator className="my-2" />
+   910→          <div className="flex justify-between font-bold">
+   911→            <span>Total</span>
+   912→            <span className="text-emerald-600">{formatPrice(order.total)}</span>
+   913→          </div>
+   914→          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+   915→            <span>Paiement</span>
+   916→            <span>{order.paymentMethod}</span>
+   917→          </div>
+   918→        </Card>
+   919→      )}
+   920→
+   921→      {/* Notes */}
+   922→      {order.notes && (
+   923→        <Card className="p-4">
+   924→          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+   925→            Notes
+   926→          </p>
+   927→          <p className="text-sm text-muted-foreground">{order.notes}</p>
+   928→        </Card>
+   929→      )}
+   930→
+   931→      {/* Action Buttons */}
+   932→      <div className="space-y-3">
+   933→        {order.status === 'ASSIGNED' && (
+   934→          <Button
+   935→            size="lg"
+   936→            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   937→            disabled={updating}
+   938→            onClick={() => handleStatusUpdate('PICKED_UP')}
+   939→          >
+   940→            {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Package className="w-5 h-5 mr-2" />}
+   941→            Récupérer au marchand
+   942→          </Button>
+   943→        )}
+   944→        {order.status === 'PICKED_UP' && (
+   945→          <Button
+   946→            size="lg"
+   947→            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   948→            disabled={updating}
+   949→            onClick={() => handleStatusUpdate('IN_TRANSIT')}
+   950→          >
+   951→            {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Navigation className="w-5 h-5 mr-2" />}
+   952→            En route vers le client
+   953→          </Button>
+   954→        )}
+   955→        {order.status === 'IN_TRANSIT' && (
+   956→          <Button
+   957→            size="lg"
+   958→            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   959→            disabled={updating}
+   960→            onClick={() => handleStatusUpdate('DELIVERED')}
+   961→          >
+   962→            {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5 mr-2" />}
+   963→            Confirmer la livraison
+   964→          </Button>
+   965→        )}
+   966→      </div>
+   967→    </div>
+   968→  );
+   969→}
+   970→
+   971→// ─── History View ────────────────────────────────────────────────────────────
+   972→
+   973→function HistoryView() {
+   974→  const [orders, setOrders] = useState<Order[]>([]);
+   975→  const [loading, setLoading] = useState(true);
+   976→  const [filter, setFilter] = useState<string>('ALL');
+   977→  const { navigate } = useDriverNav();
+   978→
+   979→  useEffect(() => {
+   980→    const fetchOrders = async () => {
+   981→      setLoading(true);
+   982→      const res = await apiFetch<{ orders: Order[]; total: number }>('/api/orders?limit=100');
+   983→      if (res.data) {
+   984→        const list = res.data.orders || (Array.isArray(res.data) ? res.data : []);
+   985→        setOrders(list);
+   986→      }
+   987→      setLoading(false);
+   988→    };
+   989→    fetchOrders();
+   990→  }, []);
+   991→
+   992→  const filtered = orders.filter((o) => {
+   993→    if (filter === 'ALL') return ['DELIVERED', 'CANCELLED'].includes(o.status);
+   994→    return o.status === filter;
+   995→  });
+   996→
+   997→  if (loading) {
+   998→    return (
+   999→      <div className="p-4 space-y-3">
+  1000→        {[1, 2, 3, 4].map((i) => (
+  1001→          <Skeleton key={i} className="h-28 w-full rounded-lg" />
+  1002→        ))}
+  1003→      </div>
+  1004→    );
+  1005→  }
+  1006→
+  1007→  return (
+  1008→    <div className="p-4 space-y-4 pb-20">
+  1009→      <h2 className="text-lg font-bold">Historique des livraisons</h2>
+  1010→
+  1011→      {/* Filter Tabs */}
+  1012→      <div className="flex gap-2 overflow-x-auto pb-1">
+  1013→        {[
+  1014→          { value: 'ALL', label: 'Tout' },
+  1015→          { value: 'DELIVERED', label: 'Livrées' },
+  1016→          { value: 'CANCELLED', label: 'Annulées' },
+  1017→        ].map((tab) => (
+  1018→          <Button
+  1019→            key={tab.value}
+  1020→            variant={filter === tab.value ? 'default' : 'outline'}
+  1021→            size="sm"
+  1022→            className="shrink-0 text-xs"
+  1023→            onClick={() => setFilter(tab.value)}
+  1024→          >
+  1025→            {tab.label}
+  1026→          </Button>
+  1027→        ))}
+  1028→      </div>
+  1029→
+  1030→      {filtered.length === 0 ? (
+  1031→        <Card className="p-8 text-center">
+  1032→          <Clock className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+  1033→          <p className="text-sm text-muted-foreground">Aucune livraison trouvée</p>
+  1034→        </Card>
+  1035→      ) : (
+  1036→        <div className="space-y-3">
+  1037→          {filtered.map((order) => (
+  1038→            <Card
+  1039→              key={order.id}
+  1040→              className="overflow-hidden cursor-pointer hover:bg-accent/30 transition-colors"
+  1041→              onClick={() => navigate('ride', { id: order.id })}
+  1042→            >
+  1043→              <CardContent className="p-4">
+  1044→                <div className="flex items-center justify-between mb-2">
+  1045→                  <span className="font-mono text-sm font-semibold">{order.orderNumber}</span>
+  1046→                  <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[order.status] || ''}`}>
+  1047→                    {ORDER_STATUS_LABELS[order.status] || order.status}
+  1048→                  </Badge>
+  1049→                </div>
+  1050→                <div className="flex items-start gap-2 mb-1.5">
+  1051→                  <Store className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+  1052→                  <p className="text-xs text-muted-foreground">{order.merchant?.businessName}</p>
+  1053→                </div>
+  1054→                <div className="flex items-start gap-2 mb-2">
+  1055→                  <User className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+  1056→                  <p className="text-xs text-muted-foreground">
+  1057→                    {order.client?.user?.firstName} {order.client?.user?.lastName}
+  1058→                  </p>
+  1059→                </div>
+  1060→                <Separator className="my-2" />
+  1061→                <div className="flex items-center justify-between">
+  1062→                  <span className="text-xs text-muted-foreground">{formatDateShort(order.createdAt)}</span>
+  1063→                  <span className="text-sm font-bold text-emerald-600">{formatPrice(order.total)}</span>
+  1064→                </div>
+  1065→              </CardContent>
+  1066→            </Card>
+  1067→          ))}
+  1068→        </div>
+  1069→      )}
+  1070→    </div>
+  1071→  );
+  1072→}
+  1073→
+  1074→// ─── Earnings View ───────────────────────────────────────────────────────────
+  1075→
+  1076→function EarningsView() {
+  1077→  const [wallet, setWallet] = useState<WalletData | null>(null);
+  1078→  const [orders, setOrders] = useState<Order[]>([]);
+  1079→  const [loading, setLoading] = useState(true);
+  1080→  const { navigate } = useDriverNav();
+  1081→
+  1082→  useEffect(() => {
+  1083→    const fetchData = async () => {
+  1084→      setLoading(true);
+  1085→      const [walletRes, ordersRes] = await Promise.all([
+  1086→        apiFetch<WalletData>('/api/wallet'),
+  1087→        apiFetch<{ orders: Order[] }>('/api/orders?limit=200'),
+  1088→      ]);
+  1089→      if (walletRes.data) setWallet(walletRes.data);
+  1090→      if (ordersRes.data) {
+  1091→        const list = ordersRes.data.orders || (Array.isArray(ordersRes.data) ? ordersRes.data : []);
+  1092→        setOrders(list);
+  1093→      }
+  1094→      setLoading(false);
+  1095→    };
+  1096→    fetchData();
+  1097→  }, []);
+  1098→
+  1099→  const deliveredOrders = orders.filter((o) => o.status === 'DELIVERED');
+  1100→  const totalEarnings = deliveredOrders.reduce((sum, o) => sum + o.deliveryFee, 0);
+  1101→  const todayEarnings = deliveredOrders
+  1102→    .filter((o) => {
+  1103→      const d = new Date(o.deliveredAt || o.createdAt);
+  1104→      const today = new Date();
+  1105→      return d.toDateString() === today.toDateString();
+  1106→    })
+  1107→    .reduce((sum, o) => sum + o.deliveryFee, 0);
+  1108→
+  1109→  if (loading) {
+  1110→    return (
+  1111→      <div className="p-4 space-y-4">
+  1112→        <Skeleton className="h-36 w-full rounded-lg" />
+  1113→        <div className="grid grid-cols-2 gap-3">
+  1114→          <Skeleton className="h-20 rounded-lg" />
+  1115→          <Skeleton className="h-20 rounded-lg" />
+  1116→        </div>
+  1117→      </div>
+  1118→    );
+  1119→  }
+  1120→
+  1121→  return (
+  1122→    <div className="p-4 space-y-4 pb-20">
+  1123→      <h2 className="text-lg font-bold">Revenus</h2>
+  1124→
+  1125→      {/* Balance Card */}
+  1126→      <Card className="overflow-hidden border-emerald-500/20">
+  1127→        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 p-5 text-white">
+  1128→          <p className="text-sm opacity-80">Solde du portefeuille</p>
+  1129→          <p className="text-3xl font-bold mt-1">
+  1130→            {wallet ? formatPrice(wallet.balance) : '0 FCFA'}
+  1131→          </p>
+  1132→        </div>
+  1133→        <CardContent className="p-4">
+  1134→          <div className="flex gap-3">
+  1135→            <Button
+  1136→              variant="outline"
+  1137→              size="sm"
+  1138→              className="flex-1 text-xs"
+  1139→              onClick={() => toast.info('Fonctionnalité de retrait bientôt disponible')}
+  1140→            >
+  1141→              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+  1142→              Retirer
+  1143→            </Button>
+  1144→            <Button
+  1145→              variant="outline"
+  1146→              size="sm"
+  1147→              className="flex-1 text-xs"
+  1148→              onClick={() => navigate('wallet')}
+  1149→            >
+  1150→              <Wallet className="w-3.5 h-3.5 mr-1.5" />
+  1151→              Détails
+  1152→            </Button>
+  1153→          </div>
+  1154→        </CardContent>
+  1155→      </Card>
+  1156→
+  1157→      {/* Earnings Summary */}
+  1158→      <div className="grid grid-cols-2 gap-3">
+  1159→        <Card className="p-4">
+  1160→          <p className="text-xs text-muted-foreground mb-1">Aujourd&apos;hui</p>
+  1161→          <p className="text-lg font-bold text-emerald-600">{formatPrice(todayEarnings)}</p>
+  1162→        </Card>
+  1163→        <Card className="p-4">
+  1164→          <p className="text-xs text-muted-foreground mb-1">Total gagné</p>
+  1165→          <p className="text-lg font-bold">{formatPrice(totalEarnings)}</p>
+  1166→        </Card>
+  1167→      </div>
+  1168→
+  1169→      {/* Recent Transactions */}
+  1170→      <Card>
+  1171→        <CardHeader className="pb-2">
+  1172→          <CardTitle className="text-sm">Transactions récentes</CardTitle>
+  1173→        </CardHeader>
+  1174→        <CardContent className="p-4 pt-0">
+  1175→          {wallet && wallet.transactions.length > 0 ? (
+  1176→            <div className="space-y-3 max-h-64 overflow-y-auto">
+  1177→              {wallet.transactions.map((tx) => (
+  1178→                <div key={tx.id} className="flex items-center justify-between">
+  1179→                  <div className="flex items-center gap-3">
+  1180→                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+  1181→                      tx.type === 'CREDIT' ? 'bg-emerald-500/10' : 'bg-red-500/10'
+  1182→                    }`}>
+  1183→                      {tx.type === 'CREDIT' ? (
+  1184→                        <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+  1185→                      ) : (
+  1186→                        <TrendingUp className="w-3.5 h-3.5 text-red-500 rotate-180" />
+  1187→                      )}
+  1188→                    </div>
+  1189→                    <div>
+  1190→                      <p className="text-sm font-medium">{tx.description || 'Transaction'}</p>
+  1191→                      <p className="text-[10px] text-muted-foreground">{formatDateShort(tx.createdAt)}</p>
+  1192→                    </div>
+  1193→                  </div>
+  1194→                  <span className={`text-sm font-semibold ${
+  1195→                    tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-500'
+  1196→                  }`}>
+  1197→                    {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
+  1198→                  </span>
+  1199→                </div>
+  1200→              ))}
+  1201→            </div>
+  1202→          ) : (
+  1203→            <p className="text-sm text-muted-foreground text-center py-4">Aucune transaction</p>
+  1204→          )}
+  1205→        </CardContent>
+  1206→      </Card>
+  1207→    </div>
+  1208→  );
+  1209→}
+  1210→
+  1211→// ─── Ratings View ────────────────────────────────────────────────────────────
+  1212→
+  1213→function RatingsView() {
+  1214→  const [orders, setOrders] = useState<Order[]>([]);
+  1215→  const [loading, setLoading] = useState(true);
+  1216→
+  1217→  useEffect(() => {
+  1218→    const fetchOrders = async () => {
+  1219→      setLoading(true);
+  1220→      const res = await apiFetch<{ orders: Order[] }>('/api/orders?limit=200');
+  1221→      if (res.data) {
+  1222→        const list = res.data.orders || (Array.isArray(res.data) ? res.data : []);
+  1223→        setOrders(list);
+  1224→      }
+  1225→      setLoading(false);
+  1226→    };
+  1227→    fetchOrders();
+  1228→  }, []);
+  1229→
+  1230→  const ratedOrders = orders.filter((o) => o.ratings && o.ratings.length > 0);
+  1231→  const allRatings = ratedOrders.flatMap((o) => o.ratings || []);
+  1232→  const avgRating = allRatings.length > 0
+  1233→    ? allRatings.reduce((s, r) => s + r.rating, 0) / allRatings.length
+  1234→    : 0;
+  1235→
+  1236→  const distribution = [5, 4, 3, 2, 1].map((star) => ({
+  1237→    star,
+  1238→    count: allRatings.filter((r) => r.rating === star).length,
+  1239→  }));
+  1240→  const maxCount = Math.max(...distribution.map((d) => d.count), 1);
+  1241→
+  1242→  if (loading) {
+  1243→    return (
+  1244→      <div className="p-4 space-y-4">
+  1245→        <Skeleton className="h-32 w-full rounded-lg" />
+  1246→        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+  1247→      </div>
+  1248→    );
+  1249→  }
+  1250→
+  1251→  return (
+  1252→    <div className="p-4 space-y-4 pb-20">
+  1253→      <h2 className="text-lg font-bold">Évaluations</h2>
+  1254→
+  1255→      {/* Average Rating */}
+  1256→      <Card className="p-5 text-center">
+  1257→        <p className="text-4xl font-bold text-emerald-600">{avgRating > 0 ? avgRating.toFixed(1) : '—'}</p>
+  1258→        {avgRating > 0 && <StarDisplay rating={avgRating} size={20} />}
+  1259→        <p className="text-sm text-muted-foreground mt-1">
+  1260→          {allRatings.length} évaluation{allRatings.length > 1 ? 's' : ''}
+  1261→        </p>
+  1262→      </Card>
+  1263→
+  1264→      {/* Distribution */}
+  1265→      <Card className="p-4">
+  1266→        <p className="text-sm font-semibold mb-3">Répartition des notes</p>
+  1267→        <div className="space-y-2">
+  1268→          {distribution.map((d) => (
+  1269→            <div key={d.star} className="flex items-center gap-2">
+  1270→              <span className="text-xs w-3 text-right">{d.star}</span>
+  1271→              <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+  1272→              <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
+  1273→                <div
+  1274→                  className="h-full bg-amber-400 rounded-full transition-all"
+  1275→                  style={{ width: `${(d.count / maxCount) * 100}%` }}
+  1276→                />
+  1277→              </div>
+  1278→              <span className="text-xs text-muted-foreground w-6 text-right">{d.count}</span>
+  1279→            </div>
+  1280→          ))}
+  1281→        </div>
+  1282→      </Card>
+  1283→
+  1284→      {/* Rating List */}
+  1285→      {ratedOrders.length > 0 ? (
+  1286→        <div className="space-y-3">
+  1287→          {ratedOrders.map((order) =>
+  1288→            (order.ratings || []).map((rating) => (
+  1289→              <Card key={rating.id} className="p-4">
+  1290→                <div className="flex items-center justify-between mb-2">
+  1291→                  <div className="flex items-center gap-2">
+  1292→                    <StarDisplay rating={rating.rating} size={14} />
+  1293→                    <span className="text-xs text-muted-foreground">
+  1294→                      {rating.client?.user
+  1295→                        ? `${rating.client.user.firstName} ${rating.client.user.lastName}`
+  1296→                        : 'Client'}
+  1297→                    </span>
+  1298→                  </div>
+  1299→                  <span className="text-[10px] text-muted-foreground">{formatDateShort(rating.createdAt)}</span>
+  1300→                </div>
+  1301→                {rating.comment && (
+  1302→                  <p className="text-sm text-muted-foreground">{rating.comment}</p>
+  1303→                )}
+  1304→                <p className="text-[10px] text-muted-foreground mt-1.5">{order.orderNumber}</p>
+  1305→              </Card>
+  1306→            ))
+  1307→          )}
+  1308→        </div>
+  1309→      ) : (
+  1310→        <Card className="p-8 text-center">
+  1311→          <Star className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+  1312→          <p className="text-sm text-muted-foreground">Aucune évaluation pour le moment</p>
+  1313→        </Card>
+  1314→      )}
+  1315→    </div>
+  1316→  );
+  1317→}
+  1318→
+  1319→// ─── Wallet View ─────────────────────────────────────────────────────────────
+  1320→
+  1321→function WalletView() {
+  1322→  const [wallet, setWallet] = useState<WalletData | null>(null);
+  1323→  const [loading, setLoading] = useState(true);
+  1324→
+  1325→  useEffect(() => {
+  1326→    let mounted = true;
+  1327→    const load = async () => {
+  1328→      const res = await apiFetch<WalletData>('/api/wallet');
+  1329→      if (mounted) {
+  1330→        if (res.data) setWallet(res.data);
+  1331→        setLoading(false);
+  1332→      }
+  1333→    };
+  1334→    load();
+  1335→    return () => { mounted = false; };
+  1336→  }, []);
+  1337→
+  1338→  if (loading) {
+  1339→    return (
+  1340→      <div className="p-4 space-y-4">
+  1341→        <Skeleton className="h-36 w-full rounded-lg" />
+  1342→        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
+  1343→      </div>
+  1344→    );
+  1345→  }
+  1346→
+  1347→  return (
+  1348→    <div className="p-4 space-y-4 pb-20">
+  1349→      <h2 className="text-lg font-bold">Portefeuille</h2>
+  1350→
+  1351→      {/* Balance */}
+  1352→      <Card className="overflow-hidden border-emerald-500/20">
+  1353→        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 p-6 text-white text-center">
+  1354→          <p className="text-sm opacity-80 mb-1">Solde disponible</p>
+  1355→          <p className="text-3xl font-bold">
+  1356→            {wallet ? formatPrice(wallet.balance) : '0 FCFA'}
+  1357→          </p>
+  1358→        </div>
+  1359→        <CardContent className="p-4">
+  1360→          <div className="flex gap-3">
+  1361→            <Button
+  1362→              variant="outline"
+  1363→              size="sm"
+  1364→              className="flex-1 text-xs"
+  1365→              onClick={() => toast.info('Le dépôt sera bientôt disponible')}
+  1366→            >
+  1367→              <Plus className="w-3.5 h-3.5 mr-1.5" />
+  1368→              Dépôt
+  1369→            </Button>
+  1370→            <Button
+  1371→              variant="outline"
+  1372→              size="sm"
+  1373→              className="flex-1 text-xs"
+  1374→              onClick={() => toast.info('Fonctionnalité de retrait bientôt disponible')}
+  1375→            >
+  1376→              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+  1377→              Retrait
+  1378→            </Button>
+  1379→          </div>
+  1380→        </CardContent>
+  1381→      </Card>
+  1382→
+  1383→      {/* Transactions */}
+  1384→      <Card>
+  1385→        <CardHeader className="pb-2">
+  1386→          <CardTitle className="text-sm">Historique des transactions</CardTitle>
+  1387→        </CardHeader>
+  1388→        <CardContent className="p-4 pt-0">
+  1389→          {wallet && wallet.transactions.length > 0 ? (
+  1390→            <div className="space-y-1 max-h-96 overflow-y-auto">
+  1391→              {wallet.transactions.map((tx) => (
+  1392→                <div key={tx.id} className="flex items-center justify-between py-2.5 border-b last:border-b-0">
+  1393→                  <div className="flex items-center gap-3 min-w-0">
+  1394→                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+  1395→                      tx.type === 'CREDIT' ? 'bg-emerald-500/10' : 'bg-red-500/10'
+  1396→                    }`}>
+  1397→                      {tx.type === 'CREDIT' ? (
+  1398→                        <ArrowRight className="w-4 h-4 text-emerald-500" />
+  1399→                      ) : (
+  1400→                        <ArrowRight className="w-4 h-4 text-red-500 rotate-180" />
+  1401→                      )}
+  1402→                    </div>
+  1403→                    <div className="min-w-0">
+  1404→                      <p className="text-sm font-medium truncate">{tx.description || 'Transaction'}</p>
+  1405→                      <p className="text-[10px] text-muted-foreground">{formatDate(tx.createdAt)}</p>
+  1406→                      {tx.reference && (
+  1407→                        <p className="text-[10px] text-muted-foreground">Réf: {tx.reference}</p>
+  1408→                      )}
+  1409→                    </div>
+  1410→                  </div>
+  1411→                  <span className={`text-sm font-semibold shrink-0 ml-2 ${
+  1412→                    tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-500'
+  1413→                  }`}>
+  1414→                    {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
+  1415→                  </span>
+  1416→                </div>
+  1417→              ))}
+  1418→            </div>
+  1419→          ) : (
+  1420→            <p className="text-sm text-muted-foreground text-center py-6">Aucune transaction</p>
+  1421→          )}
+  1422→        </CardContent>
+  1423→      </Card>
+  1424→    </div>
+  1425→  );
+  1426→}
+  1427→
+  1428→// ─── Profile View ────────────────────────────────────────────────────────────
+  1429→
+  1430→function ProfileView() {
+  1431→  const [profile, setProfile] = useState<DriverProfile | null>(null);
+  1432→  const [loading, setLoading] = useState(true);
+  1433→  const [saving, setSaving] = useState(false);
+  1434→  const user = useAuthStore((s) => s.user);
+  1435→  const { navigate } = useDriverNav();
+  1436→
+  1437→  const [form, setForm] = useState({
+  1438→    vehicleType: 'MOTO',
+  1439→    vehiclePlate: '',
+  1440→    vehicleBrand: '',
+  1441→    vehicleColor: '',
+  1442→  });
+  1443→
+  1444→  useEffect(() => {
+  1445→    const fetchProfile = async () => {
+  1446→      setLoading(true);
+  1447→      const res = await apiFetch<DriverProfile[]>('/api/drivers');
+  1448→      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+  1449→        const p = res.data[0];
+  1450→        setProfile(p);
+  1451→        setForm({
+  1452→          vehicleType: p.vehicleType || 'MOTO',
+  1453→          vehiclePlate: p.vehiclePlate || '',
+  1454→          vehicleBrand: p.vehicleBrand || '',
+  1455→          vehicleColor: p.vehicleColor || '',
+  1456→        });
+  1457→      }
+  1458→      setLoading(false);
+  1459→    };
+  1460→    fetchProfile();
+  1461→  }, []);
+  1462→
+  1463→  const handleSave = async () => {
+  1464→    setSaving(true);
+  1465→    const res = await apiFetch<DriverProfile>('/api/drivers', {
+  1466→      method: 'POST',
+  1467→      body: JSON.stringify(form),
+  1468→    });
+  1469→    if (res.error) {
+  1470→      toast.error(res.error);
+  1471→    } else {
+  1472→      toast.success('Profil mis à jour');
+  1473→      if (res.data) setProfile(res.data);
+  1474→    }
+  1475→    setSaving(false);
+  1476→  };
+  1477→
+  1478→  if (loading) {
+  1479→    return (
+  1480→      <div className="p-4 space-y-4">
+  1481→        <Skeleton className="h-24 w-full rounded-lg" />
+  1482→        <Skeleton className="h-48 w-full rounded-lg" />
+  1483→      </div>
+  1484→    );
+  1485→  }
+  1486→
+  1487→  return (
+  1488→    <div className="p-4 space-y-4 pb-20">
+  1489→      <h2 className="text-lg font-bold">Profil</h2>
+  1490→
+  1491→      {/* User Info */}
+  1492→      <Card className="p-4">
+  1493→        <div className="flex items-center gap-4">
+  1494→          <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center">
+  1495→            {user?.avatar ? (
+  1496→              <img src={user.avatar} alt="" className="w-14 h-14 rounded-full object-cover" />
+  1497→            ) : (
+  1498→              <User className="w-7 h-7 text-emerald-500" />
+  1499→            )}
+  1500→          </div>
+  1501→          <div>
+  1502→            <p className="font-semibold">{user?.firstName} {user?.lastName}</p>
+  1503→            <p className="text-sm text-muted-foreground">{user?.phone}</p>
+  1504→            <p className="text-xs text-muted-foreground">{user?.email}</p>
+  1505→          </div>
+  1506→        </div>
+  1507→        {profile && (
+  1508→          <div className="mt-4 grid grid-cols-2 gap-3">
+  1509→            <div className="bg-muted/50 rounded-lg p-3 text-center">
+  1510→              <p className="text-lg font-bold">{profile.totalDeliveries}</p>
+  1511→              <p className="text-[10px] text-muted-foreground">Livraisons</p>
+  1512→            </div>
+  1513→            <div className="bg-muted/50 rounded-lg p-3 text-center">
+  1514→              <p className="text-lg font-bold">{profile.rating?.toFixed(1) || '—'}</p>
+  1515→              <p className="text-[10px] text-muted-foreground">Note</p>
+  1516→            </div>
+  1517→          </div>
+  1518→        )}
+  1519→      </Card>
+  1520→
+  1521→      {/* Vehicle Info */}
+  1522→      <Card>
+  1523→        <CardHeader className="pb-2">
+  1524→          <CardTitle className="text-sm">Informations du véhicule</CardTitle>
+  1525→        </CardHeader>
+  1526→        <CardContent className="p-4 pt-0 space-y-4">
+  1527→          <div>
+  1528→            <Label className="text-xs">Type de véhicule</Label>
+  1529→            <Select
+  1530→              value={form.vehicleType}
+  1531→              onValueChange={(val) => setForm({ ...form, vehicleType: val })}
+  1532→            >
+  1533→              <SelectTrigger className="mt-1">
+  1534→                <SelectValue />
+  1535→              </SelectTrigger>
+  1536→              <SelectContent>
+  1537→                <SelectItem value="MOTO">Moto</SelectItem>
+  1538→                <SelectItem value="VELO">Vélo</SelectItem>
+  1539→                <SelectItem value="VOITURE">Voiture</SelectItem>
+  1540→              </SelectContent>
+  1541→            </Select>
+  1542→          </div>
+  1543→          <div>
+  1544→            <Label className="text-xs">Immatriculation</Label>
+  1545→            <Input
+  1546→              className="mt-1"
+  1547→              placeholder="Ex: AK-1234-BJ"
+  1548→              value={form.vehiclePlate}
+  1549→              onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
+  1550→            />
+  1551→          </div>
+  1552→          <div>
+  1553→            <Label className="text-xs">Marque</Label>
+  1554→            <Input
+  1555→              className="mt-1"
+  1556→              placeholder="Ex: Yamaha, Honda..."
+  1557→              value={form.vehicleBrand}
+  1558→              onChange={(e) => setForm({ ...form, vehicleBrand: e.target.value })}
+  1559→            />
+  1560→          </div>
+  1561→          <div>
+  1562→            <Label className="text-xs">Couleur</Label>
+  1563→            <Input
+  1564→              className="mt-1"
+  1565→              placeholder="Ex: Rouge, Noir..."
+  1566→              value={form.vehicleColor}
+  1567→              onChange={(e) => setForm({ ...form, vehicleColor: e.target.value })}
+  1568→            />
+  1569→          </div>
+  1570→          <Button
+  1571→            size="sm"
+  1572→            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+  1573→            disabled={saving}
+  1574→            onClick={handleSave}
+  1575→          >
+  1576→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
+  1577→            Enregistrer
+  1578→          </Button>
+  1579→        </CardContent>
+  1580→      </Card>
+  1581→
+  1582→      {/* Quick Links */}
+  1583→      <Card>
+  1584→        <CardContent className="p-0">
+  1585→          <button
+  1586→            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors border-b"
+  1587→            onClick={() => navigate('documents')}
+  1588→          >
+  1589→            <div className="flex items-center gap-3">
+  1590→              <FileText className="w-4 h-4 text-emerald-500" />
+  1591→              <span className="text-sm font-medium">Mes documents</span>
+  1592→            </div>
+  1593→            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  1594→          </button>
+  1595→          <button
+  1596→            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors border-b"
+  1597→            onClick={() => navigate('ratings')}
+  1598→          >
+  1599→            <div className="flex items-center gap-3">
+  1600→              <Star className="w-4 h-4 text-amber-400" />
+  1601→              <span className="text-sm font-medium">Mes évaluations</span>
+  1602→            </div>
+  1603→            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  1604→          </button>
+  1605→          <button
+  1606→            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors border-b"
+  1607→            onClick={() => navigate('wallet')}
+  1608→          >
+  1609→            <div className="flex items-center gap-3">
+  1610→              <Wallet className="w-4 h-4 text-emerald-500" />
+  1611→              <span className="text-sm font-medium">Portefeuille</span>
+  1612→            </div>
+  1613→            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  1614→          </button>
+  1615→          <button
+  1616→            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors"
+  1617→            onClick={() => navigate('support')}
+  1618→          >
+  1619→            <div className="flex items-center gap-3">
+  1620→              <MessageSquare className="w-4 h-4 text-emerald-500" />
+  1621→              <span className="text-sm font-medium">Support</span>
+  1622→            </div>
+  1623→            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  1624→          </button>
+  1625→        </CardContent>
+  1626→      </Card>
+  1627→    </div>
+  1628→  );
+  1629→}
+  1630→
+  1631→// ─── Notifications View ──────────────────────────────────────────────────────
+  1632→
+  1633→function NotificationsView() {
+  1634→  const [notifications, setNotifications] = useState<Notification[]>([]);
+  1635→  const [loading, setLoading] = useState(true);
+  1636→  const [total, setTotal] = useState(0);
+  1637→
+  1638→  useEffect(() => {
+  1639→    let mounted = true;
+  1640→    const load = async () => {
+  1641→      const res = await apiFetch<{ notifications: Notification[]; total: number; unreadCount: number }>(
+  1642→        '/api/notifications?limit=50'
+  1643→      );
+  1644→      if (mounted) {
+  1645→        if (res.data) {
+  1646→          setNotifications(res.data.notifications || []);
+  1647→          setTotal(res.data.total || 0);
+  1648→        }
+  1649→        setLoading(false);
+  1650→      }
+  1651→    };
+  1652→    load();
+  1653→    return () => { mounted = false; };
+  1654→  }, []);
+  1655→
+  1656→  const markAllRead = async () => {
+  1657→    const res = await apiFetch('/api/notifications', { method: 'PUT' });
+  1658→    if (!res.error) {
+  1659→      toast.success('Toutes les notifications marquées comme lues');
+  1660→      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  1661→    }
+  1662→  };
+  1663→
+  1664→  const markOneRead = async (id: string) => {
+  1665→    const res = await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+  1666→    if (!res.error) {
+  1667→      setNotifications((prev) =>
+  1668→        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+  1669→      );
+  1670→    }
+  1671→  };
+  1672→
+  1673→  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  1674→
+  1675→  if (loading) {
+  1676→    return (
+  1677→      <div className="p-4 space-y-3">
+  1678→        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+  1679→      </div>
+  1680→    );
+  1681→  }
+  1682→
+  1683→  return (
+  1684→    <div className="p-4 space-y-4 pb-20">
+  1685→      <div className="flex items-center justify-between">
+  1686→        <h2 className="text-lg font-bold">Notifications</h2>
+  1687→        {unreadCount > 0 && (
+  1688→          <Button variant="ghost" size="sm" className="text-xs text-emerald-600" onClick={markAllRead}>
+  1689→            Tout marquer comme lu
+  1690→          </Button>
+  1691→        )}
+  1692→      </div>
+  1693→
+  1694→      {notifications.length === 0 ? (
+  1695→        <Card className="p-8 text-center">
+  1696→          <Bell className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+  1697→          <p className="text-sm text-muted-foreground">Aucune notification</p>
+  1698→        </Card>
+  1699→      ) : (
+  1700→        <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+  1701→          {notifications.map((notif) => (
+  1702→            <Card
+  1703→              key={notif.id}
+  1704→              className={`p-4 cursor-pointer transition-colors ${
+  1705→                notif.isRead ? 'opacity-60' : 'border-emerald-500/20 bg-emerald-500/5'
+  1706→              }`}
+  1707→              onClick={() => {
+  1708→                if (!notif.isRead) markOneRead(notif.id);
+  1709→              }}
+  1710→            >
+  1711→              <div className="flex items-start gap-3">
+  1712→                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+  1713→                  notif.isRead ? 'bg-muted' : 'bg-emerald-500/10'
+  1714→                }`}>
+  1715→                  <Bell className={`w-3.5 h-3.5 ${notif.isRead ? 'text-muted-foreground' : 'text-emerald-500'}`} />
+  1716→                </div>
+  1717→                <div className="flex-1 min-w-0">
+  1718→                  <div className="flex items-center justify-between gap-2">
+  1719→                    <p className={`text-sm ${notif.isRead ? 'font-medium' : 'font-semibold'}`}>
+  1720→                      {notif.title}
+  1721→                    </p>
+  1722→                    {!notif.isRead && <CircleDot className="w-2 h-2 text-emerald-500 shrink-0" />}
+  1723→                  </div>
+  1724→                  <p className="text-xs text-muted-foreground mt-0.5">{notif.message}</p>
+  1725→                  <p className="text-[10px] text-muted-foreground mt-1">{timeAgo(notif.createdAt)}</p>
+  1726→                </div>
+  1727→              </div>
+  1728→            </Card>
+  1729→          ))}
+  1730→        </div>
+  1731→      )}
+  1732→    </div>
+  1733→  );
+  1734→}
+  1735→
+  1736→// ─── Support View ────────────────────────────────────────────────────────────
+  1737→
+  1738→function SupportView() {
+  1739→  const [subject, setSubject] = useState('');
+  1740→  const [description, setDescription] = useState('');
+  1741→  const [sending, setSending] = useState(false);
+  1742→  const [sent, setSent] = useState(false);
+  1743→
+  1744→  const handleSubmit = async () => {
+  1745→    if (!subject.trim() || !description.trim()) {
+  1746→      toast.error('Veuillez remplir tous les champs');
+  1747→      return;
+  1748→    }
+  1749→    setSending(true);
+  1750→    const res = await apiFetch('/api/support', {
+  1751→      method: 'POST',
+  1752→      body: JSON.stringify({ subject: subject.trim(), description: description.trim() }),
+  1753→    });
+  1754→    if (res.error) {
+  1755→      toast.error(res.error);
+  1756→    } else {
+  1757→      toast.success('Ticket envoyé avec succès !');
+  1758→      setSubject('');
+  1759→      setDescription('');
+  1760→      setSent(true);
+  1761→    }
+  1762→    setSending(false);
+  1763→  };
+  1764→
+  1765→  return (
+  1766→    <div className="p-4 space-y-4 pb-20">
+  1767→      <h2 className="text-lg font-bold">Support</h2>
+  1768→
+  1769→      <Card className="p-6 text-center">
+  1770→        <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-3">
+  1771→          <MessageSquare className="w-7 h-7 text-emerald-500" />
+  1772→        </div>
+  1773→        <p className="text-sm text-muted-foreground">
+  1774→          Notre équipe est là pour vous aider. Décrivez votre problème et nous vous répondrons rapidement.
+  1775→        </p>
+  1776→      </Card>
+  1777→
+  1778→      {sent ? (
+  1779→        <Card className="p-6 text-center">
+  1780→          <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
+  1781→          <p className="font-semibold">Ticket envoyé !</p>
+  1782→          <p className="text-sm text-muted-foreground mt-1">Nous vous répondrons dans les plus brefs délais.</p>
+  1783→          <Button
+  1784→            variant="outline"
+  1785→            size="sm"
+  1786→            className="mt-4"
+  1787→            onClick={() => setSent(false)}
+  1788→          >
+  1789→            Envoyer un autre ticket
+  1790→          </Button>
+  1791→        </Card>
+  1792→      ) : (
+  1793→        <Card>
+  1794→          <CardContent className="p-4 space-y-4">
+  1795→            <div>
+  1796→              <Label>Sujet</Label>
+  1797→              <Input
+  1798→                className="mt-1.5"
+  1799→                placeholder="Sujet de votre demande"
+  1800→                value={subject}
+  1801→                onChange={(e) => setSubject(e.target.value)}
+  1802→              />
+  1803→            </div>
+  1804→            <div>
+  1805→              <Label>Description</Label>
+  1806→              <Textarea
+  1807→                className="mt-1.5"
+  1808→                placeholder="Décrivez votre problème en détail..."
+  1809→                rows={5}
+  1810→                value={description}
+  1811→                onChange={(e) => setDescription(e.target.value)}
+  1812→              />
+  1813→            </div>
+  1814→            <Button
+  1815→              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+  1816→              disabled={sending}
+  1817→              onClick={handleSubmit}
+  1818→            >
+  1819→              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+  1820→              Envoyer
+  1821→            </Button>
+  1822→          </CardContent>
+  1823→        </Card>
+  1824→      )}
+  1825→    </div>
+  1826→  );
+  1827→}
+  1828→
+  1829→// ─── Documents View ──────────────────────────────────────────────────────────
+  1830→
+  1831→const DOC_FIELDS = [
+  1832→  { key: 'idCardImage' as const, label: "Carte d'identité", icon: FileText },
+  1833→  { key: 'licenseImage' as const, label: 'Permis de conduire', icon: Shield },
+  1834→  { key: 'vehicleImage' as const, label: "Carte grise du véhicule", icon: FileUp },
+  1835→  { key: 'selfieImage' as const, label: 'Selfie', icon: UserCircle },
+  1836→];
+  1837→
+  1838→function DocumentsView() {
+  1839→  const [profile, setProfile] = useState<DriverProfile | null>(null);
+  1840→  const [loading, setLoading] = useState(true);
+  1841→  const [uploading, setUploading] = useState<string | null>(null);
+  1842→  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  1843→
+  1844→  useEffect(() => {
+  1845→    const fetchProfile = async () => {
+  1846→      setLoading(true);
+  1847→      const res = await apiFetch<DriverProfile[]>('/api/drivers');
+  1848→      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+  1849→        setProfile(res.data[0]);
+  1850→      }
+  1851→      setLoading(false);
+  1852→    };
+  1853→    fetchProfile();
+  1854→  }, []);
+  1855→
+  1856→  const handleUpload = async (field: string) => {
+  1857→    const input = fileRefs.current[field];
+  1858→    if (!input || !input.files || input.files.length === 0) return;
+  1859→
+  1860→    const file = input.files[0];
+  1861→    if (file.size > 5 * 1024 * 1024) {
+  1862→      toast.error('Fichier trop volumineux (max 5 Mo)');
+  1863→      return;
+  1864→    }
+  1865→
+  1866→    setUploading(field);
+  1867→    const formData = new FormData();
+  1868→    formData.append('file', file);
+  1869→
+  1870→    try {
+  1871→      const token = useAuthStore.getState().token;
+  1872→      const uploadRes = await fetch('/api/upload', {
+  1873→        method: 'POST',
+  1874→        headers: token ? { Authorization: `Bearer ${token}` } : {},
+  1875→        body: formData,
+  1876→      });
+  1877→      const uploadData = await uploadRes.json();
+  1878→
+  1879→      if (!uploadRes.ok || !uploadData.url) {
+  1880→        toast.error(uploadData.error || 'Erreur lors du téléchargement');
+  1881→        setUploading(null);
+  1882→        return;
+  1883→      }
+  1884→
+  1885→      const updateRes = await apiFetch<DriverProfile>('/api/drivers', {
+  1886→        method: 'POST',
+  1887→        body: JSON.stringify({ [field]: uploadData.url }),
+  1888→      });
+  1889→
+  1890→      if (updateRes.error) {
+  1891→        toast.error(updateRes.error);
+  1892→      } else {
+  1893→        toast.success('Document téléchargé avec succès');
+  1894→        if (updateRes.data) setProfile(updateRes.data);
+  1895→      }
+  1896→    } catch {
+  1897→      toast.error('Erreur lors du téléchargement');
+  1898→    }
+  1899→    setUploading(null);
+  1900→    input.value = '';
+  1901→  };
+  1902→
+  1903→  if (loading) {
+  1904→    return (
+  1905→      <div className="p-4 space-y-4">
+  1906→        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+  1907→      </div>
+  1908→    );
+  1909→  }
+  1910→
+  1911→  return (
+  1912→    <div className="p-4 space-y-4 pb-20">
+  1913→      <h2 className="text-lg font-bold">Documents</h2>
+  1914→
+  1915→      <p className="text-sm text-muted-foreground">
+  1916→        Veuillez télécharger les documents requis pour vérifier votre compte.
+  1917→      </p>
+  1918→
+  1919→      <div className="space-y-3">
+  1920→        {DOC_FIELDS.map((doc) => {
+  1921→          const hasImage = !!(profile as Record<string, unknown> | null)?.[doc.key];
+  1922→          const Icon = doc.icon;
+  1923→          return (
+  1924→            <Card key={doc.key} className="overflow-hidden">
+  1925→              <CardContent className="p-4">
+  1926→                <div className="flex items-center gap-3 mb-3">
+  1927→                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+  1928→                    hasImage ? 'bg-emerald-500/10' : 'bg-muted'
+  1929→                  }`}>
+  1930→                    <Icon className={`w-4 h-4 ${hasImage ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+  1931→                  </div>
+  1932→                  <div className="flex-1">
+  1933→                    <p className="text-sm font-medium">{doc.label}</p>
+  1934→                    <div className="flex items-center gap-1.5 mt-0.5">
+  1935→                      {hasImage ? (
+  1936→                        <>
+  1937→                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+  1938→                          <span className="text-[10px] text-emerald-600">Téléchargé</span>
+  1939→                        </>
+  1940→                      ) : (
+  1941→                        <>
+  1942→                          <XCircle className="w-3 h-3 text-red-400" />
+  1943→                          <span className="text-[10px] text-muted-foreground">Manquant</span>
+  1944→                        </>
+  1945→                      )}
+  1946→                    </div>
+  1947→                  </div>
+  1948→                </div>
+  1949→
+  1950→                {/* Preview */}
+  1951→                {hasImage && (
+  1952→                  <div className="mb-3 rounded-lg overflow-hidden bg-muted/50 border max-h-48">
+  1953→                    <img
+  1954→                      src={(profile as Record<string, unknown> | null)?.[doc.key] as string}
+  1955→                      alt={doc.label}
+  1956→                      className="w-full h-full object-contain max-h-48"
+  1957→                    />
+  1958→                  </div>
+  1959→                )}
+  1960→
+  1961→                <input
+  1962→                  ref={(el) => { fileRefs.current[doc.key] = el; }}
+  1963→                  type="file"
+  1964→                  accept="image/*,.pdf"
+  1965→                  className="hidden"
+  1966→                  onChange={() => handleUpload(doc.key)}
+  1967→                />
+  1968→
+  1969→                <Button
+  1970→                  variant="outline"
+  1971→                  size="sm"
+  1972→                  className="w-full text-xs"
+  1973→                  disabled={uploading === doc.key}
+  1974→                  onClick={() => fileRefs.current[doc.key]?.click()}
+  1975→                >
+  1976→                  {uploading === doc.key ? (
+  1977→                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+  1978→                  ) : hasImage ? (
+  1979→                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+  1980→                  ) : (
+  1981→                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+  1982→                  )}
+  1983→                  {uploading === doc.key
+  1984→                    ? 'Téléchargement...'
+  1985→                    : hasImage
+  1986→                      ? 'Remplacer'
+  1987→                      : 'Télécharger'}
+  1988→                </Button>
+  1989→              </CardContent>
+  1990→            </Card>
+  1991→          );
+  1992→        })}
+  1993→      </div>
+  1994→    </div>
+  1995→  );
+  1996→}
+  1997→
+  1998→// ─── Main Driver App ─────────────────────────────────────────────────────────
+  1999→
+  2000→export default function DriverApp() {
+
+[showing lines 1-2000 of 2051; use offset=2001 with limit to continue reading]

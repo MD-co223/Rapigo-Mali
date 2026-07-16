@@ -50,7 +50,7 @@ export function requireAuth(request?: Request) {
 
 export function requireAdmin(request?: Request) {
   return getAuthUser(request).then(auth => {
-    if (!auth || (auth.role !== 'ADMIN')) return null;
+    if (!auth || (auth.role !== 'ADMIN' && !auth.isSuperAdmin)) return null;
     return auth;
   });
 }

@@ -1,0 +1,949 @@
+     1→'use client';
+     2→
+     3→import React, { lazy, Suspense, useEffect, useState, useCallback, useSyncExternalStore } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import { useTheme } from 'next-themes';
+     6→import { toast } from 'sonner';
+     7→import {
+     8→  Sun, Moon, Truck, Store, User,
+     9→  ArrowRight, MapPin, Clock, Star, Smartphone,
+    10→  Package, Pill, ShoppingBag, Zap, Users,
+    11→  Eye, EyeOff, Mail, Phone, Lock, UserPlus, Loader2,
+    12→  ChevronRight, UtensilsCrossed, Laptop, Bike, Car,
+    13→  Shield, CreditCard, Leaf, CheckCircle2, Search, ClipboardList,
+    14→} from 'lucide-react';
+    15→import { Button } from '@/components/ui/button';
+    16→import { Input } from '@/components/ui/input';
+    17→import { Label } from '@/components/ui/label';
+    18→import { Card, CardContent } from '@/components/ui/card';
+    19→import { Badge } from '@/components/ui/badge';
+    20→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    21→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+    22→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+    23→import { Separator } from '@/components/ui/separator';
+    24→
+    25→import { useAuthStore, useSpaceStore, AppSpace, apiFetch, AuthUser } from '@/lib/store';
+    26→
+    27→// ============================================
+    28→// Lazy-loaded space components
+    29→// ============================================
+    30→const AdminApp = lazy(() => import('@/components/admin/admin-app'));
+    31→const ClientApp = lazy(() => import('@/components/client/client-app'));
+    32→const MerchantApp = lazy(() => import('@/components/merchant/merchant-app'));
+    33→const DriverApp = lazy(() => import('@/components/driver/driver-app'));
+    34→
+    35→class AppErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean; error: Error | null}> {
+    36→  constructor(props: {children: React.ReactNode}) { super(props); this.state = { hasError: false, error: null }; }
+    37→  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+    38→  render() {
+    39→    if (this.state.hasError) {
+    40→      return (
+    41→        <div className="flex min-h-screen items-center justify-center bg-background p-8">
+    42→          <div className="text-center max-w-md">
+    43→            <p className="text-4xl mb-4">⚠️</p>
+    44→            <h2 className="text-xl font-bold mb-2">Erreur de chargement</h2>
+    45→            <p className="text-sm text-muted-foreground mb-4">{this.state.error?.message || 'Une erreur inattendue est survenue.'}</p>
+    46→            <Button variant="outline" onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}>
+    47→              Réessayer
+    48→            </Button>
+    49→          </div>
+    50→        </div>
+    51→      );
+    52→    }
+    53→    return this.props.children;
+    54→  }
+    55→}
+    56→
+    57→// ============================================
+    58→// Space loading fallback
+    59→// ============================================
+    60→function SpaceLoader() {
+    61→  return (
+    62→    <div className="flex items-center justify-center h-full">
+    63→      <div className="flex flex-col items-center gap-3">
+    64→        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-600/25 animate-pulse">
+    65→          <Truck className="w-7 h-7 text-white" />
+    66→        </div>
+    67→        <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+    68→        <p className="text-sm text-muted-foreground">Chargement de votre espace…</p>
+    69→      </div>
+    70→    </div>
+    71→  );
+    72→}
+    73→
+    74→// ============================================
+    75→// MAIN PAGE COMPONENT
+    76→// ============================================
+    77→export default function Page() {
+    78→  const { theme, setTheme } = useTheme();
+    79→  const { user, isAuthenticated, token, login, logout } = useAuthStore();
+    80→  const { currentSpace, setSpace } = useSpaceStore();
+    81→  const mounted = useSyncExternalStore(
+    82→    () => () => {},
+    83→    () => true,
+    84→    () => false
+    85→  );
+    86→  const [showAuth, setShowAuth] = useState(false);
+    87→  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+    88→
+    89→  // Only show init loader if there's a stored token to verify
+    90→  const initializing = !!token && !isAuthenticated;
+    91→
+    92→  // Derive effective space from auth state
+    93→  const effectiveSpace: AppSpace = isAuthenticated && user
+    94→    ? (user.role === 'ADMIN'
+    95→        ? currentSpace
+    96→        : ({ CLIENT: 'client' as const, MERCHANT: 'merchant' as const, DRIVER: 'driver' as const, ADMIN: 'admin' as const }[user.role] || 'landing'))
+    97→    : currentSpace;
+    98→
+    99→  // Check session on mount when token exists
+   100→  useEffect(() => {
+   101→    if (!token) return;
+   102→    let cancelled = false;
+   103→    (async () => {
+   104→      const { data, error } = await apiFetch<AuthUser>('/api/auth/me');
+   105→      if (cancelled) return;
+   106→      if (error || !data) {
+   107→        logout();
+   108→      } else {
+   109→        login(data, token);
+   110→        const spaceMap: Record<string, AppSpace> = {
+   111→          CLIENT: 'client',
+   112→          MERCHANT: 'merchant',
+   113→          DRIVER: 'driver',
+   114→          ADMIN: 'admin',
+   115→        };
+   116→        setSpace(spaceMap[data.role] || 'landing');
+   117→      }
+   118→    })();
+   119→    return () => { cancelled = true; };
+   120→  }, []);
+   121→
+   122→  // Auto-switch space on login
+   123→  useEffect(() => {
+   124→    if (isAuthenticated && user) {
+   125→      const spaceMap: Record<string, AppSpace> = {
+   126→        CLIENT: 'client',
+   127→        MERCHANT: 'merchant',
+   128→        DRIVER: 'driver',
+   129→        ADMIN: 'admin',
+   130→      };
+   131→      setSpace(spaceMap[user.role] || 'landing');
+   132→    }
+   133→  }, [isAuthenticated, user?.id, setSpace]);
+   134→
+   135→  const handleLogin = useCallback(async (email: string, password: string) => {
+   136→    const { data, error } = await apiFetch<{ user: AuthUser; token: string }>('/api/auth/login', {
+   137→      method: 'POST',
+   138→      body: JSON.stringify({ email, password }),
+   139→    });
+   140→    if (error) {
+   141→      toast.error(error);
+   142→      return false;
+   143→    }
+   144→    if (data) {
+   145→      login(data.user, data.token);
+   146→      const spaceMap: Record<string, AppSpace> = {
+   147→        CLIENT: 'client',
+   148→        MERCHANT: 'merchant',
+   149→        DRIVER: 'driver',
+   150→        ADMIN: 'admin',
+   151→      };
+   152→      setSpace(spaceMap[data.user.role] || 'landing');
+   153→      toast.success(`Bienvenue ${data.user.firstName} !`);
+   154→      return true;
+   155→    }
+   156→    return false;
+   157→  }, [login, setSpace]);
+   158→
+   159→  const handleRegister = useCallback(async (formData: Record<string, string>) => {
+   160→    const { data, error } = await apiFetch<{ user: AuthUser; token: string }>('/api/auth/register', {
+   161→      method: 'POST',
+   162→      body: JSON.stringify(formData),
+   163→    });
+   164→    if (error) {
+   165→      toast.error(error);
+   166→      return false;
+   167→    }
+   168→    if (data) {
+   169→      login(data.user, data.token);
+   170→      const spaceMap: Record<string, AppSpace> = {
+   171→        CLIENT: 'client',
+   172→        MERCHANT: 'merchant',
+   173→        DRIVER: 'driver',
+   174→        ADMIN: 'admin',
+   175→      };
+   176→      setSpace(spaceMap[data.user.role] || 'landing');
+   177→      toast.success('Compte créé avec succès ! Bienvenue sur Rapigo.');
+   178→      return true;
+   179→    }
+   180→    return false;
+   181→  }, [login, setSpace]);
+   182→
+   183→  const handleLogout = useCallback(() => {
+   184→    logout();
+   185→    setSpace('landing');
+   186→    toast.success('Vous avez été déconnecté.');
+   187→  }, [logout, setSpace]);
+   188→
+   189→  // Initialization screen
+   190→  if (initializing) {
+   191→    return (
+   192→      <div className="min-h-screen flex items-center justify-center bg-background">
+   193→        <div className="flex flex-col items-center gap-4">
+   194→          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-600/25">
+   195→            <Truck className="w-7 h-7 text-white" />
+   196→          </div>
+   197→          <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+   198→          <p className="text-sm text-muted-foreground">Vérification de la session…</p>
+   199→        </div>
+   200→      </div>
+   201→    );
+   202→  }
+   203→
+   204→  // Authenticated space view
+   205→  if (isAuthenticated && user && effectiveSpace !== 'landing') {
+   206→    return (
+   207→      <div className="h-screen flex flex-col overflow-hidden">
+   208→        <div className="flex-1 min-h-0 overflow-hidden">
+   209→          <AnimatePresence mode="wait">
+   210→            <motion.div
+   211→              key={effectiveSpace}
+   212→              initial={{ opacity: 0, y: 10 }}
+   213→              animate={{ opacity: 1, y: 0 }}
+   214→              exit={{ opacity: 0, y: -10 }}
+   215→              transition={{ duration: 0.2 }}
+   216→              className="h-full"
+   217→            >
+   218→              <AppErrorBoundary>
+   219→              <Suspense fallback={<SpaceLoader />}>
+   220→                {effectiveSpace === 'admin' && <AdminApp />}
+   221→                {effectiveSpace === 'client' && <ClientApp />}
+   222→                {effectiveSpace === 'merchant' && <MerchantApp />}
+   223→                {effectiveSpace === 'driver' && <DriverApp />}
+   224→              </Suspense>
+   225→              </AppErrorBoundary>
+   226→            </motion.div>
+   227→          </AnimatePresence>
+   228→        </div>
+   229→      </div>
+   230→    );
+   231→  }
+   232→
+   233→  // ============================================
+   234→  // LANDING PAGE
+   235→  // ============================================
+   236→  return (
+   237→    <div className="min-h-screen flex flex-col bg-background" suppressHydrationWarning>
+   238→      {/* ── Navbar ── */}
+   239→      <nav className="fixed top-0 left-0 right-0 z-50 glass-strong">
+   240→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   241→          <div className="flex items-center justify-between h-16">
+   242→            <div className="flex items-center gap-2.5">
+   243→              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center shadow-md shadow-emerald-600/20">
+   244→                <Truck className="w-5 h-5 text-white" />
+   245→              </div>
+   246→              <span className="text-xl font-bold gradient-text">Rapigo</span>
+   247→              <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] px-1.5 py-0 h-5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+   248→                V2.1
+   249→              </Badge>
+   250→            </div>
+   251→            <div className="flex items-center gap-2">
+   252→              {mounted && (
+   253→                <Button
+   254→                  variant="ghost"
+   255→                  size="icon"
+   256→                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+   257→                  className="rounded-full"
+   258→                  aria-label="Changer le thème"
+   259→                >
+   260→                  {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+   261→                </Button>
+   262→              )}
+   263→              <Button
+   264→                onClick={() => { setAuthTab('login'); setShowAuth(true); }}
+   265→                className="rounded-full px-5 bg-emerald-600 hover:bg-emerald-700 text-white"
+   266→              >
+   267→                Connexion
+   268→              </Button>
+   269→              <Button
+   270→                variant="outline"
+   271→                onClick={() => { setAuthTab('register'); setShowAuth(true); }}
+   272→                className="rounded-full px-5 hidden sm:flex border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+   273→              >
+   274→                Inscription
+   275→              </Button>
+   276→            </div>
+   277→          </div>
+   278→        </div>
+   279→      </nav>
+   280→
+   281→      {/* ── Hero Section ── */}
+   282→      <section className="relative pt-28 pb-20 sm:pt-36 sm:pb-28 overflow-hidden">
+   283→        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/80 via-transparent to-amber-50/50 dark:from-emerald-950/20 dark:via-transparent dark:to-amber-950/10" />
+   284→        <div className="absolute top-20 -right-32 w-[500px] h-[500px] bg-emerald-400/15 rounded-full blur-3xl" />
+   285→        <div className="absolute bottom-0 -left-32 w-[400px] h-[400px] bg-amber-400/10 rounded-full blur-3xl" />
+   286→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+   287→          <motion.div
+   288→            initial={{ opacity: 0, y: 24 }}
+   289→            animate={{ opacity: 1, y: 0 }}
+   290→            transition={{ duration: 0.6 }}
+   291→            className="text-center max-w-4xl mx-auto"
+   292→          >
+   293→            <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-sm font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+   294→              <Zap className="w-3.5 h-3.5 mr-1.5" />
+   295→              La super-app de livraison N°1 au Mali
+   296→            </Badge>
+   297→            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 leading-[1.1]">
+   298→              Tout livré
+   299→              <span className="gradient-text"> chez vous</span>
+   300→              <br />
+   301→              en quelques minutes
+   302→            </h1>
+   303→            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+   304→              Restaurants, supermarchés, pharmacies, boutiques et colis — Rapigo vous connecte aux meilleurs commerçants de Bamako pour une livraison rapide et en toute sécurité.
+   305→            </p>
+   306→            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+   307→              <Button
+   308→                size="lg"
+   309→                className="rounded-full px-8 h-13 text-base font-semibold shadow-lg shadow-emerald-600/25 bg-emerald-600 hover:bg-emerald-700 text-white"
+   310→                onClick={() => { setAuthTab('register'); setShowAuth(true); }}
+   311→              >
+   312→                Commander maintenant <ArrowRight className="w-4 h-4 ml-2" />
+   313→              </Button>
+   314→              <Button
+   315→                size="lg"
+   316→                variant="outline"
+   317→                className="rounded-full px-8 h-13 text-base border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+   318→                onClick={() => { setAuthTab('register'); setShowAuth(true); }}
+   319→              >
+   320→                <Truck className="w-4 h-4 mr-2" />
+   321→                Devenir livreur
+   322→              </Button>
+   323→            </div>
+   324→          </motion.div>
+   325→        </div>
+   326→      </section>
+   327→
+   328→      {/* ── Feature Cards ── */}
+   329→      <section className="py-20">
+   330→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   331→          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
+   332→            <div className="text-center mb-14">
+   333→              <h2 className="text-2xl sm:text-3xl font-bold mb-3">Pourquoi Rapigo ?</h2>
+   334→              <p className="text-muted-foreground max-w-xl mx-auto">
+   335→                Une expérience de livraison pensée pour le Mali, avec des solutions de paiement locales et un service client réactif.
+   336→              </p>
+   337→            </div>
+   338→            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+   339→              {[
+   340→                { icon: Clock, title: 'Livraison rapide', desc: 'En moyenne 30 minutes pour vos commandes alimentaires à Bamako' },
+   341→                { icon: Smartphone, title: 'Commande facile', desc: 'Interface intuitive pour passer vos commandes en quelques clics' },
+   342→                { icon: CreditCard, title: 'Paiement mobile', desc: 'Orange Money, Moov Money, Wave, espèces et portefeuille' },
+   343→                { icon: MapPin, title: 'Suivi en temps réel', desc: 'Suivez votre livreur en direct sur la carte GPS' },
+   344→              ].map((feat, i) => (
+   345→                <motion.div
+   346→                  key={feat.title}
+   347→                  initial={{ opacity: 0, y: 20 }}
+   348→                  whileInView={{ opacity: 1, y: 0 }}
+   349→                  viewport={{ once: true }}
+   350→                  transition={{ delay: i * 0.08 }}
+   351→                >
+   352→                  <Card className="h-full hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-border/50 group">
+   353→                    <CardContent className="p-6">
+   354→                      <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+   355→                        <feat.icon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+   356→                      </div>
+   357→                      <h3 className="font-semibold mb-2">{feat.title}</h3>
+   358→                      <p className="text-sm text-muted-foreground leading-relaxed">{feat.desc}</p>
+   359→                    </CardContent>
+   360→                  </Card>
+   361→                </motion.div>
+   362→              ))}
+   363→            </div>
+   364→          </motion.div>
+   365→        </div>
+   366→      </section>
+   367→
+   368→      {/* ── How It Works ── */}
+   369→      <section className="py-20 bg-muted/40">
+   370→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   371→          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
+   372→            <div className="text-center mb-14">
+   373→              <h2 className="text-2xl sm:text-3xl font-bold mb-3">Comment ça marche ?</h2>
+   374→              <p className="text-muted-foreground max-w-xl mx-auto">
+   375→                Commandez en 3 étapes simples et recevez votre livraison en un rien de temps.
+   376→              </p>
+   377→            </div>
+   378→            <div className="grid sm:grid-cols-3 gap-6 lg:gap-8">
+   379→              {[
+   380→                {
+   381→                  step: '01',
+   382→                  icon: Search,
+   383→                  title: 'Parcourez les commerces',
+   384→                  desc: 'Explorez les restaurants, supermarchés, pharmacies et boutiques disponibles près de chez vous.',
+   385→                  color: 'from-emerald-500 to-emerald-600',
+   386→                },
+   387→                {
+   388→                  step: '02',
+   389→                  icon: ClipboardList,
+   390→                  title: 'Passez votre commande',
+   391→                  desc: 'Ajoutez vos articles au panier, choisissez votre adresse et votre mode de paiement préféré.',
+   392→                  color: 'from-amber-500 to-orange-500',
+   393→                },
+   394→                {
+   395→                  step: '03',
+   396→                  icon: CheckCircle2,
+   397→                  title: 'Recevez votre livraison',
+   398→                  desc: 'Un livreur vous est assigné et vous pouvez suivre votre commande en temps réel jusqu\'à la réception.',
+   399→                  color: 'from-teal-500 to-green-500',
+   400→                },
+   401→              ].map((item, i) => (
+   402→                <motion.div
+   403→                  key={item.step}
+   404→                  initial={{ opacity: 0, y: 20 }}
+   405→                  whileInView={{ opacity: 1, y: 0 }}
+   406→                  viewport={{ once: true }}
+   407→                  transition={{ delay: i * 0.12 }}
+   408→                  className="relative"
+   409→                >
+   410→                  {i < 2 && (
+   411→                    <div className="hidden sm:block absolute top-12 left-[calc(50%+2rem)] w-[calc(100%-4rem)] h-0.5 bg-gradient-to-r from-border to-border/30" />
+   412→                  )}
+   413→                  <Card className="relative h-full text-center hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-border/50 overflow-hidden">
+   414→                    <CardContent className="pt-8 pb-6 px-6">
+   415→                      <div className={`w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-lg`}>
+   416→                        <item.icon className="w-8 h-8 text-white" />
+   417→                      </div>
+   418→                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tracking-widest uppercase mb-2 block">
+   419→                        Étape {item.step}
+   420→                      </span>
+   421→                      <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
+   422→                      <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+   423→                    </CardContent>
+   424→                  </Card>
+   425→                </motion.div>
+   426→              ))}
+   427→            </div>
+   428→          </motion.div>
+   429→        </div>
+   430→      </section>
+   431→
+   432→      {/* ── Business Categories ── */}
+   433→      <section className="py-20">
+   434→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   435→          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
+   436→            <div className="text-center mb-14">
+   437→              <h2 className="text-2xl sm:text-3xl font-bold mb-3">Que souhaitez-vous ?</h2>
+   438→              <p className="text-muted-foreground max-w-xl mx-auto">
+   439→                Explorez nos catégories et trouvez exactement ce dont vous avez besoin.
+   440→              </p>
+   441→            </div>
+   442→            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+   443→              {[
+   444→                { icon: UtensilsCrossed, label: 'Restaurants', desc: 'Plats délicieux', gradient: 'from-orange-500 to-red-500' },
+   445→                { icon: ShoppingBag, label: 'Supermarchés', desc: 'Courses quotidiennes', gradient: 'from-emerald-500 to-green-600' },
+   446→                { icon: Pill, label: 'Pharmacies', desc: 'Santé & bien-être', gradient: 'from-teal-500 to-cyan-500' },
+   447→                { icon: Laptop, label: 'Électronique', desc: 'High-tech & gadgets', gradient: 'from-violet-500 to-purple-500' },
+   448→                { icon: Package, label: 'Colis', desc: 'Envois & retraits', gradient: 'from-amber-500 to-yellow-500' },
+   449→              ].map((cat, i) => (
+   450→                <motion.div
+   451→                  key={cat.label}
+   452→                  initial={{ opacity: 0, y: 20 }}
+   453→                  whileInView={{ opacity: 1, y: 0 }}
+   454→                  viewport={{ once: true }}
+   455→                  transition={{ delay: i * 0.08 }}
+   456→                >
+   457→                  <Card
+   458→                    className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-border/50 overflow-hidden cursor-pointer"
+   459→                    onClick={() => { setAuthTab('register'); setShowAuth(true); }}
+   460→                  >
+   461→                    <CardContent className="p-5 text-center">
+   462→                      <div className={`w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br ${cat.gradient} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
+   463→                        <cat.icon className="w-7 h-7 text-white" />
+   464→                      </div>
+   465→                      <h3 className="font-semibold text-sm mb-1">{cat.label}</h3>
+   466→                      <p className="text-xs text-muted-foreground">{cat.desc}</p>
+   467→                    </CardContent>
+   468→                  </Card>
+   469→                </motion.div>
+   470→              ))}
+   471→            </div>
+   472→          </motion.div>
+   473→        </div>
+   474→      </section>
+   475→
+   476→      {/* ── Trust / Stats Section ── */}
+   477→      <section className="py-20 bg-muted/40">
+   478→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   479→          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+   480→            {[
+   481→              { icon: Users, label: 'Utilisateurs actifs', value: '10 000+' },
+   482→              { icon: Store, label: 'Commerçants partenaires', value: '500+' },
+   483→              { icon: Truck, label: 'Livreurs actifs', value: '300+' },
+   484→              { icon: Star, label: 'Note moyenne', value: '4.8/5' },
+   485→            ].map((stat, i) => (
+   486→              <motion.div
+   487→                key={stat.label}
+   488→                initial={{ opacity: 0, y: 16 }}
+   489→                whileInView={{ opacity: 1, y: 0 }}
+   490→                viewport={{ once: true }}
+   491→                transition={{ delay: i * 0.08 }}
+   492→              >
+   493→                <Card className="text-center border-border/50 hover:shadow-md transition-shadow">
+   494→                  <CardContent className="p-6">
+   495→                    <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+   496→                      <stat.icon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+   497→                    </div>
+   498→                    <div className="text-2xl sm:text-3xl font-extrabold mb-1">{stat.value}</div>
+   499→                    <div className="text-sm text-muted-foreground">{stat.label}</div>
+   500→                  </CardContent>
+   501→                </Card>
+   502→              </motion.div>
+   503→            ))}
+   504→          </div>
+   505→        </div>
+   506→      </section>
+   507→
+   508→      {/* ── CTA Section ── */}
+   509→      <section className="py-20">
+   510→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   511→          <motion.div
+   512→            initial={{ opacity: 0, y: 20 }}
+   513→            whileInView={{ opacity: 1, y: 0 }}
+   514→            viewport={{ once: true }}
+   515→          >
+   516→            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-emerald-600 to-emerald-700 dark:from-emerald-700 dark:to-emerald-900">
+   517→              <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+   518→              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+   519→              <CardContent className="relative p-8 sm:p-12 text-center">
+   520→                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+   521→                  Prêt à simplifier vos livraisons ?
+   522→                </h2>
+   523→                <p className="text-emerald-100 max-w-xl mx-auto mb-8 leading-relaxed">
+   524→                  Rejoignez des milliers de Maliens qui font confiance à Rapigo pour leurs livraisons quotidiennes. Inscription gratuite, livraison rapide.
+   525→                </p>
+   526→                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+   527→                  <Button
+   528→                    size="lg"
+   529→                    className="rounded-full px-8 h-12 bg-white text-emerald-700 hover:bg-emerald-50 font-semibold shadow-lg"
+   530→                    onClick={() => { setAuthTab('register'); setShowAuth(true); }}
+   531→                  >
+   532→                    Créer un compte gratuit <ChevronRight className="w-4 h-4 ml-1" />
+   533→                  </Button>
+   534→                  <Button
+   535→                    size="lg"
+   536→                    variant="outline"
+   537→                    className="rounded-full px-8 h-12 border-white/30 text-white hover:bg-white/10 bg-transparent"
+   538→                    onClick={() => { setAuthTab('login'); setShowAuth(true); }}
+   539→                  >
+   540→                    Se connecter
+   541→                  </Button>
+   542→                </div>
+   543→              </CardContent>
+   544→            </Card>
+   545→          </motion.div>
+   546→        </div>
+   547→      </section>
+   548→
+   549→      {/* ── Footer ── */}
+   550→      <footer className="py-10 border-t bg-card/50 mt-auto">
+   551→        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   552→          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+   553→            <div className="flex items-center gap-2.5">
+   554→              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center">
+   555→                <Truck className="w-4 h-4 text-white" />
+   556→              </div>
+   557→              <span className="font-bold gradient-text">Rapigo Mali</span>
+   558→              <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+   559→                V2.1
+   560→              </Badge>
+   561→            </div>
+   562→            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+   563→              <span className="flex items-center gap-1"><Leaf className="w-3.5 h-3.5" /> Éco-responsable</span>
+   564→              <Separator orientation="vertical" className="h-4" />
+   565→              <span className="flex items-center gap-1"><Shield className="w-3.5 h-3.5" /> Paiements sécurisés</span>
+   566→            </div>
+   567→            <p className="text-sm text-muted-foreground">
+   568→              &copy; {new Date().getFullYear()} Rapigo Mali. Tous droits réservés.
+   569→            </p>
+   570→          </div>
+   571→        </div>
+   572→      </footer>
+   573→
+   574→      {/* ── Auth Dialog ── */}
+   575→      <AuthDialog
+   576→        open={showAuth}
+   577→        onOpenChange={setShowAuth}
+   578→        defaultTab={authTab}
+   579→        onTabChange={setAuthTab}
+   580→        onLogin={handleLogin}
+   581→        onRegister={handleRegister}
+   582→      />
+   583→    </div>
+   584→  );
+   585→}
+   586→
+   587→  /* TopBar removed - each space component has its own header */
+   588→
+   589→// ============================================
+   590→// AUTH DIALOG
+   591→// ============================================
+   592→function AuthDialog({
+   593→  open,
+   594→  onOpenChange,
+   595→  defaultTab,
+   596→  onTabChange,
+   597→  onLogin,
+   598→  onRegister,
+   599→}: {
+   600→  open: boolean;
+   601→  onOpenChange: (v: boolean) => void;
+   602→  defaultTab: 'login' | 'register';
+   603→  onTabChange: (t: 'login' | 'register') => void;
+   604→  onLogin: (email: string, password: string) => Promise<boolean>;
+   605→  onRegister: (data: Record<string, string>) => Promise<boolean>;
+   606→}) {
+   607→  const [loading, setLoading] = useState(false);
+   608→  const [showPass, setShowPass] = useState(false);
+   609→  const [showRegPass, setShowRegPass] = useState(false);
+   610→  const [loginError, setLoginError] = useState('');
+   611→  const [regError, setRegError] = useState('');
+   612→  const [regRole, setRegRole] = useState<'CLIENT' | 'MERCHANT' | 'DRIVER'>('CLIENT');
+   613→  const [vehicleType, setVehicleType] = useState('MOTO');
+   614→
+   615→  const handleLoginSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+   616→    e.preventDefault();
+   617→    setLoginError('');
+   618→    const fd = new FormData(e.currentTarget);
+   619→    const email = (fd.get('email') as string)?.trim();
+   620→    const password = fd.get('password') as string;
+   621→
+   622→    if (!email || !email.includes('@')) {
+   623→      setLoginError('Veuillez entrer une adresse email valide.');
+   624→      return;
+   625→    }
+   626→    if (!password || password.length < 6) {
+   627→      setLoginError('Le mot de passe doit contenir au moins 6 caractères.');
+   628→      return;
+   629→    }
+   630→
+   631→    setLoading(true);
+   632→    const ok = await onLogin(email, password);
+   633→    setLoading(false);
+   634→    if (ok) onOpenChange(false);
+   635→  };
+   636→
+   637→  const handleRegisterSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+   638→    e.preventDefault();
+   639→    setRegError('');
+   640→    const fd = new FormData(e.currentTarget);
+   641→    const data: Record<string, string> = {};
+   642→    fd.forEach((v, k) => {
+   643→      if (typeof v === 'string') data[k] = v.trim();
+   644→    });
+   645→
+   646→    if (!data.firstName || data.firstName.length < 2) {
+   647→      setRegError('Le prénom est requis (min. 2 caractères).');
+   648→      return;
+   649→    }
+   650→    if (!data.lastName || data.lastName.length < 2) {
+   651→      setRegError('Le nom est requis (min. 2 caractères).');
+   652→      return;
+   653→    }
+   654→    if (!data.email || !data.email.includes('@')) {
+   655→      setRegError('Veuillez entrer une adresse email valide.');
+   656→      return;
+   657→    }
+   658→    if (!data.phone || data.phone.length < 8) {
+   659→      setRegError('Veuillez entrer un numéro de téléphone valide.');
+   660→      return;
+   661→    }
+   662→    if (!data.password || data.password.length < 6) {
+   663→      setRegError('Le mot de passe doit contenir au moins 6 caractères.');
+   664→      return;
+   665→    }
+   666→
+   667→    data.role = regRole;
+   668→
+   669→    if (regRole === 'MERCHANT') {
+   670→      if (!data.businessName || data.businessName.length < 2) {
+   671→        setRegError('Le nom de votre commerce est requis.');
+   672→        return;
+   673→      }
+   674→    }
+   675→
+   676→    if (regRole === 'DRIVER') {
+   677→      data.vehicleType = vehicleType;
+   678→    }
+   679→
+   680→    setLoading(true);
+   681→    const ok = await onRegister(data);
+   682→    setLoading(false);
+   683→    if (ok) onOpenChange(false);
+   684→  };
+   685→
+   686→  return (
+   687→    <Dialog open={open} onOpenChange={onOpenChange}>
+   688→      <DialogContent className="sm:max-w-md mx-4 max-h-[90vh] overflow-y-auto scrollbar-thin">
+   689→        <DialogHeader className="text-center">
+   690→          <div className="flex justify-center mb-2">
+   691→            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-600/20">
+   692→              <Truck className="w-6 h-6 text-white" />
+   693→            </div>
+   694→          </div>
+   695→          <DialogTitle className="text-xl gradient-text">Rapigo Mali</DialogTitle>
+   696→          <DialogDescription>La livraison rapide à Bamako</DialogDescription>
+   697→        </DialogHeader>
+   698→
+   699→        <Tabs
+   700→          defaultValue={defaultTab}
+   701→          onValueChange={(v) => {
+   702→            onTabChange(v as 'login' | 'register');
+   703→            setLoginError('');
+   704→            setRegError('');
+   705→          }}
+   706→        >
+   707→          <TabsList className="grid w-full grid-cols-2 mb-4">
+   708→            <TabsTrigger value="login">Connexion</TabsTrigger>
+   709→            <TabsTrigger value="register">Inscription</TabsTrigger>
+   710→          </TabsList>
+   711→
+   712→          {/* ── Login Tab ── */}
+   713→          <TabsContent value="login">
+   714→            <form onSubmit={handleLoginSubmit} className="space-y-4">
+   715→              {loginError && (
+   716→                <div className="rounded-lg bg-destructive/10 text-destructive text-sm px-4 py-2.5 border border-destructive/20">
+   717→                  {loginError}
+   718→                </div>
+   719→              )}
+   720→              <div className="space-y-2">
+   721→                <Label htmlFor="login-email">Email</Label>
+   722→                <div className="relative">
+   723→                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   724→                  <Input
+   725→                    id="login-email"
+   726→                    name="email"
+   727→                    type="email"
+   728→                    placeholder="votre@email.com"
+   729→                    className="pl-10"
+   730→                    autoComplete="email"
+   731→                  />
+   732→                </div>
+   733→              </div>
+   734→              <div className="space-y-2">
+   735→                <Label htmlFor="login-password">Mot de passe</Label>
+   736→                <div className="relative">
+   737→                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   738→                  <Input
+   739→                    id="login-password"
+   740→                    name="password"
+   741→                    type={showPass ? 'text' : 'password'}
+   742→                    placeholder="••••••••"
+   743→                    className="pl-10 pr-10"
+   744→                    autoComplete="current-password"
+   745→                  />
+   746→                  <button
+   747→                    type="button"
+   748→                    onClick={() => setShowPass(!showPass)}
+   749→                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+   750→                    aria-label={showPass ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+   751→                  >
+   752→                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+   753→                  </button>
+   754→                </div>
+   755→              </div>
+   756→              <Button
+   757→                type="submit"
+   758→                className="w-full rounded-xl h-11 bg-emerald-600 hover:bg-emerald-700 text-white"
+   759→                disabled={loading}
+   760→              >
+   761→                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Se connecter'}
+   762→              </Button>
+   763→            </form>
+   764→          </TabsContent>
+   765→
+   766→          {/* ── Register Tab ── */}
+   767→          <TabsContent value="register">
+   768→            <form onSubmit={handleRegisterSubmit} className="space-y-4">
+   769→              {regError && (
+   770→                <div className="rounded-lg bg-destructive/10 text-destructive text-sm px-4 py-2.5 border border-destructive/20">
+   771→                  {regError}
+   772→                </div>
+   773→              )}
+   774→
+   775→              {/* Role selection tabs */}
+   776→              <div className="space-y-1.5">
+   777→                <Label>Je suis</Label>
+   778→                <Tabs
+   779→                  value={regRole}
+   780→                  onValueChange={(v) => {
+   781→                    setRegRole(v as 'CLIENT' | 'MERCHANT' | 'DRIVER');
+   782→                    setRegError('');
+   783→                  }}
+   784→                >
+   785→                  <TabsList className="grid w-full grid-cols-3 h-auto">
+   786→                    <TabsTrigger value="CLIENT" className="text-xs py-2 gap-1.5">
+   787→                      <User className="w-3.5 h-3.5" />
+   788→                      Client
+   789→                    </TabsTrigger>
+   790→                    <TabsTrigger value="MERCHANT" className="text-xs py-2 gap-1.5">
+   791→                      <Store className="w-3.5 h-3.5" />
+   792→                      Commerçant
+   793→                    </TabsTrigger>
+   794→                    <TabsTrigger value="DRIVER" className="text-xs py-2 gap-1.5">
+   795→                      <Truck className="w-3.5 h-3.5" />
+   796→                      Livreur
+   797→                    </TabsTrigger>
+   798→                  </TabsList>
+   799→                </Tabs>
+   800→              </div>
+   801→
+   802→              {/* Common fields */}
+   803→              <div className="grid grid-cols-2 gap-3">
+   804→                <div className="space-y-1.5">
+   805→                  <Label htmlFor="reg-first">Prénom</Label>
+   806→                  <Input id="reg-first" name="firstName" placeholder="Prénom" autoComplete="given-name" />
+   807→                </div>
+   808→                <div className="space-y-1.5">
+   809→                  <Label htmlFor="reg-last">Nom</Label>
+   810→                  <Input id="reg-last" name="lastName" placeholder="Nom" autoComplete="family-name" />
+   811→                </div>
+   812→              </div>
+   813→
+   814→              <div className="space-y-1.5">
+   815→                <Label htmlFor="reg-email">Email</Label>
+   816→                <div className="relative">
+   817→                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   818→                  <Input id="reg-email" name="email" type="email" placeholder="votre@email.com" className="pl-10" autoComplete="email" />
+   819→                </div>
+   820→              </div>
+   821→
+   822→              <div className="space-y-1.5">
+   823→                <Label htmlFor="reg-phone">Téléphone</Label>
+   824→                <div className="relative">
+   825→                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   826→                  <Input id="reg-phone" name="phone" type="tel" placeholder="+223 7X XX XX XX" className="pl-10" autoComplete="tel" />
+   827→                </div>
+   828→              </div>
+   829→
+   830→              <div className="space-y-1.5">
+   831→                <Label htmlFor="reg-password">Mot de passe</Label>
+   832→                <div className="relative">
+   833→                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   834→                  <Input
+   835→                    id="reg-password"
+   836→                    name="password"
+   837→                    type={showRegPass ? 'text' : 'password'}
+   838→                    placeholder="Min. 6 caractères"
+   839→                    className="pl-10 pr-10"
+   840→                    autoComplete="new-password"
+   841→                    minLength={6}
+   842→                  />
+   843→                  <button
+   844→                    type="button"
+   845→                    onClick={() => setShowRegPass(!showRegPass)}
+   846→                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+   847→                    aria-label={showRegPass ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+   848→                  >
+   849→                    {showRegPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+   850→                  </button>
+   851→                </div>
+   852→              </div>
+   853→
+   854→              {/* MERCHANT-only fields */}
+   855→              {regRole === 'MERCHANT' && (
+   856→                <motion.div
+   857→                  initial={{ opacity: 0, height: 0 }}
+   858→                  animate={{ opacity: 1, height: 'auto' }}
+   859→                  exit={{ opacity: 0, height: 0 }}
+   860→                  transition={{ duration: 0.2 }}
+   861→                >
+   862→                  <div className="space-y-1.5">
+   863→                    <Label htmlFor="reg-business">Nom du commerce</Label>
+   864→                    <div className="relative">
+   865→                      <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+   866→                      <Input
+   867→                        id="reg-business"
+   868→                        name="businessName"
+   869→                        placeholder="Ex: Restaurant Le Baobab"
+   870→                        className="pl-10"
+   871→                      />
+   872→                    </div>
+   873→                    <p className="text-xs text-muted-foreground">Le nom qui apparaîtra pour vos clients sur l&apos;application.</p>
+   874→                  </div>
+   875→                </motion.div>
+   876→              )}
+   877→
+   878→              {/* DRIVER-only fields */}
+   879→              {regRole === 'DRIVER' && (
+   880→                <motion.div
+   881→                  initial={{ opacity: 0, height: 0 }}
+   882→                  animate={{ opacity: 1, height: 'auto' }}
+   883→                  exit={{ opacity: 0, height: 0 }}
+   884→                  transition={{ duration: 0.2 }}
+   885→                >
+   886→                  <div className="space-y-1.5">
+   887→                    <Label>Type de véhicule</Label>
+   888→                    <Select value={vehicleType} onValueChange={setVehicleType}>
+   889→                      <SelectTrigger className="w-full">
+   890→                        <SelectValue placeholder="Choisir un véhicule" />
+   891→                      </SelectTrigger>
+   892→                      <SelectContent>
+   893→                        <SelectItem value="MOTO">
+   894→                          <span className="flex items-center gap-2">
+   895→                            <Bike className="w-3.5 h-3.5" />
+   896→                            Moto
+   897→                          </span>
+   898→                        </SelectItem>
+   899→                        <SelectItem value="VELO">
+   900→                          <span className="flex items-center gap-2">
+   901→                            <Bike className="w-3.5 h-3.5" />
+   902→                            Vélo
+   903→                          </span>
+   904→                        </SelectItem>
+   905→                        <SelectItem value="AUTO">
+   906→                          <span className="flex items-center gap-2">
+   907→                            <Car className="w-3.5 h-3.5" />
+   908→                            Voiture
+   909→                          </span>
+   910→                        </SelectItem>
+   911→                      </SelectContent>
+   912→                    </Select>
+   913→                    <p className="text-xs text-muted-foreground">Votre moyen de transport pour les livraisons.</p>
+   914→                  </div>
+   915→                </motion.div>
+   916→              )}
+   917→
+   918→              <Button
+   919→                type="submit"
+   920→                className="w-full rounded-xl h-11 bg-emerald-600 hover:bg-emerald-700 text-white"
+   921→                disabled={loading}
+   922→              >
+   923→                {loading ? (
+   924→                  <Loader2 className="w-4 h-4 animate-spin" />
+   925→                ) : (
+   926→                  <>
+   927→                    <UserPlus className="w-4 h-4 mr-2" />
+   928→                    Créer mon compte
+   929→                  </>
+   930→                )}
+   931→              </Button>
+   932→
+   933→              {regRole === 'MERCHANT' && (
+   934→                <p className="text-xs text-center text-muted-foreground">
+   935→                  En créant un compte commerçant, vous pourrez gérer vos produits, vos commandes et suivre vos revenus.
+   936→                </p>
+   937→              )}
+   938→              {regRole === 'DRIVER' && (
+   939→                <p className="text-xs text-center text-muted-foreground">
+   940→                  Devenez livreur Rapigo et gagnez de l&apos;argent en livrant des commandes à Bamako.
+   941→                </p>
+   942→              )}
+   943→            </form>
+   944→          </TabsContent>
+   945→        </Tabs>
+   946→      </DialogContent>
+   947→    </Dialog>
+   948→  );
+   949→}

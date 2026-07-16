@@ -2097,14 +2097,22 @@ function SettingsView() {
   const [rawSettings, setRawSettings] = useState<any[]>([]);
   const [settingsMap, setSettingsMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
+    setError(null);
     const res = await apiFetch<any>('/api/settings');
+    if (res.error) {
+      setError(res.error);
+      setLoading(false);
+      return;
+    }
     if (res.data) {
-      const arr = Array.isArray(res.data) ? res.data : [];
+      // API returns { settings: [...], grouped: {...} }
+      const arr = Array.isArray(res.data) ? res.data : (Array.isArray(res.data.settings) ? res.data.settings : []);
       setRawSettings(arr);
       const map: Record<string, any> = {};
       arr.forEach((s: any) => {
@@ -2132,11 +2140,13 @@ function SettingsView() {
 
   const handleSave = async () => {
     setSaving(true);
-    const body: Record<string, any> = {};
-    Object.entries(settingsMap).forEach(([k, v]) => {
-      body[k] = v.value;
-    });
-    const res = await apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify(body) });
+    const settingsArr = Object.entries(settingsMap).map(([k, v]) => ({
+      key: k,
+      value: v.type === 'JSON' ? JSON.stringify(v.value) : String(v.value),
+      type: v.type,
+      group: v.group,
+    }));
+    const res = await apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify({ settings: settingsArr }) });
     if (res.error) { toast.error(res.error); setSaving(false); return; }
     toast.success('Paramètres sauvegardés');
     setSaving(false);
@@ -2204,6 +2214,14 @@ function SettingsView() {
     return (
       <PageShell title="Paramètres" description="Configuration de la plateforme">
         <LoadingCards count={3} />
+      </PageShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <PageShell title="Paramètres" description="Configuration de la plateforme">
+        <ErrorState message={error} onRetry={fetchSettings} />
       </PageShell>
     );
   }

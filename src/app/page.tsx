@@ -5,9 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import {
-  Sun, Moon, LogOut, Truck, Store, User,
+  Sun, Moon, Truck, Store, User,
   ArrowRight, MapPin, Clock, Star, Smartphone,
-  Package, Pill, ShoppingBag, Zap, Users, Bell,
+  Package, Pill, ShoppingBag, Zap, Users,
   Eye, EyeOff, Mail, Phone, Lock, UserPlus, Loader2,
   ChevronRight, UtensilsCrossed, Laptop, Bike, Car,
   Shield, CreditCard, Leaf, CheckCircle2, Search, ClipboardList,
@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+
 import { useAuthStore, useSpaceStore, AppSpace, apiFetch, AuthUser } from '@/lib/store';
 
 // ============================================
@@ -204,7 +205,6 @@ export default function Page() {
   if (isAuthenticated && user && effectiveSpace !== 'landing') {
     return (
       <div className="h-screen flex flex-col overflow-hidden">
-        <TopBar user={user} onLogout={handleLogout} />
         <div className="flex-1 min-h-0 overflow-hidden">
           <AnimatePresence mode="wait">
             <motion.div
@@ -584,84 +584,7 @@ export default function Page() {
   );
 }
 
-// ============================================
-// TOP BAR (authenticated)
-// ============================================
-function TopBar({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
-  const { theme, setTheme } = useTheme();
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-
-  const roleLabel: Record<string, string> = {
-    CLIENT: 'Client',
-    MERCHANT: 'Commerçant',
-    DRIVER: 'Livreur',
-    ADMIN: 'Administrateur',
-  };
-
-  return (
-    <header className="shrink-0 glass-strong border-b">
-      <div className="flex items-center justify-between h-14 px-4 max-w-full">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center">
-              <Truck className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-bold gradient-text hidden sm:inline">Rapigo</span>
-          </div>
-          <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] px-1.5 py-0 h-5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
-            {roleLabel[user.role] || user.role}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {mounted && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="rounded-full h-8 w-8"
-              aria-label="Changer le thème"
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full h-8 w-8 relative"
-            aria-label="Notifications"
-            onClick={() => {
-              toast.info('Aucune nouvelle notification.');
-            }}
-          >
-            <Bell className="w-4 h-4" />
-          </Button>
-          <Separator orientation="vertical" className="h-6 mx-1" />
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center text-white text-xs font-bold shrink-0">
-              {user.firstName[0]}{user.lastName[0]}
-            </div>
-            <span className="text-sm font-medium hidden md:inline max-w-32 truncate">
-              {user.firstName} {user.lastName}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onLogout}
-              className="rounded-full h-8 w-8 text-muted-foreground hover:text-destructive"
-              aria-label="Se déconnecter"
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-}
+  /* TopBar removed - each space component has its own header */
 
 // ============================================
 // AUTH DIALOG
