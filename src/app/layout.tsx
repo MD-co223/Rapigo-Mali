@@ -81,6 +81,10 @@ export const metadata: Metadata = {
       "Votre plateforme de livraison N°1 au Mali. Restaurants, supermarchés, pharmacies, boutiques - tout livré chez vous en quelques minutes.",
     images: ["/logo-transparent.png"],
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
   other: {
     "application-name": "Rapigo Mali",
   },

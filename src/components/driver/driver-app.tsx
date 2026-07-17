@@ -237,7 +237,7 @@ export default function DriverApp() {
     <div className="min-h-screen flex flex-col bg-gray-50 max-w-lg mx-auto">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
-        <RapigoLogo height={28} variant="dark" />
+        <RapigoLogo variant="icon" height={28} />
         <div className="flex-1" />
         <button onClick={() => navigate('notifications')} className="relative p-1">
           <Bell className="h-5 w-5" />

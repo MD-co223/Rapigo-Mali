@@ -1,17 +1,16 @@
 {
   "name": "rapigo-mali",
-  "version": "2.5.0",
+  "version": "2.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "prisma generate && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "NODE_ENV=production node .next/standalone/server.js",
-    "postbuild": "prisma generate",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "postinstall": "prisma generate",
     "lint": "eslint .",
     "db:push": "prisma db push",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

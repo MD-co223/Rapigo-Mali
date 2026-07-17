@@ -65,7 +65,7 @@ function Sidebar() {
   return (
     <aside className="hidden lg:flex w-64 flex-col bg-gray-900 dark:bg-gray-950 text-white shrink-0">
       <div className="p-5 border-b border-white/10 flex items-center gap-3">
-        <RapigoLogo height={36} variant="light" />
+        <RapigoLogo variant="icon" height={36} />
         <div><p className="text-xs text-gray-400">Administration</p></div>
       </div>
       <nav className="flex-1 overflow-y-auto py-4 space-y-0.5 px-3" role="navigation" aria-label="Navigation admin">
@@ -109,7 +109,7 @@ function MobileMenu() {
       <SheetContent side="left" className="w-72 p-0 bg-gray-900 dark:bg-gray-950 text-white">
         <SheetHeader className="p-5 border-b border-white/10">
           <SheetTitle className="text-left flex items-center gap-3">
-            <RapigoLogo height={32} variant="light" />
+            <RapigoLogo variant="icon" height={32} />
             <div><p className="text-xs text-gray-400">Administration</p></div>
           </SheetTitle>
         </SheetHeader>

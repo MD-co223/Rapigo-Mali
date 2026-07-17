@@ -1,4 +1,4 @@
-// Rapigo Mali V2.5 Enterprise - Database Schema
+// Rapigo Mali V2.7 Enterprise - Database Schema (Supabase PostgreSQL)
 // Delivery Platform for Mali/West Africa
 
 generator client {
@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ============================================
@@ -558,7 +559,7 @@ model Rating {
   client   Client   @relation("ClientReview", fields: [clientId], references: [id])
   driver   Driver?  @relation("DriverReview", fields: [driverId], references: [id])
   merchant Merchant? @relation(fields: [merchantId], references: [id])
-  user     User     @relation("RatingGiven", fields: [clientId], references: [id])
+  user     User     @relation("RatingGiven", fields: [clientId], references: [id], map: "Rating_client_rating_giver_fkey")
 
   @@index([orderId])
   @@index([clientId])

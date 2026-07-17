@@ -738,7 +738,7 @@ export default function MerchantApp() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-emerald-700 text-white shrink-0">
-        <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo height={32} variant="light" /></div>
+        <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo variant="icon" height={32} /></div>
         {renderNav()}
         <div className="p-4 border-t border-emerald-600">
           <p className="text-sm text-emerald-200 truncate">{merchant.name || user?.firstName}</p>
@@ -770,7 +770,7 @@ export default function MerchantApp() {
       </div>
       <Sheet open={mobileMenu} onOpenChange={setMobileMenu}>
         <SheetContent side="left" className="w-72 bg-emerald-700 text-white border-none p-0">
-          <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo height={32} variant="light" /></div>
+          <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo variant="icon" height={32} /></div>
           {renderNav(() => setMobileMenu(false))}
           <div className="p-4 border-t border-emerald-600">
             <p className="text-sm text-emerald-200">{merchant.name || user?.firstName}</p>

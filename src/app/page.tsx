@@ -29,7 +29,7 @@ const EASE_OUT = [0, 0, 0.2, 1] as const;
 function LoadingSpace() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-      <RapigoLogo height={56} priority />
+      <RapigoLogo variant="vertical" height={56} priority />
       <div className="animate-spin h-6 w-6 border-3 border-emerald-600 border-t-transparent rounded-full" />
     </div>
   );
@@ -74,7 +74,7 @@ function WaitingApproval({ role }: { role: 'MERCHANT' | 'DRIVER' }) {
         className="max-w-md w-full text-center space-y-6"
       >
         <div className="mx-auto w-32">
-          <RapigoLogo height={64} className="mx-auto" priority />
+          <RapigoLogo variant="vertical" height={64} className="mx-auto" priority />
         </div>
         <div>
           <h1 className="text-2xl font-bold mb-2">Compte en attente</h1>
@@ -240,7 +240,7 @@ export default function HomePage() {
       <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
-            <RapigoLogo height={36} priority />
+            <RapigoLogo variant="horizontal" height={36} priority />
           </div>
 
           <nav className="hidden md:flex items-center gap-6 text-sm">
@@ -418,7 +418,7 @@ export default function HomePage() {
             {/* Informations */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <RapigoLogo height={32} />
+                <RapigoLogo variant="horizontal" height={32} />
               </div>
               <p className="text-sm text-muted-foreground max-w-sm">
                 Votre plateforme de livraison N°1 au Mali. Rapide, fiable, partout au Mali.
@@ -488,7 +488,7 @@ export default function HomePage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="mx-auto mb-2">
-              <RapigoLogo height={40} className="mx-auto" />
+              <RapigoLogo variant="vertical" height={40} className="mx-auto" />
             </div>
             <DialogTitle className="text-center text-xl">
               {authTab === 'login' ? 'Connexion' : 'Créer un compte'}

@@ -138,7 +138,7 @@ function HomeView() {
   return (
     <div className="px-4 pt-4 space-y-6">
       <div className="flex items-center gap-3">
-        <RapigoLogo height={28} />
+        <RapigoLogo variant="icon" height={28} />
       </div>
       <div className="relative" onClick={() => navigate('search', { q: query })}>
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seed Rapigo Mali V2.5 Enterprise...');
+  console.log('🌱 Seed Rapigo Mali V2.7 — Supabase PostgreSQL...');
 
   // ============================================
   // NETTOYAGE COMPLET
@@ -34,7 +34,7 @@ async function main() {
       password: adminPassword,
       firstName: 'Diarra',
       lastName: 'Moussa',
-      role: 'ADMIN',
+      role: 'SUPER_ADMIN',
       isSuperAdmin: true,
       isVerified: true,
       isActive: true,
@@ -45,61 +45,6 @@ async function main() {
     data: { userId: admin.id, balance: 0 },
   });
   console.log('✅ Super Admin créé :', admin.email);
-
-  // ============================================
-  // PLAN UNIQUE À VIE - PREMIUM LIFETIME
-  // ============================================
-  await prisma.plan.create({
-    data: {
-      name: 'Rapigo Mali Premium',
-      slug: 'premium_lifetime',
-      price: 4000,
-      duration: 36500, // 100 ans = vie
-      features: JSON.stringify([
-        'Accès Premium à vie',
-        'Produits illimités',
-        'Commandes illimitées',
-        'Coupons illimités',
-        'Statistiques avancées',
-        'Support prioritaire',
-        'Badge vérifié',
-        'Zones de livraison multiples',
-        'Configuration paiement complète',
-      ]),
-      maxProducts: null,
-      maxOrders: null,
-      maxCoupons: null,
-      priority: 10,
-      isActive: true,
-    },
-  });
-  console.log('✅ Plan Premium à vie créé — 4 000 FCFA');
-
-  // ============================================
-  // CATÉGORIES
-  // ============================================
-  const categories = [
-    { name: 'Restaurants', slug: 'restaurants', icon: '🍽️', sortOrder: 1 },
-    { name: 'Fast Food', slug: 'fast-food', icon: '🍔', sortOrder: 2 },
-    { name: 'Plats locaux', slug: 'plats-locaux', icon: '🍲', sortOrder: 3 },
-    { name: 'Pâtisserie', slug: 'patisserie', icon: '🧁', sortOrder: 4 },
-    { name: 'Boissons', slug: 'boissons', icon: '🥤', sortOrder: 5 },
-    { name: 'Supermarchés', slug: 'supermarches', icon: '🛒', sortOrder: 6 },
-    { name: 'Épicerie', slug: 'epicerie', icon: '🏪', sortOrder: 7 },
-    { name: 'Fruits & Légumes', slug: 'fruits-legumes', icon: '🍎', sortOrder: 8 },
-    { name: 'Pharmacies', slug: 'pharmacies', icon: '💊', sortOrder: 9 },
-    { name: 'Boutiques', slug: 'boutiques', icon: '🛍️', sortOrder: 10 },
-    { name: 'Électronique', slug: 'electronique', icon: '📱', sortOrder: 11 },
-    { name: 'Mode & Vêtements', slug: 'mode-vetements', icon: '👕', sortOrder: 12 },
-    { name: 'Beauté & Santé', slug: 'beaute-sante', icon: '✨', sortOrder: 13 },
-    { name: 'Colis & Envois', slug: 'colis-envois', icon: '📦', sortOrder: 14 },
-    { name: 'Services', slug: 'services', icon: '🔧', sortOrder: 15 },
-  ];
-
-  for (const cat of categories) {
-    await prisma.category.create({ data: { ...cat, isActive: true } });
-  }
-  console.log(`✅ ${categories.length} catégories créées`);
 
   // ============================================
   // PARAMÈTRES SYSTÈME
@@ -115,7 +60,7 @@ async function main() {
     { key: 'support_phone', value: '+223 77 16 38 62', type: 'STRING', group: 'GENERAL' },
     { key: 'support_whatsapp', value: '+22377163862', type: 'STRING', group: 'GENERAL' },
     { key: 'support_developer', value: 'Mr. Diarra Moussa', type: 'STRING', group: 'GENERAL' },
-    { key: 'version', value: '2.5.0', type: 'STRING', group: 'GENERAL' },
+    { key: 'version', value: '2.7.0', type: 'STRING', group: 'GENERAL' },
 
     // Commission
     { key: 'default_commission_rate', value: '10', type: 'NUMBER', group: 'COMMISSION' },
@@ -150,7 +95,26 @@ async function main() {
   console.log(`✅ ${settings.length} paramètres créés`);
 
   // ============================================
-  // VILLES & QUARTIERS
+  // CATÉGORIES OFFICIELLES (8)
+  // ============================================
+  const categories = [
+    { name: 'Restaurants', slug: 'restaurants', icon: '🍽️', sortOrder: 1 },
+    { name: 'Supermarchés', slug: 'supermarches', icon: '🛒', sortOrder: 2 },
+    { name: 'Pharmacies', slug: 'pharmacies', icon: '💊', sortOrder: 3 },
+    { name: 'Boutiques', slug: 'boutiques', icon: '🛍️', sortOrder: 4 },
+    { name: 'Électronique', slug: 'electronique', icon: '📱', sortOrder: 5 },
+    { name: 'Mode', slug: 'mode', icon: '👕', sortOrder: 6 },
+    { name: 'Beauté', slug: 'beaute', icon: '✨', sortOrder: 7 },
+    { name: 'Colis', slug: 'colis', icon: '📦', sortOrder: 8 },
+  ];
+
+  for (const cat of categories) {
+    await prisma.category.create({ data: { ...cat, isActive: true } });
+  }
+  console.log(`✅ ${categories.length} catégories créées`);
+
+  // ============================================
+  // VILLES (5)
   // ============================================
   const cities = [
     {
@@ -167,6 +131,18 @@ async function main() {
       name: 'Ségou',
       quartiers: JSON.stringify(['Ségou ville', 'Sokolo', 'Markala', 'San']),
     },
+    {
+      name: 'Kayes',
+      quartiers: JSON.stringify(['Kayes ville', 'Kita', 'Nioro', 'Diéma']),
+    },
+    {
+      name: 'Mopti',
+      quartiers: JSON.stringify(['Mopti ville', 'Djenné', 'Sévaré', 'Bandiagara']),
+    },
+    {
+      name: 'Sikasso',
+      quartiers: JSON.stringify(['Sikasso ville', 'Koutiala', 'Bougouni', 'Kolondiéba']),
+    },
   ];
 
   for (const city of cities) {
@@ -181,11 +157,41 @@ async function main() {
   }
   console.log(`✅ ${cities.length} villes configurées`);
 
-  console.log('\n🎉 Rapigo Mali V2.5 Enterprise — Seed terminé !');
+  // ============================================
+  // PLAN UNIQUE À VIE - PREMIUM LIFETIME
+  // ============================================
+  await prisma.plan.create({
+    data: {
+      name: 'Rapigo Mali Premium',
+      slug: 'premium_lifetime',
+      price: 4000,
+      duration: 36500, // 100 ans = vie
+      features: JSON.stringify([
+        'Accès Premium à vie',
+        'Produits illimités',
+        'Commandes illimitées',
+        'Coupons illimités',
+        'Statistiques avancées',
+        'Support prioritaire',
+        'Badge vérifié',
+        'Zones de livraison multiples',
+        'Configuration paiement complète',
+      ]),
+      maxProducts: null,
+      maxOrders: null,
+      maxCoupons: null,
+      priority: 10,
+      isActive: true,
+    },
+  });
+  console.log('✅ Plan Premium à vie créé — 4 000 FCFA');
+
+  console.log('\n🎉 Rapigo Mali V2.7 — Seed terminé !');
   console.log('📧 Super Admin : diarramoussaka7@gmail.com');
   console.log('📱 Téléphone : +223 77 16 38 62');
   console.log('🔑 Mot de passe : pispa2026');
   console.log('💎 Plan Premium à vie : 4 000 FCFA');
+  console.log('🏙️  Villes : Bamako, Ségou, Kayes, Mopti, Sikasso');
 }
 
 main()

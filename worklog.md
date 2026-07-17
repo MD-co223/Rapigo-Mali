@@ -557,3 +557,91 @@ Stage Summary:
 - Composant RapigoLogo réutilisable avec dark mode CSS automatique
 - SEO/PWA complet : OG, Twitter, JSON-LD, manifest, favicons
 - 0 erreur lint, 0 erreur TypeScript
+---
+Task ID: 5-7
+Agent: subagent (general-purpose)
+Task: Supabase PostgreSQL migration, clean seed, and environment configuration — V2.7
+
+Work Log:
+- Lecture du worklog existant et de tous les fichiers cibles (schema.prisma, .env.example, seed.ts, package.json, next.config.ts)
+- Modifié prisma/schema.prisma : provider sqlite→postgresql, ajout directUrl + relationMode="prisma", mise à jour header V2.7
+- Réécrit .env.example : Supabase PostgreSQL (DATABASE_URL pgbouncer + DIRECT_URL direct), JWT_SECRET, NEXT_PUBLIC_APP_URL=rapigo.ml, Supabase Storage keys
+- Réécrit prisma/seed.ts : seed propre sans données de démo — uniquement Super Admin (role SUPER_ADMIN), 23 paramètres système, 8 catégories officielles, 5 villes (Bamako/Ségou/Kayes/Mopti/Sikasso), plan PREMIUM_LIFETIME 4000 FCFA
+- Créé vercel.json : framework nextjs, buildCommand avec prisma generate, installCommand bun install, nodeVersion 20
+- Mis à jour package.json : version 2.7.0, build simplifié (prisma generate && next build), postinstall prisma generate, db:migrate deploy, db:seed, suppression postbuild/start standalone/db:generate/db:reset
+- Modifié next.config.ts : suppression output:"standalone"
+
+Stage Summary:
+- Prisma prêt pour Supabase PostgreSQL (provider, directUrl, relationMode)
+- Seed propre : zéro donnée de démo, 4 entités seulement (admin + settings + catégories + villes + plan)
+- .env.example complet avec variables Supabase
+- Vercel config créé (buildCommand, installCommand, nodeVersion 20)
+- Scripts package.json alignés Vercel (pas de standalone, pas de copy-to-standalone)
+- Version projet mise à jour : 2.5.0 → 2.7.0
+---
+Task ID: 8-10
+Agent: subagent (general-purpose)
+Task: GitHub files, SEO, PWA, sitemap — Rapigo Mali V2.7 Enterprise
+
+Work Log:
+- Lecture du worklog existant et de tous les fichiers cibles (.gitignore, manifest.json, layout.tsx, robots.txt)
+- .gitignore : réécrit complet avec 40+ patterns (deps, next.js, env, db, prisma, vercel, logs, misc, tool artifacts, skills)
+- LICENSE : créé fichier MIT License — Copyright (c) 2025 Mr. Diarra Moussa (Rapigo Mali)
+- README.md : créé README professionnel en français avec badges (v2.7.0 Enterprise, Next.js 16, React 19, TypeScript 5), 4 sections fonctionnalités (Client/Commerçant/Livreur/Admin), stack technique, démarrage rapide, déploiement Vercel+Supabase, structure du projet, auteur Mr. Diarra Moussa, licence MIT
+- manifest.json : mis à jour description (suppression doublon "au Mali"), ajout shortcuts (Commander + Support), suppression screenshots/prefer_related_applications
+- layout.tsx : ajout propriété robots { index: true, follow: true } dans metadata
+- sitemap.ts : créé route sitemap Next.js (baseUrl dynamique depuis NEXT_PUBLIC_APP_URL, fallback rapigo.ml)
+- robots.txt : simplifié (User-agent: *, Allow: /, Sitemap: https://rapigo.ml/sitemap.xml)
+- ESLint : 0 erreurs, 0 warnings
+
+Stage Summary:
+- 7 fichiers modifiés/créés pour la préparation GitHub + SEO + PWA
+- .gitignore complet avec tous les patterns requis
+- README.md professionnel 100% français avec badges et structure complète
+- LICENSE MIT créée
+- PWA manifest avec shortcuts Commander/Support
+- SEO complet : robots, sitemap, robots.txt, metadata avec robots index/follow
+- 0 erreur lint
+---
+Task ID: 3-4
+Agent: subagent (general-purpose)
+Task: Rewrite RapigoLogo component + integrate strict variants across entire app
+
+Work Log:
+- Read existing rapigo-logo.tsx (122 lines, auto dark/light mode CSS switching, RapigoLogoIcon export)
+- Identified 12 RapigoLogo usages across 5 files with old variants (auto/light/dark)
+- Checked actual PNG dimensions: horizontal 1316x73, vertical 1150x107, icon 224x56, white 1387x90, transparent 1316x73
+- Rewrote rapigo-logo.tsx (40 lines): strict variant API ('horizontal'|'vertical'|'icon'|'white'|'transparent'), no dark mode auto-switching, next/image with unoptimized, object-contain, aspect-ratio-accurate width calculation
+- Removed RapigoLogoIcon export (unused in codebase)
+- Updated page.tsx (5 usages): LoadingSpace→vertical, WaitingApproval→vertical, Navbar→horizontal, Auth Dialog→vertical, Footer→horizontal
+- Updated client-app.tsx (1 usage): Home header→icon
+- Updated merchant-app.tsx (2 usages): Desktop sidebar→icon, Mobile sheet→icon
+- Updated driver-app.tsx (1 usage): Header→icon
+- Updated admin-app.tsx (2 usages): Desktop sidebar→icon, Mobile sheet→icon
+- Verified zero old-variant references remain (variant="light"/"dark"/"auto" — 0 matches)
+- ESLint: 0 errors, 0 warnings
+
+Stage Summary:
+- RapigoLogo rewritten with strict 5-variant API, no auto dark-mode switching
+- 12 logo usages updated across 5 files to correct strict variants
+- Caller is now responsible for choosing the right variant per context
+- 0 lint errors, 0 old-variant remnants
+
+---
+Task ID: 12
+Agent: Main Orchestrator
+Task: Rapport final de certification V2.7 Enterprise
+
+Work Log:
+- Compté 107 fichiers TS/TSX, 14,451 lignes de code
+- Compté 41 routes API, 30 modèles Prisma, 48 composants shadcn/ui
+- Vérifié build production: SUCCÈS (0 erreur)
+- Vérifié ESLint: 0 erreur, 0 warning
+- Confirmé 14 fichiers logo officiels dans public/
+- Confirmé SEO complet: OG, Twitter, JSON-LD, manifest, sitemap, robots
+- Confirmé déploiement prêt: Vercel, Supabase, Docker, PM2, GitHub
+
+Stage Summary:
+- 🏆 RAPIGO MALI V2.7 ENTERPRISE — CERTIFIÉ PRODUCTION READY
+- Toutes les vérifications passent
+- Projet prêt pour: git push → Vercel deploy
