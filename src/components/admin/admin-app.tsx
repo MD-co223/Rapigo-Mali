@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SupportContact } from '@/components/support-contact';
+import { RapigoLogo } from '@/components/rapigo-logo';
 import {
   useAdminNav, useAuthStore, useSpaceStore, apiFetch, formatPrice,
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, BUSINESS_TYPES,
@@ -64,8 +65,8 @@ function Sidebar() {
   return (
     <aside className="hidden lg:flex w-64 flex-col bg-gray-900 dark:bg-gray-950 text-white shrink-0">
       <div className="p-5 border-b border-white/10 flex items-center gap-3">
-        <img src="/logo.svg" alt="Rapigo" className="h-9 w-9" />
-        <div><h1 className="text-lg font-bold">Rapigo</h1><p className="text-xs text-gray-400">Administration</p></div>
+        <RapigoLogo height={36} variant="light" />
+        <div><p className="text-xs text-gray-400">Administration</p></div>
       </div>
       <nav className="flex-1 overflow-y-auto py-4 space-y-0.5 px-3" role="navigation" aria-label="Navigation admin">
         {NAV.map(n => {
@@ -108,8 +109,8 @@ function MobileMenu() {
       <SheetContent side="left" className="w-72 p-0 bg-gray-900 dark:bg-gray-950 text-white">
         <SheetHeader className="p-5 border-b border-white/10">
           <SheetTitle className="text-left flex items-center gap-3">
-            <img src="/logo.svg" alt="Rapigo" className="h-8 w-8" />
-            <div><p className="text-lg font-bold">Rapigo</p><p className="text-xs text-gray-400">Administration</p></div>
+            <RapigoLogo height={32} variant="light" />
+            <div><p className="text-xs text-gray-400">Administration</p></div>
           </SheetTitle>
         </SheetHeader>
         <nav className="flex-1 overflow-y-auto py-4 space-y-0.5 px-3" role="navigation" aria-label="Menu mobile">

@@ -1,0 +1,600 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+     4→     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→     5→import {
+     6→     6→  Truck, ShoppingBag, Store, Smartphone, Shield, Zap, Star,
+     7→     7→  ChevronRight, Menu, X, UtensilsCrossed, Pill, ShoppingCart,
+     8→     8→  Package, Shirt, Sparkles, ArrowRight, Phone, Mail, MessageCircle,
+     9→     9→  MapPin, Eye, EyeOff, CheckCircle2, Clock, Users, TrendingUp, LogOut
+    10→    10→} from 'lucide-react';
+    11→    11→import { Button } from '@/components/ui/button';
+    12→    12→import { Input } from '@/components/ui/input';
+    13→    13→import { Label } from '@/components/ui/label';
+    14→    14→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+    15→    15→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+    16→    16→import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    17→    17→import { useAuthStore, useSpaceStore, apiFetch, type AuthUser } from '@/lib/store';
+    18→    18→import { SupportContact } from '@/components/support-contact';
+    19→    19→import { toast } from 'sonner';
+    20→    20→
+    21→    21→const ClientApp = lazy(() => import('@/components/client/client-app'));
+    22→    22→const MerchantApp = lazy(() => import('@/components/merchant/merchant-app'));
+    23→    23→const DriverApp = lazy(() => import('@/components/driver/driver-app'));
+    24→    24→const AdminApp = lazy(() => import('@/components/admin/admin-app'));
+    25→    25→
+    26→    26→const EASE_OUT = [0, 0, 0.2, 1] as const;
+    27→    27→
+    28→    28→function LoadingSpace() {
+    29→    29→  return (
+    30→    30→    <div className="min-h-screen flex items-center justify-center bg-background">
+    31→    31→      <div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full" />
+    32→    32→    </div>
+    33→    33→  );
+    34→    34→}
+    35→    35→
+    36→    36→// =============================================
+    37→    37→// CONSTANTES
+    38→    38→// =============================================
+    39→    39→
+    40→    40→const BUSINESS_TYPES = [
+    41→    41→  { icon: UtensilsCrossed, label: 'Restaurants', color: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' },
+    42→    42→  { icon: ShoppingCart, label: 'Supermarchés', color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' },
+    43→    43→  { icon: Pill, label: 'Pharmacies', color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' },
+    44→    44→  { icon: ShoppingBag, label: 'Boutiques', color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' },
+    45→    45→  { icon: Smartphone, label: 'Électronique', color: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400' },
+    46→    46→  { icon: Shirt, label: 'Mode', color: 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400' },
+    47→    47→  { icon: Sparkles, label: 'Beauté', color: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' },
+    48→    48→  { icon: Package, label: 'Colis', color: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
+    49→    49→];
+    50→    50→
+    51→    51→const FEATURES = [
+    52→    52→  { icon: Zap, title: 'Livraison Rapide', desc: 'Livraison en moyenne 30 minutes dans tout Bamako et environs.' },
+    53→    53→  { icon: Smartphone, title: 'Paiement Mobile', desc: 'Orange Money, Wave, Moov Money — payez simplement depuis votre téléphone.' },
+    54→    54→  { icon: TrendingUp, title: 'Suivi en Temps Réel', desc: 'Suivez votre livreur en direct sur la carte jusqu\'à la livraison.' },
+    55→    55→  { icon: Shield, title: 'Support 24/7', desc: 'Notre équipe est disponible 24h/24 et 7j/7 pour vous aider.' },
+    56→    56→];
+    57→    57→
+    58→    58→// =============================================
+    59→    59→// PAGE EN ATTENTE DE VALIDATION
+    60→    60→// =============================================
+    61→    61→
+    62→    62→function WaitingApproval({ role }: { role: 'MERCHANT' | 'DRIVER' }) {
+    63→    63→  const { logout } = useAuthStore();
+    64→    64→  const { setSpace } = useSpaceStore();
+    65→    65→  const roleLabel = role === 'MERCHANT' ? 'commerçant' : 'livreur';
+    66→    66→  return (
+    67→    67→    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+    68→    68→      <motion.div
+    69→    69→        initial={{ opacity: 0, scale: 0.9 }}
+    70→    70→        animate={{ opacity: 1, scale: 1 }}
+    71→    71→        transition={{ duration: 0.5, ease: EASE_OUT }}
+    72→    72→        className="max-w-md w-full text-center space-y-6"
+    73→    73→      >
+    74→    74→        <div className="mx-auto w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+    75→    75→          <Clock className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+    76→    76→        </div>
+    77→    77→        <div>
+    78→    78→          <h1 className="text-2xl font-bold mb-2">Compte en attente</h1>
+    79→    79→          <p className="text-muted-foreground">
+    80→    80→            Votre compte {roleLabel} est en cours de vérification par notre équipe.
+    81→    81→            Vous recevrez une notification dès que votre compte sera activé.
+    82→    82→          </p>
+    83→    83→        </div>
+    84→    84→        <div className="bg-muted/50 rounded-xl p-4 space-y-2 text-sm">
+    85→    85→          <p className="font-medium">Besoin d&apos;aide ?</p>
+    86→    86→          <p className="text-muted-foreground">
+    87→    87→            Contactez Mr. Diarra Moussa pour accélérer la validation.
+    88→    88→          </p>
+    89→    89→          <div className="flex flex-col gap-2 pt-2">
+    90→    90→            <a href="tel:+22377163862" className="inline-flex items-center justify-center gap-2 text-emerald-600 hover:underline font-medium">
+    91→    91→              <Phone className="h-4 w-4" /> +223 77 16 38 62
+    92→    92→            </a>
+    93→    93→            <a href="https://wa.me/22377163862" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 text-emerald-600 hover:underline font-medium">
+    94→    94→              <MessageCircle className="h-4 w-4" /> WhatsApp
+    95→    95→            </a>
+    96→    96→            <a href="mailto:diarramoussaka7@gmail.com" className="inline-flex items-center justify-center gap-2 text-emerald-600 hover:underline font-medium">
+    97→    97→              <Mail className="h-4 w-4" /> diarramoussaka7@gmail.com
+    98→    98→            </a>
+    99→    99→          </div>
+   100→   100→        </div>
+   101→   101→        <Button variant="outline" onClick={() => { logout(); setSpace('landing'); }} className="mt-4">
+   102→   102→          <LogOut className="h-4 w-4 mr-2" /> Déconnexion
+   103→   103→        </Button>
+   104→   104→      </motion.div>
+   105→   105→    </div>
+   106→   106→  );
+   107→   107→}
+   108→   108→
+   109→   109→// =============================================
+   110→   110→// PAGE PRINCIPALE RAPIGO MALI V2.5
+   111→   111→// =============================================
+   112→   112→
+   113→   113→export default function HomePage() {
+   114→   114→  const { user, isAuthenticated, login, logout } = useAuthStore();
+   115→   115→  const { currentSpace, setSpace } = useSpaceStore();
+   116→   116→
+   117→   117→  const [showAuth, setShowAuth] = useState(false);
+   118→   118→  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+   119→   119→  const [showMobileMenu, setShowMobileMenu] = useState(false);
+   120→   120→  const [loading, setLoading] = useState(false);
+   121→   121→  const [showPassword, setShowPassword] = useState(false);
+   122→   122→  const [isApproved, setIsApproved] = useState(true);
+   123→   123→
+   124→   124→  // Login form
+   125→   125→  const [loginEmail, setLoginEmail] = useState('');
+   126→   126→  const [loginPassword, setLoginPassword] = useState('');
+   127→   127→
+   128→   128→  // Register form
+   129→   129→  const [regFirstName, setRegFirstName] = useState('');
+   130→   130→  const [regLastName, setRegLastName] = useState('');
+   131→   131→  const [regEmail, setRegEmail] = useState('');
+   132→   132→  const [regPhone, setRegPhone] = useState('');
+   133→   133→  const [regPassword, setRegPassword] = useState('');
+   134→   134→  const [regRole, setRegRole] = useState('CLIENT');
+   135→   135→
+   136→   136→  // Restauration de session et routage vers l'espace
+   137→   137→  useEffect(() => {
+   138→   138→    if (isAuthenticated && user) {
+   139→   139→      const spaceMap: Record<string, 'client' | 'merchant' | 'driver' | 'admin'> = {
+   140→   140→        CLIENT: 'client', MERCHANT: 'merchant', DRIVER: 'driver',
+   141→   141→        ADMIN: 'admin', SUPER_ADMIN: 'admin',
+   142→   142→      };
+   143→   143→      setSpace(spaceMap[user.role] || 'client');
+   144→   144→    }
+   145→   145→  }, [isAuthenticated, user, setSpace]);
+   146→   146→
+   147→   147→  const handleLogin = useCallback(async () => {
+   148→   148→    if (!loginEmail || !loginPassword) {
+   149→   149→      toast.error('Veuillez remplir tous les champs');
+   150→   150→      return;
+   151→   151→    }
+   152→   152→    setLoading(true);
+   153→   153→    const { data, error } = await apiFetch<{ user: AuthUser; token: string; merchant?: { isApproved: boolean }; driver?: { isApproved: boolean } }>('/api/auth/login', {
+   154→   154→      method: 'POST',
+   155→   155→      body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+   156→   156→    });
+   157→   157→    setLoading(false);
+   158→   158→    if (error) { toast.error(error); return; }
+   159→   159→    if (data) {
+   160→   160→      login(data.user, data.token);
+   161→   161→      const approved = data.merchant
+   162→   162→        ? data.merchant.isApproved
+   163→   163→        : data.driver
+   164→   164→          ? data.driver.isApproved
+   165→   165→          : true;
+   166→   166→      setIsApproved(approved);
+   167→   167→      setShowAuth(false);
+   168→   168→      toast.success(`Bienvenue ${data.user.firstName} !`);
+   169→   169→    }
+   170→   170→  }, [loginEmail, loginPassword, login]);
+   171→   171→
+   172→   172→  const handleRegister = useCallback(async () => {
+   173→   173→    if (!regFirstName || !regLastName || !regEmail || !regPhone || !regPassword) {
+   174→   174→      toast.error('Veuillez remplir tous les champs');
+   175→   175→      return;
+   176→   176→    }
+   177→   177→    if (regPassword.length < 6) {
+   178→   178→      toast.error('Le mot de passe doit contenir au moins 6 caractères');
+   179→   179→      return;
+   180→   180→    }
+   181→   181→    setLoading(true);
+   182→   182→    const { data, error } = await apiFetch<{ user: AuthUser; token: string }>('/api/auth/register', {
+   183→   183→      method: 'POST',
+   184→   184→      body: JSON.stringify({
+   185→   185→        firstName: regFirstName, lastName: regLastName,
+   186→   186→        email: regEmail, phone: regPhone, password: regPassword, role: regRole,
+   187→   187→      }),
+   188→   188→    });
+   189→   189→    setLoading(false);
+   190→   190→    if (error) { toast.error(error); return; }
+   191→   191→    if (data) {
+   192→   192→      login(data.user, data.token);
+   193→   193→      setShowAuth(false);
+   194→   194→      if (regRole === 'MERCHANT' || regRole === 'DRIVER') {
+   195→   195→        setIsApproved(false);
+   196→   196→      }
+   197→   197→      const roleLabel = regRole === 'CLIENT' ? 'client' : regRole === 'MERCHANT' ? 'commerçant' : 'livreur';
+   198→   198→      toast.success(`Bienvenue ! Votre compte ${roleLabel} a été créé.`);
+   199→   199→    }
+   200→   200→  }, [regFirstName, regLastName, regEmail, regPhone, regPassword, regRole, login]);
+   201→   201→
+   202→   202→  // =============================================
+   203→   203→  // ESPACE AUTHENTIFIÉ
+   204→   204→  // =============================================
+   205→   205→  if (isAuthenticated && user) {
+   206→   206→    // Commerçant ou livreur non approuvé
+   207→   207→    if ((user.role === 'MERCHANT' || user.role === 'DRIVER') && !isApproved) {
+   208→   208→      return <WaitingApproval role={user.role as 'MERCHANT' | 'DRIVER'} />;
+   209→   209→    }
+   210→   210→
+   211→   211→    let SpaceComponent: React.LazyExoticComponent<React.ComponentType> | null = null;
+   212→   212→
+   213→   213→    if (currentSpace === 'client' && user.role === 'CLIENT') {
+   214→   214→      SpaceComponent = ClientApp;
+   215→   215→    } else if (currentSpace === 'merchant' && user.role === 'MERCHANT') {
+   216→   216→      SpaceComponent = MerchantApp;
+   217→   217→    } else if (currentSpace === 'driver' && user.role === 'DRIVER') {
+   218→   218→      SpaceComponent = DriverApp;
+   219→   219→    } else if (currentSpace === 'admin' && (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.isSuperAdmin)) {
+   220→   220→      SpaceComponent = AdminApp;
+   221→   221→    }
+   222→   222→
+   223→   223→    if (SpaceComponent) {
+   224→   224→      return (
+   225→   225→        <Suspense fallback={<LoadingSpace />}>
+   226→   226→          <SpaceComponent />
+   227→   227→        </Suspense>
+   228→   228→      );
+   229→   229→    }
+   230→   230→  }
+   231→   231→
+   232→   232→  // =============================================
+   233→   233→  // LANDING PAGE (non connecté)
+   234→   234→  // =============================================
+   235→   235→  return (
+   236→   236→    <div className="min-h-screen flex flex-col bg-background">
+   237→   237→      {/* EN-TÊTE */}
+   238→   238→      <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
+   239→   239→        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+   240→   240→          <div className="flex items-center gap-2.5">
+   241→   241→            <img src="/logo.svg" alt="Rapigo Mali" className="h-9 w-auto" />
+   242→   242→          </div>
+   243→   243→
+   244→   244→          <nav className="hidden md:flex items-center gap-6 text-sm">
+   245→   245→            <a href="#categories" className="text-muted-foreground hover:text-foreground transition-colors">Catégories</a>
+   246→   246→            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Fonctionnalités</a>
+   247→   247→            <a href="#support" className="text-muted-foreground hover:text-foreground transition-colors">Support</a>
+   248→   248→          </nav>
+   249→   249→
+   250→   250→          <div className="flex items-center gap-3">
+   251→   251→            <Button variant="ghost" size="sm" className="hidden sm:inline-flex" onClick={() => { setAuthTab('login'); setShowAuth(true); }}>
+   252→   252→              Connexion
+   253→   253→            </Button>
+   254→   254→            <Button size="sm" onClick={() => { setAuthTab('register'); setShowAuth(true); }}>
+   255→   255→              S&apos;inscrire
+   256→   256→            </Button>
+   257→   257→            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setShowMobileMenu(!showMobileMenu)}>
+   258→   258→              {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+   259→   259→            </Button>
+   260→   260→          </div>
+   261→   261→        </div>
+   262→   262→
+   263→   263→        {/* Menu mobile */}
+   264→   264→        <AnimatePresence>
+   265→   265→          {showMobileMenu && (
+   266→   266→            <motion.div
+   267→   267→              initial={{ height: 0, opacity: 0 }}
+   268→   268→              animate={{ height: 'auto', opacity: 1 }}
+   269→   269→              exit={{ height: 0, opacity: 0 }}
+   270→   270→              transition={{ ease: EASE_OUT }}
+   271→   271→              className="md:hidden border-t bg-background overflow-hidden"
+   272→   272→            >
+   273→   273→              <div className="container mx-auto px-4 py-4 flex flex-col gap-3">
+   274→   274→                <a href="#categories" className="text-sm py-2 hover:text-primary" onClick={() => setShowMobileMenu(false)}>Catégories</a>
+   275→   275→                <a href="#features" className="text-sm py-2 hover:text-primary" onClick={() => setShowMobileMenu(false)}>Fonctionnalités</a>
+   276→   276→                <a href="#support" className="text-sm py-2 hover:text-primary" onClick={() => setShowMobileMenu(false)}>Support</a>
+   277→   277→              </div>
+   278→   278→            </motion.div>
+   279→   279→          )}
+   280→   280→        </AnimatePresence>
+   281→   281→      </header>
+   282→   282→
+   283→   283→      {/* SECTION HÉRO */}
+   284→   284→      <section className="relative overflow-hidden">
+   285→   285→        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-transparent to-amber-50 dark:from-emerald-950/20 dark:to-amber-950/20" />
+   286→   286→        <div className="container relative mx-auto px-4 py-20 md:py-32">
+   287→   287→          <motion.div
+   288→   288→            initial={{ opacity: 0, y: 30 }}
+   289→   289→            animate={{ opacity: 1, y: 0 }}
+   290→   290→            transition={{ duration: 0.6, ease: EASE_OUT }}
+   291→   291→            className="max-w-3xl mx-auto text-center space-y-6"
+   292→   292→          >
+   293→   293→            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-1.5 text-sm font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+   294→   294→              <Zap className="h-3.5 w-3.5" /> Rapide • Fiable • Partout au Mali
+   295→   295→            </div>
+   296→   296→            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight">
+   297→   297→              Tout livré chez vous{' '}
+   298→   298→              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-emerald-400">
+   299→   299→                en quelques minutes
+   300→   300→              </span>
+   301→   301→            </h1>
+   302→   302→            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+   303→   303→              Restaurants, supermarchés, pharmacies, boutiques — commandez en ligne et recevez vos courses à domicile. Bamako, Ségou et bientôt partout au Mali.
+   304→   304→            </p>
+   305→   305→            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+   306→   306→              <Button size="lg" className="gap-2 text-base px-8" onClick={() => { setRegRole('CLIENT'); setAuthTab('register'); setShowAuth(true); }}>
+   307→   307→                Commander <ArrowRight className="h-4 w-4" />
+   308→   308→              </Button>
+   309→   309→              <Button size="lg" variant="outline" className="gap-2 text-base px-8" onClick={() => { setRegRole('MERCHANT'); setAuthTab('register'); setShowAuth(true); }}>
+   310→   310→                <Store className="h-4 w-4" /> Devenir Commerçant
+   311→   311→              </Button>
+   312→   312→              <Button size="lg" variant="outline" className="gap-2 text-base px-8" onClick={() => { setRegRole('DRIVER'); setAuthTab('register'); setShowAuth(true); }}>
+   313→   313→                <Truck className="h-4 w-4" /> Devenir Livreur
+   314→   314→              </Button>
+   315→   315→            </div>
+   316→   316→          </motion.div>
+   317→   317→        </div>
+   318→   318→      </section>
+   319→   319→
+   320→   320→      {/* CATÉGORIES / TYPES DE COMMERCE */}
+   321→   321→      <section id="categories" className="py-20">
+   322→   322→        <div className="container mx-auto px-4">
+   323→   323→          <motion.div
+   324→   324→            initial={{ opacity: 0, y: 20 }}
+   325→   325→            whileInView={{ opacity: 1, y: 0 }}
+   326→   326→            viewport={{ once: true }}
+   327→   327→            transition={{ duration: 0.5, ease: EASE_OUT }}
+   328→   328→            className="text-center mb-12"
+   329→   329→          >
+   330→   330→            <h2 className="text-3xl font-bold mb-3">Explorez nos catégories</h2>
+   331→   331→            <p className="text-muted-foreground">Trouvez ce dont vous avez besoin, livré rapidement chez vous.</p>
+   332→   332→          </motion.div>
+   333→   333→          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto">
+   334→   334→            {BUSINESS_TYPES.map((cat, i) => (
+   335→   335→              <motion.div
+   336→   336→                key={i}
+   337→   337→                initial={{ opacity: 0, scale: 0.9 }}
+   338→   338→                whileInView={{ opacity: 1, scale: 1 }}
+   339→   339→                viewport={{ once: true }}
+   340→   340→                transition={{ delay: i * 0.05, ease: EASE_OUT }}
+   341→   341→              >
+   342→   342→                <Card className="group cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5 border-0 shadow-sm">
+   343→   343→                  <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
+   344→   344→                    <div className={`p-3 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>
+   345→   345→                      <cat.icon className="h-6 w-6" />
+   346→   346→                    </div>
+   347→   347→                    <span className="text-sm font-medium">{cat.label}</span>
+   348→   348→                  </CardContent>
+   349→   349→                </Card>
+   350→   350→              </motion.div>
+   351→   351→            ))}
+   352→   352→          </div>
+   353→   353→        </div>
+   354→   354→      </section>
+   355→   355→
+   356→   356→      {/* FONCTIONNALITÉS */}
+   357→   357→      <section id="features" className="py-20 bg-muted/30">
+   358→   358→        <div className="container mx-auto px-4">
+   359→   359→          <motion.div
+   360→   360→            initial={{ opacity: 0, y: 20 }}
+   361→   361→            whileInView={{ opacity: 1, y: 0 }}
+   362→   362→            viewport={{ once: true }}
+   363→   363→            transition={{ duration: 0.5, ease: EASE_OUT }}
+   364→   364→            className="text-center mb-12"
+   365→   365→          >
+   366→   366→            <h2 className="text-3xl font-bold mb-3">Pourquoi choisir Rapigo ?</h2>
+   367→   367→            <p className="text-muted-foreground">Une plateforme conçue pour le Mali, avec les standards mondiaux.</p>
+   368→   368→          </motion.div>
+   369→   369→          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+   370→   370→            {FEATURES.map((f, i) => (
+   371→   371→              <motion.div
+   372→   372→                key={i}
+   373→   373→                initial={{ opacity: 0, y: 20 }}
+   374→   374→                whileInView={{ opacity: 1, y: 0 }}
+   375→   375→                viewport={{ once: true }}
+   376→   376→                transition={{ delay: i * 0.08, ease: EASE_OUT }}
+   377→   377→              >
+   378→   378→                <Card className="h-full border-0 shadow-sm hover:shadow-md transition-shadow">
+   379→   379→                  <CardHeader className="pb-2">
+   380→   380→                    <div className="p-2.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 w-fit">
+   381→   381→                      <f.icon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+   382→   382→                    </div>
+   383→   383→                    <CardTitle className="text-lg">{f.title}</CardTitle>
+   384→   384→                  </CardHeader>
+   385→   385→                  <CardContent>
+   386→   386→                    <p className="text-sm text-muted-foreground">{f.desc}</p>
+   387→   387→                  </CardContent>
+   388→   388→                </Card>
+   389→   389→              </motion.div>
+   390→   390→            ))}
+   391→   391→          </div>
+   392→   392→        </div>
+   393→   393→      </section>
+   394→   394→
+   395→   395→      {/* SUPPORT */}
+   396→   396→      <section id="support" className="py-20">
+   397→   397→        <div className="container mx-auto px-4">
+   398→   398→          <motion.div
+   399→   399→            initial={{ opacity: 0, y: 20 }}
+   400→   400→            whileInView={{ opacity: 1, y: 0 }}
+   401→   401→            viewport={{ once: true }}
+   402→   402→            transition={{ duration: 0.5, ease: EASE_OUT }}
+   403→   403→            className="text-center mb-8"
+   404→   404→          >
+   405→   405→            <h2 className="text-3xl font-bold mb-3">Support client</h2>
+   406→   406→            <p className="text-muted-foreground">Nous sommes là pour vous aider à tout moment.</p>
+   407→   407→          </motion.div>
+   408→   408→          <SupportContact />
+   409→   409→        </div>
+   410→   410→      </section>
+   411→   411→
+   412→   412→      {/* PIED DE PAGE */}
+   413→   413→      <footer className="border-t bg-background mt-auto">
+   414→   414→        <div className="container mx-auto px-4 py-12">
+   415→   415→          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+   416→   416→            {/* Informations */}
+   417→   417→            <div className="space-y-4">
+   418→   418→              <div className="flex items-center gap-2">
+   419→   419→                <img src="/logo.svg" alt="Rapigo Mali" className="h-8 w-auto" />
+   420→   420→              </div>
+   421→   421→              <p className="text-sm text-muted-foreground max-w-sm">
+   422→   422→                Votre plateforme de livraison N°1 au Mali. Rapide, fiable, partout au Mali.
+   423→   423→              </p>
+   424→   424→              <div className="space-y-2 text-sm text-muted-foreground">
+   425→   425→                <p className="font-medium text-foreground">Mr. Diarra Moussa</p>
+   426→   426→                <a href="tel:+22377163862" className="flex items-center gap-2 hover:text-foreground transition-colors">
+   427→   427→                  <Phone className="h-3.5 w-3.5" /> +223 77 16 38 62
+   428→   428→                </a>
+   429→   429→                <a href="https://wa.me/22377163862" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-green-600 transition-colors">
+   430→   430→                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp +22377163862
+   431→   431→                </a>
+   432→   432→                <a href="mailto:diarramoussaka7@gmail.com" className="flex items-center gap-2 hover:text-foreground transition-colors">
+   433→   433→                  <Mail className="h-3.5 w-3.5" /> diarramoussaka7@gmail.com
+   434→   434→                </a>
+   435→   435→                <div className="flex items-center gap-2">
+   436→   436→                  <MapPin className="h-3.5 w-3.5" /> Bamako, Mali
+   437→   437→                </div>
+   438→   438→              </div>
+   439→   439→            </div>
+   440→   440→
+   441→   441→            {/* Navigation */}
+   442→   442→            <div className="space-y-3">
+   443→   443→              <h4 className="font-semibold text-sm">Plateforme</h4>
+   444→   444→              <div className="space-y-2 text-sm text-muted-foreground">
+   445→   445→                <p className="cursor-pointer hover:text-foreground transition-colors">À propos</p>
+   446→   446→                <p className="cursor-pointer hover:text-foreground transition-colors">Tarification</p>
+   447→   447→                <button type="button" className="hover:text-foreground transition-colors text-left" onClick={() => { setRegRole('DRIVER'); setAuthTab('register'); setShowAuth(true); }}>Devenir livreur</button>
+   448→   448→                <button type="button" className="hover:text-foreground transition-colors text-left" onClick={() => { setRegRole('MERCHANT'); setAuthTab('register'); setShowAuth(true); }}>Devenir commerçant</button>
+   449→   449→              </div>
+   450→   450→            </div>
+   451→   451→
+   452→   452→            {/* Boutons de contact */}
+   453→   453→            <div className="space-y-3">
+   454→   454→              <h4 className="font-semibold text-sm">Nous contacter</h4>
+   455→   455→              <div className="flex flex-col gap-2">
+   456→   456→                <Button variant="outline" size="sm" className="w-full justify-start gap-2" asChild>
+   457→   457→                  <a href="tel:+22377163862">
+   458→   458→                    <Phone className="h-4 w-4 text-emerald-600" /> Appeler
+   459→   459→                  </a>
+   460→   460→                </Button>
+   461→   461→                <Button variant="outline" size="sm" className="w-full justify-start gap-2" asChild>
+   462→   462→                  <a href="https://wa.me/22377163862" target="_blank" rel="noopener noreferrer">
+   463→   463→                    <MessageCircle className="h-4 w-4 text-green-600" /> WhatsApp
+   464→   464→                  </a>
+   465→   465→                </Button>
+   466→   466→                <Button variant="outline" size="sm" className="w-full justify-start gap-2" asChild>
+   467→   467→                  <a href="mailto:diarramoussaka7@gmail.com">
+   468→   468→                    <Mail className="h-4 w-4 text-emerald-600" /> Envoyer un Email
+   469→   469→                  </a>
+   470→   470→                </Button>
+   471→   471→              </div>
+   472→   472→            </div>
+   473→   473→          </div>
+   474→   474→
+   475→   475→          <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
+   476→   476→            <p>© 2025 Rapigo Mali. Tous droits réservés.</p>
+   477→   477→            <p>Version 2.5.0 Enterprise</p>
+   478→   478→          </div>
+   479→   479→        </div>
+   480→   480→      </footer>
+   481→   481→
+   482→   482→      {/* =============================================
+   483→   483→          BOÎTE DE DIALOGUE D'AUTHENTIFICATION
+   484→   484→          ============================================= */}
+   485→   485→      <Dialog open={showAuth} onOpenChange={setShowAuth}>
+   486→   486→        <DialogContent className="sm:max-w-md">
+   487→   487→          <DialogHeader>
+   488→   488→            <DialogTitle className="text-center text-xl">
+   489→   489→              {authTab === 'login' ? 'Connexion' : 'Créer un compte'}
+   490→   490→            </DialogTitle>
+   491→   491→            <DialogDescription className="text-center">
+   492→   492→              {authTab === 'login'
+   493→   493→                ? 'Connectez-vous à votre compte Rapigo Mali'
+   494→   494→                : 'Rejoignez Rapigo Mali dès maintenant'}
+   495→   495→            </DialogDescription>
+   496→   496→          </DialogHeader>
+   497→   497→
+   498→   498→          {authTab === 'login' ? (
+   499→   499→            <div className="space-y-4 pt-2">
+   500→   500→              <div className="space-y-2">
+   501→   501→                <Label htmlFor="login-email">Adresse email</Label>
+   502→   502→                <Input
+   503→   503→                  id="login-email" type="email" placeholder="votre@email.com"
+   504→   504→                  value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+   505→   505→                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
+   506→   506→                />
+   507→   507→              </div>
+   508→   508→              <div className="space-y-2">
+   509→   509→                <Label htmlFor="login-password">Mot de passe</Label>
+   510→   510→                <div className="relative">
+   511→   511→                  <Input
+   512→   512→                    id="login-password" type={showPassword ? 'text' : 'password'} placeholder="••••••••"
+   513→   513→                    value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
+   514→   514→                    onKeyDown={e => e.key === 'Enter' && handleLogin()}
+   515→   515→                  />
+   516→   516→                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+   517→   517→                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   518→   518→                  </button>
+   519→   519→                </div>
+   520→   520→              </div>
+   521→   521→              <Button className="w-full" onClick={handleLogin} disabled={loading}>
+   522→   522→                {loading ? 'Connexion...' : 'Se connecter'}
+   523→   523→              </Button>
+   524→   524→              <p className="text-center text-sm text-muted-foreground">
+   525→   525→                Pas encore de compte ?{' '}
+   526→   526→                <button type="button" className="text-primary hover:underline font-medium" onClick={() => setAuthTab('register')}>
+   527→   527→                  S&apos;inscrire
+   528→   528→                </button>
+   529→   529→              </p>
+   530→   530→            </div>
+   531→   531→          ) : (
+   532→   532→            <div className="space-y-4 pt-2">
+   533→   533→              <Tabs value={regRole} onValueChange={v => setRegRole(v)}>
+   534→   534→                <TabsList className="grid w-full grid-cols-3">
+   535→   535→                  <TabsTrigger value="CLIENT">Client</TabsTrigger>
+   536→   536→                  <TabsTrigger value="MERCHANT">Commerçant</TabsTrigger>
+   537→   537→                  <TabsTrigger value="DRIVER">Livreur</TabsTrigger>
+   538→   538→                </TabsList>
+   539→   539→              </Tabs>
+   540→   540→              <div className="grid grid-cols-2 gap-3">
+   541→   541→                <div className="space-y-2">
+   542→   542→                  <Label htmlFor="reg-first">Prénom</Label>
+   543→   543→                  <Input id="reg-first" placeholder="Prénom" value={regFirstName} onChange={e => setRegFirstName(e.target.value)} />
+   544→   544→                </div>
+   545→   545→                <div className="space-y-2">
+   546→   546→                  <Label htmlFor="reg-last">Nom</Label>
+   547→   547→                  <Input id="reg-last" placeholder="Nom" value={regLastName} onChange={e => setRegLastName(e.target.value)} />
+   548→   548→                </div>
+   549→   549→              </div>
+   550→   550→              <div className="space-y-2">
+   551→   551→                <Label htmlFor="reg-email">Adresse email</Label>
+   552→   552→                <Input id="reg-email" type="email" placeholder="votre@email.com" value={regEmail} onChange={e => setRegEmail(e.target.value)} />
+   553→   553→              </div>
+   554→   554→              <div className="space-y-2">
+   555→   555→                <Label htmlFor="reg-phone">Téléphone (+223)</Label>
+   556→   556→                <Input id="reg-phone" placeholder="+223 XX XX XX XX" value={regPhone} onChange={e => setRegPhone(e.target.value)} />
+   557→   557→              </div>
+   558→   558→              <div className="space-y-2">
+   559→   559→                <Label htmlFor="reg-password">Mot de passe (6 caractères min.)</Label>
+   560→   560→                <div className="relative">
+   561→   561→                  <Input
+   562→   562→                    id="reg-password" type={showPassword ? 'text' : 'password'} placeholder="••••••••"
+   563→   563→                    value={regPassword} onChange={e => setRegPassword(e.target.value)}
+   564→   564→                    onKeyDown={e => e.key === 'Enter' && handleRegister()}
+   565→   565→                  />
+   566→   566→                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+   567→   567→                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   568→   568→                  </button>
+   569→   569→                </div>
+   570→   570→              </div>
+   571→   571→
+   572→   572→              {regRole === 'MERCHANT' && (
+   573→   573→                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300">
+   574→   574→                  <p className="font-medium mb-1">Commerçant</p>
+   575→   575→                  <p className="text-xs">Votre compte sera vérifié par notre équipe avant activation. Accès Premium à vie — 4 000 FCFA seulement.</p>
+   576→   576→                </div>
+   577→   577→              )}
+   578→   578→              {regRole === 'DRIVER' && (
+   579→   579→                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300">
+   580→   580→                  <p className="font-medium mb-1">Livreur</p>
+   581→   581→                  <p className="text-xs">Vous devrez fournir vos documents (CNI, permis) pour validation avant de pouvoir livrer.</p>
+   582→   582→                </div>
+   583→   583→              )}
+   584→   584→
+   585→   585→              <Button className="w-full" onClick={handleRegister} disabled={loading}>
+   586→   586→                {loading ? 'Création...' : 'Créer mon compte'}
+   587→   587→              </Button>
+   588→   588→              <p className="text-center text-sm text-muted-foreground">
+   589→   589→                Déjà un compte ?{' '}
+   590→   590→                <button type="button" className="text-primary hover:underline font-medium" onClick={() => setAuthTab('login')}>
+   591→   591→                  Se connecter
+   592→   592→                </button>
+   593→   593→              </p>
+   594→   594→            </div>
+   595→   595→          )}
+   596→   596→        </DialogContent>
+   597→   597→      </Dialog>
+   598→   598→    </div>
+   599→   599→  );
+   600→   600→}

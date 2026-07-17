@@ -27,6 +27,7 @@ import {
 } from '@/lib/store';
 import { toast } from 'sonner';
 import { SupportContact } from '@/components/support-contact';
+import { RapigoLogo } from '@/components/rapigo-logo';
 
 /* ── Types ─────────────────────────────────── */
 interface Merchant { id: string; businessName: string; businessType: string; shortDescription?: string; logo?: string; coverImage?: string; address: string; phone: string; operatingHours: string; isFeatured: boolean; rating: number; totalRatings: number; city: string; quartier?: string; deliveryZones?: { city: string; quartier: string; fee: number; isActive: boolean }[]; _count?: { products: number } }
@@ -137,8 +138,7 @@ function HomeView() {
   return (
     <div className="px-4 pt-4 space-y-6">
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-emerald-700 flex items-center justify-center text-white font-bold text-sm">R</div>
-        <div><h1 className="text-lg font-bold text-gray-900">Rapigo</h1><p className="text-xs text-muted-foreground">Livraison rapide à Bamako</p></div>
+        <RapigoLogo height={28} />
       </div>
       <div className="relative" onClick={() => navigate('search', { q: query })}>
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

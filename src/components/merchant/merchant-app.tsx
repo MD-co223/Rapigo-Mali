@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { SupportContact } from '@/components/support-contact';
+import { RapigoLogo } from '@/components/rapigo-logo';
 import {
   useMerchantNav, useAuthStore, useSpaceStore, apiFetch, formatPrice,
   ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, BUSINESS_TYPES, PAYMENT_METHODS
@@ -737,7 +738,7 @@ export default function MerchantApp() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-emerald-700 text-white shrink-0">
-        <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><img src="/logo.svg" alt="Rapigo" className="h-8" /><span className="font-bold text-lg">Rapigo Mali</span></div>
+        <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo height={32} variant="light" /></div>
         {renderNav()}
         <div className="p-4 border-t border-emerald-600">
           <p className="text-sm text-emerald-200 truncate">{merchant.name || user?.firstName}</p>
@@ -769,7 +770,7 @@ export default function MerchantApp() {
       </div>
       <Sheet open={mobileMenu} onOpenChange={setMobileMenu}>
         <SheetContent side="left" className="w-72 bg-emerald-700 text-white border-none p-0">
-          <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><img src="/logo.svg" alt="Rapigo" className="h-8" /><span className="font-bold text-lg">Rapigo Mali</span></div>
+          <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo height={32} variant="light" /></div>
           {renderNav(() => setMobileMenu(false))}
           <div className="p-4 border-t border-emerald-600">
             <p className="text-sm text-emerald-200">{merchant.name || user?.firstName}</p>

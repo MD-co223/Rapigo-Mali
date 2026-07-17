@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore, useSpaceStore, apiFetch, type AuthUser } from '@/lib/store';
 import { SupportContact } from '@/components/support-contact';
+import { RapigoLogo } from '@/components/rapigo-logo';
 import { toast } from 'sonner';
 
 const ClientApp = lazy(() => import('@/components/client/client-app'));
@@ -27,8 +28,9 @@ const EASE_OUT = [0, 0, 0.2, 1] as const;
 
 function LoadingSpace() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full" />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+      <RapigoLogo height={56} priority />
+      <div className="animate-spin h-6 w-6 border-3 border-emerald-600 border-t-transparent rounded-full" />
     </div>
   );
 }
@@ -71,8 +73,8 @@ function WaitingApproval({ role }: { role: 'MERCHANT' | 'DRIVER' }) {
         transition={{ duration: 0.5, ease: EASE_OUT }}
         className="max-w-md w-full text-center space-y-6"
       >
-        <div className="mx-auto w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-          <Clock className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+        <div className="mx-auto w-32">
+          <RapigoLogo height={64} className="mx-auto" priority />
         </div>
         <div>
           <h1 className="text-2xl font-bold mb-2">Compte en attente</h1>
@@ -238,7 +240,7 @@ export default function HomePage() {
       <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
-            <img src="/logo.svg" alt="Rapigo Mali" className="h-9 w-auto" />
+            <RapigoLogo height={36} priority />
           </div>
 
           <nav className="hidden md:flex items-center gap-6 text-sm">
@@ -416,7 +418,7 @@ export default function HomePage() {
             {/* Informations */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <img src="/logo.svg" alt="Rapigo Mali" className="h-8 w-auto" />
+                <RapigoLogo height={32} />
               </div>
               <p className="text-sm text-muted-foreground max-w-sm">
                 Votre plateforme de livraison N°1 au Mali. Rapide, fiable, partout au Mali.
@@ -485,6 +487,9 @@ export default function HomePage() {
       <Dialog open={showAuth} onOpenChange={setShowAuth}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
+            <div className="mx-auto mb-2">
+              <RapigoLogo height={40} className="mx-auto" />
+            </div>
             <DialogTitle className="text-center text-xl">
               {authTab === 'login' ? 'Connexion' : 'Créer un compte'}
             </DialogTitle>

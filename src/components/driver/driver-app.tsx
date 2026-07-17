@@ -23,6 +23,7 @@ import {
 } from '@/lib/store';
 import { toast } from 'sonner';
 import { SupportContact } from '@/components/support-contact';
+import { RapigoLogo } from '@/components/rapigo-logo';
 
 interface DriverData {
   id: string; userId: string; vehicleType: string;
@@ -236,8 +237,7 @@ export default function DriverApp() {
     <div className="min-h-screen flex flex-col bg-gray-50 max-w-lg mx-auto">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
-        <img src="/logo.svg" alt="Rapigo" className="h-7" />
-        <span className="font-bold text-sm">Rapigo Mali</span>
+        <RapigoLogo height={28} variant="dark" />
         <div className="flex-1" />
         <button onClick={() => navigate('notifications')} className="relative p-1">
           <Bell className="h-5 w-5" />
