@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Package, PlusCircle, ShoppingBag, MapPin,
   CreditCard, Crown, User, Bell, LogOut, Menu, X, ChevronLeft,
   Search, Edit, Trash2, Star, Clock, DollarSign, TrendingUp,
-  Loader2, AlertCircle, ImagePlus, Send, MessageSquare, Phone,
-  Mail, Settings, Store, Ticket,
+  Loader2, AlertCircle, Send, MessageSquare, Phone,
+  Mail, Store, Ticket,
   CheckCircle2, XCircle, ChevronDown, ChevronRight,
+  Eye, ShieldCheck, Zap,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -33,6 +36,12 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
+} from '@/components/ui/chart';
+import {
   useMerchantNav, useAuthStore, useSpaceStore,
   apiFetch, formatPrice,
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
@@ -41,7 +50,7 @@ import {
 } from '@/lib/store';
 import type { MerchantView } from '@/lib/store';
 import { toast } from 'sonner';
-import { SupportContactCard } from '@/components/support-contact';
+import { SupportContact } from '@/components/support-contact';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -234,31 +243,34 @@ interface Notification {
 
 interface MerchantStats {
   totalOrders: number;
+  todayOrders: number;
   totalProducts: number;
   totalRevenue: number;
+  todayRevenue: number;
   pendingOrders: number;
   rating: number;
   totalRatings: number;
   recentOrders: Order[];
   ordersByStatus: { status: string; _count: number }[];
+  dailyRevenue?: { date: string; revenue: number; orders: number }[];
 }
 
-// ─── Nav items ──────────────────────────────────────────────────────────────
+// ─── Navigation config ──────────────────────────────────────────────────────
 
 const SIDEBAR_ITEMS: { label: string; view: MerchantView; icon: React.ElementType }[] = [
   { label: 'Tableau de bord', view: 'dashboard', icon: LayoutDashboard },
   { label: 'Produits', view: 'products', icon: Package },
   { label: 'Commandes', view: 'orders', icon: ShoppingBag },
   { label: 'Statistiques', view: 'stats', icon: TrendingUp },
-  { label: 'Coupons', view: 'coupons', icon: Ticket },
-  { label: 'Configuration paiements', view: 'payment-config', icon: CreditCard },
-  { label: 'Zones de livraison', view: 'delivery-zones', icon: MapPin },
   { label: 'Abonnement', view: 'subscription', icon: Crown },
-  { label: 'Paramètres', view: 'settings', icon: Settings },
+  { label: 'Zones livraison', view: 'delivery-zones', icon: MapPin },
+  { label: 'Paiement', view: 'payment-config', icon: CreditCard },
+  { label: 'Coupons', view: 'coupons', icon: Ticket },
   { label: 'Support', view: 'support', icon: MessageSquare },
+  { label: 'Profil', view: 'profile', icon: User },
 ];
 
-const BOTTOM_NAV_ITEMS: { label: string; view: MerchantView; icon: React.ElementType }[] = [
+const MOBILE_NAV_ITEMS: { label: string; view: MerchantView; icon: React.ElementType }[] = [
   { label: 'Accueil', view: 'dashboard', icon: LayoutDashboard },
   { label: 'Produits', view: 'products', icon: Package },
   { label: 'Commandes', view: 'orders', icon: ShoppingBag },
@@ -266,7 +278,7 @@ const BOTTOM_NAV_ITEMS: { label: string; view: MerchantView; icon: React.Element
   { label: 'Profil', view: 'profile', icon: User },
 ];
 
-// ─── Helper: StatusBadge ────────────────────────────────────────────────────
+// ─── Shared helpers ─────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   return (
@@ -298,45 +310,142 @@ function formatDate(dateStr: string) {
   });
 }
 
-// ─── Upload helper ──────────────────────────────────────────────────────────
+function formatDateShort(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('fr-FR', {
+    day: '2-digit', month: 'short',
+  });
+}
 
-async function uploadFile(file: File): Promise<string | null> {
-  const fd = new FormData();
-  fd.append('file', file);
-  try {
-    const token = useAuthStore.getState().token;
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: fd,
-    });
-    const data = await res.json();
-    if (res.ok && data.url) return data.url;
-    toast.error(data.error || 'Erreur lors du téléchargement');
-    return null;
-  } catch {
-    toast.error('Erreur de connexion');
-    return null;
-  }
+function isToday(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+}
+
+const fadeInUp = {
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -12 },
+};
+
+// ─── Page transition wrapper ────────────────────────────────────────────────
+
+function PageTransition({ children, keyVal }: { children: React.ReactNode; keyVal: string }) {
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={keyVal}
+        initial={fadeInUp.initial}
+        animate={fadeInUp.animate}
+        exit={fadeInUp.exit}
+        transition={{ duration: 0.2 }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// VIEWS
+// 1. WAITING SCREEN (when !merchant.isApproved)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ─── 1. Dashboard ───────────────────────────────────────────────────────────
+function WaitingScreen({ merchant, onLogout }: { merchant: MerchantProfile; onLogout: () => void }) {
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <span className="text-lg font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+          Rapigo Mali
+        </span>
+        <Button variant="ghost" size="sm" onClick={onLogout} className="text-destructive hover:text-destructive">
+          <LogOut className="h-4 w-4 mr-1" />
+          Déconnexion
+        </Button>
+      </header>
 
-function DashboardView({ merchant }: { merchant: MerchantProfile }) {
+      <div className="flex-1 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4 }}
+          className="max-w-md w-full"
+        >
+          <Card>
+            <CardContent className="flex flex-col items-center py-12 text-center">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center mb-6"
+              >
+                <Clock className="h-10 w-10 text-amber-600" />
+              </motion.div>
+
+              <motion.h2
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-2xl font-bold"
+              >
+                Compte en attente de validation
+              </motion.h2>
+
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="text-muted-foreground mt-3 max-w-sm"
+              >
+                Votre compte marchand <strong>{merchant.businessName}</strong> est en cours de vérification par notre équipe.
+                Notre équipe vérifiera vos informations. Vous serez notifié par email.
+              </motion.p>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="text-sm text-muted-foreground mt-4"
+              >
+                Le processus prend généralement 24 à 48 heures. Merci de votre patience.
+              </motion.p>
+
+              <Separator className="my-6 w-full" />
+
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="w-full bg-muted/50 rounded-lg p-4"
+              >
+                <SupportContact variant="full" />
+              </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+
+function DashboardView() {
   const { navigate } = useMerchantNav();
   const [stats, setStats] = useState<MerchantStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data } = await apiFetch<MerchantStats>('/api/stats/merchant');
-      if (data) setStats(data);
-      setLoading(false);
+      if (!cancelled) {
+        if (data) setStats(data);
+        setLoading(false);
+      }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) {
@@ -344,39 +453,52 @@ function DashboardView({ merchant }: { merchant: MerchantProfile }) {
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <Card key={i}><CardContent className="p-6"><Skeleton className="h-20 w-full" /></CardContent></Card>
+            <Card key={i}><CardContent className="p-4 lg:p-6"><Skeleton className="h-20 w-full" /></CardContent></Card>
           ))}
         </div>
-        <Card><CardContent className="p-6"><Skeleton className="h-40 w-full" /></CardContent></Card>
+        <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>
       </div>
     );
   }
 
+  // Compute today's orders/revenue from recentOrders
+  const todayOrders = stats?.recentOrders?.filter((o) => isToday(o.createdAt)) || [];
+  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
+
   const statCards = [
-    { label: 'Total commandes', value: stats?.totalOrders ?? 0, icon: ShoppingBag, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
-    { label: 'Revenus', value: formatPrice(stats?.totalRevenue ?? 0), icon: DollarSign, color: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
+    { label: 'Commandes aujourd\'hui', value: todayOrders.length, icon: ShoppingBag, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
+    { label: 'Revenus du jour', value: formatPrice(todayRevenue), icon: DollarSign, color: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
     { label: 'Produits actifs', value: stats?.totalProducts ?? 0, icon: Package, color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20' },
     { label: 'Note moyenne', value: stats?.rating ? `${stats.rating.toFixed(1)}/5` : 'N/A', icon: Star, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
   ];
 
   return (
     <div className="space-y-6">
+      {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-4 lg:p-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">{s.label}</span>
-                <div className={`p-2 rounded-lg ${s.color}`}>
-                  <s.icon className="h-4 w-4" />
+        {statCards.map((s, idx) => (
+          <motion.div
+            key={s.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.05 }}
+          >
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4 lg:p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs sm:text-sm text-muted-foreground">{s.label}</span>
+                  <div className={`p-2 rounded-lg ${s.color}`}>
+                    <s.icon className="h-4 w-4" />
+                  </div>
                 </div>
-              </div>
-              <p className="text-xl lg:text-2xl font-bold">{s.value}</p>
-            </CardContent>
-          </Card>
+                <p className="text-xl lg:text-2xl font-bold">{s.value}</p>
+              </CardContent>
+            </Card>
+          </motion.div>
         ))}
       </div>
 
+      {/* Quick actions */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Actions rapides</CardTitle>
@@ -388,12 +510,10 @@ function DashboardView({ merchant }: { merchant: MerchantProfile }) {
           <Button variant="outline" onClick={() => navigate('orders')}>
             <ShoppingBag className="h-4 w-4 mr-2" /> Voir commandes
           </Button>
-          <Button variant="outline" onClick={() => navigate('payment-config')}>
-            <CreditCard className="h-4 w-4 mr-2" /> Configurer paiements
-          </Button>
         </CardContent>
       </Card>
 
+      {/* Recent orders */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -405,24 +525,32 @@ function DashboardView({ merchant }: { merchant: MerchantProfile }) {
         </CardHeader>
         <CardContent>
           {!stats?.recentOrders?.length ? (
-            <p className="text-muted-foreground text-center py-8">Aucune commande récente</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <ShoppingBag className="h-10 w-10 text-muted-foreground/40 mb-3" />
+              <p className="text-muted-foreground">Aucune commande récente</p>
+            </div>
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {stats.recentOrders.map((order) => (
-                <div
+              {stats.recentOrders.slice(0, 5).map((order) => (
+                <motion.div
                   key={order.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                   className="flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors"
                   onClick={() => navigate('order-detail', { id: order.id })}
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">{order.orderNumber}</p>
-                    <p className="text-xs text-muted-foreground truncate">{formatDate(order.createdAt)}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {order.client?.user ? `${order.client.user.firstName} ${order.client.user.lastName}` : 'Client'}
+                      {' · '}{formatDate(order.createdAt)}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 ml-3">
                     <span className="font-semibold text-sm">{formatPrice(order.total)}</span>
                     <StatusBadge status={order.status} />
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
@@ -432,34 +560,38 @@ function DashboardView({ merchant }: { merchant: MerchantProfile }) {
   );
 }
 
-// ─── 2. Products ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. PRODUCTS (table view)
+// ═══════════════════════════════════════════════════════════════════════════
 
-function ProductsView({ merchant }: { merchant: MerchantProfile }) {
+function ProductsView({ merchantId }: { merchantId: string }) {
   const { navigate } = useMerchantNav();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [togglingId, setTogglingId] = useState<string | null>(null);
-
-  const reloadRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    const load = async () => {
+    let cancelled = false;
+    (async () => {
       setLoading(true);
-      const { data } = await apiFetch<Product[]>(`/api/products?merchantId=${merchant.id}&available=false`);
-      if (data) setProducts(data);
-      setLoading(false);
-    };
-    reloadRef.current = load;
-    void load();
-  }, [merchant.id]);
+      const { data } = await apiFetch<Product[]>(`/api/products?merchantId=${merchantId}&available=false`);
+      if (!cancelled) {
+        if (data) setProducts(data);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [merchantId, refreshKey]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Supprimer ce produit ?')) return;
     const { error } = await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
     if (error) { toast.error(error); return; }
     toast.success('Produit supprimé');
-    reloadRef.current();
+    setRefreshKey((k) => k + 1);
   };
 
   const handleToggleAvailable = async (p: Product) => {
@@ -469,23 +601,23 @@ function ProductsView({ merchant }: { merchant: MerchantProfile }) {
       body: JSON.stringify({ isAvailable: !p.isAvailable }),
     });
     if (error) { toast.error(error); }
-    else { toast.success(p.isAvailable ? 'Produit désactivé' : 'Produit activé'); reloadRef.current(); }
+    else { toast.success(p.isAvailable ? 'Produit désactivé' : 'Produit activé'); setRefreshKey((k) => k + 1); }
     setTogglingId(null);
   };
 
-  const filtered = products.filter((p) =>
-    !search || p.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = products.filter((p) => {
+    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === 'all' ||
+      (statusFilter === 'available' && p.isAvailable) ||
+      (statusFilter === 'unavailable' && !p.isAvailable);
+    return matchSearch && matchStatus;
+  });
 
   if (loading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-full max-w-sm" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}><CardContent className="p-4"><Skeleton className="h-40 w-full" /></CardContent></Card>
-          ))}
-        </div>
+        <Card><CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
       </div>
     );
   }
@@ -493,144 +625,220 @@ function ProductsView({ merchant }: { merchant: MerchantProfile }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Rechercher un produit..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 w-full sm:w-64" />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              <SelectItem value="available">Disponibles</SelectItem>
+              <SelectItem value="unavailable">Indisponibles</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Button onClick={() => navigate('add-product')} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={() => navigate('add-product')} className="bg-emerald-600 hover:bg-emerald-700 shrink-0">
           <PlusCircle className="h-4 w-4 mr-2" /> Ajouter un produit
         </Button>
       </div>
 
-      {!filtered.length ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Package className="h-12 w-12 text-muted-foreground mb-3" />
-            <p className="text-lg font-medium">Aucun produit</p>
-            <p className="text-muted-foreground text-sm mt-1">Commencez par ajouter votre premier produit</p>
-            <Button onClick={() => navigate('add-product')} className="mt-4 bg-emerald-600 hover:bg-emerald-700">
-              <PlusCircle className="h-4 w-4 mr-2" /> Ajouter un produit
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[70vh] overflow-y-auto">
-          {filtered.map((p) => (
-            <Card key={p.id} className="overflow-hidden">
-              <div className="aspect-video bg-muted relative">
-                {p.image ? (
-                  <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Package className="h-10 w-10 text-muted-foreground/40" />
-                  </div>
-                )}
-                <Badge variant={p.isAvailable ? 'default' : 'secondary'} className="absolute top-2 right-2">
-                  {p.isAvailable ? 'Actif' : 'Inactif'}
-                </Badge>
+      <Card>
+        <CardContent className="p-0">
+          {!filtered.length ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Package className="h-12 w-12 text-muted-foreground mb-3" />
+              <p className="text-lg font-medium">Aucun produit</p>
+              <p className="text-muted-foreground text-sm mt-1">Commencez par ajouter votre premier produit</p>
+              <Button onClick={() => navigate('add-product')} className="mt-4 bg-emerald-600 hover:bg-emerald-700">
+                <PlusCircle className="h-4 w-4 mr-2" /> Ajouter un produit
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Image</TableHead>
+                      <TableHead>Nom</TableHead>
+                      <TableHead>Prix</TableHead>
+                      <TableHead>Stock</TableHead>
+                      <TableHead>Catégorie</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell>
+                          <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden">
+                            {p.image ? (
+                              <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center">
+                                <Package className="h-4 w-4 text-muted-foreground/40" />
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium text-sm truncate max-w-40">{p.name}</p>
+                            {p.brand && <p className="text-xs text-muted-foreground">{p.brand}</p>}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">{formatPrice(p.price)}</span>
+                            {p.comparePrice && p.comparePrice > p.price && (
+                              <p className="text-xs text-muted-foreground line-through">{formatPrice(p.comparePrice)}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`text-sm font-medium ${p.stock <= 0 ? 'text-destructive' : ''}`}>{p.stock}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">{p.category?.name || '—'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={p.isAvailable}
+                            onCheckedChange={() => handleToggleAvailable(p)}
+                            disabled={togglingId === p.id}
+                            className="data-[state=checked]:bg-emerald-600"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('add-product', { id: p.id })}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-sm truncate">{p.name}</h3>
-                {p.category && <p className="text-xs text-muted-foreground mt-0.5">{p.category.name}</p>}
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="font-bold text-emerald-700 dark:text-emerald-400">{formatPrice(p.price)}</span>
-                  {p.comparePrice && p.comparePrice > p.price && (
-                    <span className="text-xs text-muted-foreground line-through">{formatPrice(p.comparePrice)}</span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Stock : {p.stock}</p>
-              </CardContent>
-              <CardFooter className="p-4 pt-0 flex gap-2">
-                <Switch
-                  checked={p.isAvailable}
-                  onCheckedChange={() => handleToggleAvailable(p)}
-                  disabled={togglingId === p.id}
-                  className="data-[state=checked]:bg-emerald-600"
-                />
-                <span className="text-xs text-muted-foreground mr-auto">{p.isAvailable ? 'Disponible' : 'Indisponible'}</span>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('add-product', { id: p.id })}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y">
+                {filtered.map((p) => (
+                  <div key={p.id} className="flex items-center gap-3 p-4">
+                    <div className="h-12 w-12 rounded-lg bg-muted overflow-hidden shrink-0">
+                      {p.image ? (
+                        <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center">
+                          <Package className="h-5 w-5 text-muted-foreground/40" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{p.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.category?.name || '—'} · Stock: {p.stock}
+                      </p>
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">{formatPrice(p.price)}</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <Switch
+                        checked={p.isAvailable}
+                        onCheckedChange={() => handleToggleAvailable(p)}
+                        disabled={togglingId === p.id}
+                        className="data-[state=checked]:bg-emerald-600"
+                      />
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('add-product', { id: p.id })}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(p.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-// ─── 3. Add/Edit Product ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. ADD / EDIT PRODUCT
+// ═══════════════════════════════════════════════════════════════════════════
 
-function AddProductView({ merchant }: { merchant: MerchantProfile }) {
-  const { view, data, goBack, navigate } = useMerchantNav();
+function AddProductView() {
+  const { data, goBack, navigate } = useMerchantNav();
   const editId = data?.id;
   const isEdit = !!editId;
 
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [uploading, setUploading] = useState(false);
 
   const [form, setForm] = useState({
-    name: '', shortDescription: '', longDescription: '', price: '',
-    comparePrice: '', stock: '', categoryId: '', isAvailable: true,
-    isFeatured: false, preparationTime: '', sku: '', barcode: '',
-    weight: '', brand: '', origin: '', tags: '', image: '',
+    name: '', description: '', price: '',
+    comparePrice: '', stock: '', categoryId: '', preparationTime: '',
+    tags: '', brand: '', origin: '', image: '',
+    isAvailable: true, isFeatured: false,
   });
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data: cats } = await apiFetch<Category[]>('/api/categories');
-      if (cats) setCategories(cats);
+      if (!cancelled && cats) setCategories(cats);
     })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     if (!editId) return;
+    let cancelled = false;
     (async () => {
       const { data } = await apiFetch<Product>(`/api/products/${editId}`);
-      if (data) {
+      if (!cancelled && data) {
         let tagsStr = '';
         try { const t = JSON.parse(data.tags || '[]'); tagsStr = t.join(', '); } catch { /* ignore */ }
         setForm({
           name: data.name || '',
-          shortDescription: data.shortDescription || '',
-          longDescription: data.longDescription || '',
+          description: data.longDescription || data.shortDescription || '',
           price: String(data.price || ''),
           comparePrice: data.comparePrice ? String(data.comparePrice) : '',
           stock: String(data.stock ?? ''),
           categoryId: data.categoryId || '',
-          isAvailable: data.isAvailable,
-          isFeatured: data.isFeatured,
           preparationTime: data.preparationTime ? String(data.preparationTime) : '',
-          sku: data.sku || '',
-          barcode: data.barcode || '',
-          weight: data.weight || '',
+          tags: tagsStr,
           brand: data.brand || '',
           origin: data.origin || '',
-          tags: tagsStr,
           image: data.image || '',
+          isAvailable: data.isAvailable,
+          isFeatured: data.isFeatured,
         });
+        setLoading(false);
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     })();
+    return () => { cancelled = true; };
   }, [editId]);
 
   const setField = (key: string, val: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: val }));
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const url = await uploadFile(file);
-    if (url) setForm((prev) => ({ ...prev, image: url }));
-    setUploading(false);
-  };
 
   const handleSave = async () => {
     if (!form.name || !form.price) {
@@ -642,8 +850,8 @@ function AddProductView({ merchant }: { merchant: MerchantProfile }) {
 
     const body: Record<string, unknown> = {
       name: form.name,
-      shortDescription: form.shortDescription || null,
-      longDescription: form.longDescription || null,
+      shortDescription: form.description ? form.description.slice(0, 120) : null,
+      longDescription: form.description || null,
       price: parseInt(form.price) || 0,
       comparePrice: form.comparePrice ? parseInt(form.comparePrice) : null,
       stock: parseInt(form.stock) || 0,
@@ -651,9 +859,6 @@ function AddProductView({ merchant }: { merchant: MerchantProfile }) {
       isAvailable: form.isAvailable,
       isFeatured: form.isFeatured,
       preparationTime: form.preparationTime ? parseInt(form.preparationTime) : null,
-      sku: form.sku || null,
-      barcode: form.barcode || null,
-      weight: form.weight || null,
       brand: form.brand || null,
       origin: form.origin || null,
       tags: tagsArr.length ? tagsArr : null,
@@ -670,7 +875,12 @@ function AddProductView({ merchant }: { merchant: MerchantProfile }) {
   };
 
   if (loading) {
-    return <div className="space-y-4"><Skeleton className="h-10 w-48" />{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>;
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-2 gap-4">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+      </div>
+    );
   }
 
   const fieldClass = 'flex flex-col gap-1.5';
@@ -683,23 +893,23 @@ function AddProductView({ merchant }: { merchant: MerchantProfile }) {
       </div>
 
       <Card>
-        <CardContent className="p-6 space-y-4">
-          {/* Image */}
+        <CardContent className="p-6 space-y-5">
+          {/* Image URL */}
           <div className={fieldClass}>
-            <Label>Image du produit</Label>
-            {form.image ? (
-              <div className="relative w-40 h-40 rounded-lg overflow-hidden border">
-                <img src={form.image} alt="Produit" className="w-full h-full object-cover" />
-                <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6" onClick={() => setField('image', '')}>
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ) : (
-              <label className="flex items-center justify-center w-40 h-40 rounded-lg border-2 border-dashed cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors">
-                {uploading ? <Loader2 className="h-8 w-8 animate-spin text-emerald-600" /> : <ImagePlus className="h-8 w-8 text-muted-foreground" />}
-                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-              </label>
-            )}
+            <Label>URL de l&apos;image</Label>
+            <div className="flex gap-2">
+              <Input
+                value={form.image}
+                onChange={(e) => setField('image', e.target.value)}
+                placeholder="https://exemple.com/image.jpg"
+                className="flex-1"
+              />
+              {form.image && (
+                <div className="h-10 w-10 rounded-lg overflow-hidden border shrink-0">
+                  <img src={form.image} alt="Aperçu" className="h-full w-full object-cover" />
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -719,15 +929,11 @@ function AddProductView({ merchant }: { merchant: MerchantProfile }) {
               </Select>
             </div>
             <div className={fieldClass}>
-              <Label>Description courte</Label>
-              <Input value={form.shortDescription} onChange={(e) => setField('shortDescription', e.target.value)} placeholder="Une phrase" />
-            </div>
-            <div className={fieldClass}>
-              <Label>Prix *</Label>
+              <Label>Prix (FCFA) *</Label>
               <Input type="number" value={form.price} onChange={(e) => setField('price', e.target.value)} placeholder="0" />
             </div>
             <div className={fieldClass}>
-              <Label>Prix barré (comparaison)</Label>
+              <Label>Prix barré (FCFA)</Label>
               <Input type="number" value={form.comparePrice} onChange={(e) => setField('comparePrice', e.target.value)} placeholder="Optionnel" />
             </div>
             <div className={fieldClass}>
@@ -739,20 +945,8 @@ function AddProductView({ merchant }: { merchant: MerchantProfile }) {
               <Input type="number" value={form.preparationTime} onChange={(e) => setField('preparationTime', e.target.value)} placeholder="30" />
             </div>
             <div className={fieldClass}>
-              <Label>SKU</Label>
-              <Input value={form.sku} onChange={(e) => setField('sku', e.target.value)} placeholder="Réf. interne" />
-            </div>
-            <div className={fieldClass}>
-              <Label>Code barres</Label>
-              <Input value={form.barcode} onChange={(e) => setField('barcode', e.target.value)} />
-            </div>
-            <div className={fieldClass}>
-              <Label>Poids</Label>
-              <Input value={form.weight} onChange={(e) => setField('weight', e.target.value)} placeholder="Ex: 500g" />
-            </div>
-            <div className={fieldClass}>
               <Label>Marque</Label>
-              <Input value={form.brand} onChange={(e) => setField('brand', e.target.value)} />
+              <Input value={form.brand} onChange={(e) => setField('brand', e.target.value)} placeholder="Ex: Malibya" />
             </div>
             <div className={fieldClass}>
               <Label>Origine</Label>
@@ -761,9 +955,10 @@ function AddProductView({ merchant }: { merchant: MerchantProfile }) {
           </div>
 
           <div className={fieldClass}>
-            <Label>Description longue</Label>
-            <Textarea rows={3} value={form.longDescription} onChange={(e) => setField('longDescription', e.target.value)} placeholder="Description détaillée..." />
+            <Label>Description</Label>
+            <Textarea rows={3} value={form.description} onChange={(e) => setField('description', e.target.value)} placeholder="Description détaillée du produit..." />
           </div>
+
           <div className={fieldClass}>
             <Label>Tags (séparés par des virgules)</Label>
             <Input value={form.tags} onChange={(e) => setField('tags', e.target.value)} placeholder="populaire, promo, nouveau" />
@@ -792,49 +987,66 @@ function AddProductView({ merchant }: { merchant: MerchantProfile }) {
   );
 }
 
-// ─── 4. Orders ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. ORDERS
+// ═══════════════════════════════════════════════════════════════════════════
 
 function OrdersView() {
   const { navigate } = useMerchantNav();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Toutes');
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const reloadRef = useRef<(status?: string) => Promise<void>>(() => Promise.resolve());
+  const [ordersKey, setOrdersKey] = useState(0);
 
   useEffect(() => {
-    const load = async (status?: string) => {
+    let cancelled = false;
+    const statusParam = activeTab !== 'Toutes' ? activeTab : undefined;
+    (async () => {
       setLoading(true);
-      const q = status ? `?status=${status}` : '';
+      const q = statusParam ? `?status=${statusParam}` : '';
       const { data } = await apiFetch<{ orders: Order[] }>(`/api/orders${q}`);
-      if (data) setOrders(data.orders || []);
-      setLoading(false);
-    };
-    reloadRef.current = load;
-    void load();
-  }, []);
+      if (!cancelled) {
+        if (data) setOrders(data.orders || []);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, ordersKey]);
+
+  const updateOrderStatus = async (orderId: string, status: string) => {
+    setUpdatingId(orderId);
+    const { error } = await apiFetch(`/api/orders/${orderId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+    if (error) { toast.error(error); }
+    else {
+      const label = ORDER_STATUS_LABELS[status] || status;
+      toast.success(`Commande passée à : ${label}`);
+      setOrdersKey((k) => k + 1);
+    }
+    setUpdatingId(null);
+  };
 
   const tabs = [
-    { label: 'Toutes', value: '' },
+    { label: 'Toutes', value: 'Toutes' },
     { label: 'En attente', value: 'PENDING' },
+    { label: 'Confirmées', value: 'CONFIRMED' },
     { label: 'En préparation', value: 'PREPARING' },
     { label: 'Prêtes', value: 'READY' },
     { label: 'Livrées', value: 'DELIVERED' },
     { label: 'Annulées', value: 'CANCELLED' },
   ];
 
-  const handleTabChange = (val: string) => {
-    setActiveTab(val);
-    reloadRef.current(val || undefined);
-  };
-
   return (
     <div className="space-y-4">
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="overflow-x-auto -mx-1 px-1">
           <TabsList className="w-full justify-start min-w-max">
             {tabs.map((t) => (
-              <TabsTrigger key={t.label} value={t.label}>{t.label}</TabsTrigger>
+              <TabsTrigger key={t.label} value={t.value}>{t.label}</TabsTrigger>
             ))}
           </TabsList>
         </div>
@@ -854,37 +1066,73 @@ function OrdersView() {
             </Card>
           ) : (
             <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-              {orders.map((order) => (
-                <Card
-                  key={order.id}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate('order-detail', { id: order.id })}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-sm">{order.orderNumber}</p>
-                          <StatusBadge status={order.status} />
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {order.client?.user ? `${order.client.user.firstName} ${order.client.user.lastName}` : 'Client'}
-                          {' · '}{formatDate(order.createdAt)}
-                        </p>
-                        {order.paymentMethod !== 'CASH' && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod} · <PaymentBadge status={order.paymentStatus} />
+              {orders.map((order) => {
+                const canAccept = order.status === 'PENDING';
+                const canPrepare = order.status === 'CONFIRMED';
+                const canReady = order.status === 'PREPARING';
+
+                return (
+                  <Card
+                    key={order.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => navigate('order-detail', { id: order.id })}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-sm">{order.orderNumber}</p>
+                            <StatusBadge status={order.status} />
+                            {order.paymentMethod !== 'CASH' && <PaymentBadge status={order.paymentStatus} />}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {order.client?.user ? `${order.client.user.firstName} ${order.client.user.lastName}` : 'Client'}
+                            {' · '}{order.items?.length || 0} article(s) · {formatDate(order.createdAt)}
                           </p>
-                        )}
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <p className="font-bold text-emerald-700 dark:text-emerald-400">{formatPrice(order.total)}</p>
+                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                            {canAccept && (
+                              <Button
+                                size="sm"
+                                onClick={() => updateOrderStatus(order.id, 'CONFIRMED')}
+                                disabled={updatingId === order.id}
+                                className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]"
+                              >
+                                {updatingId === order.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                                Accepter
+                              </Button>
+                            )}
+                            {canPrepare && (
+                              <Button
+                                size="sm"
+                                onClick={() => updateOrderStatus(order.id, 'PREPARING')}
+                                disabled={updatingId === order.id}
+                                className="bg-orange-600 hover:bg-orange-700 min-h-[44px]"
+                              >
+                                {updatingId === order.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                Préparation
+                              </Button>
+                            )}
+                            {canReady && (
+                              <Button
+                                size="sm"
+                                onClick={() => updateOrderStatus(order.id, 'READY')}
+                                disabled={updatingId === order.id}
+                                className="bg-teal-600 hover:bg-teal-700 min-h-[44px]"
+                              >
+                                {updatingId === order.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                Prêt
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-emerald-700 dark:text-emerald-400">{formatPrice(order.total)}</p>
-                        <p className="text-xs text-muted-foreground">{order.items?.length || 0} article(s)</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -893,10 +1141,14 @@ function OrdersView() {
   );
 }
 
-// ─── 5. Order Detail ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. ORDER DETAIL
+// ═══════════════════════════════════════════════════════════════════════════
+
+const STATUS_FLOW = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'];
 
 function OrderDetailView() {
-  const { data, goBack, navigate } = useMerchantNav();
+  const { data, goBack } = useMerchantNav();
   const orderId = data?.id;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -905,20 +1157,19 @@ function OrderDetailView() {
   const [cancelReason, setCancelReason] = useState('');
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-
-  const reloadRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!orderId) return;
-    const load = async () => {
+    let cancelled = false;
+    (async () => {
       setLoading(true);
       const { data } = await apiFetch<Order>(`/api/orders/${orderId}`);
-      if (data) setOrder(data);
-      setLoading(false);
-    };
-    reloadRef.current = load;
-    void load();
-  }, [orderId]);
+      if (!cancelled && data) setOrder(data);
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [orderId, refreshKey]);
 
   const updateStatus = async (status: string, extra?: Record<string, unknown>) => {
     if (!orderId) return;
@@ -930,7 +1181,8 @@ function OrderDetailView() {
     });
     if (error) { toast.error(error); setUpdating(false); return; }
     toast.success('Statut mis à jour');
-    reloadRef.current();
+    setRefreshKey((k) => k + 1);
+    setUpdating(false);
   };
 
   const handleCancel = async () => {
@@ -943,22 +1195,30 @@ function OrderDetailView() {
   const handleAcceptPayment = async () => {
     if (!orderId) return;
     setUpdating(true);
-    // Accept payment proof then confirm order
-    const { error } = await apiFetch(`/api/orders/${orderId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ status: 'CONFIRMED' }),
+    const { error } = await apiFetch(`/api/orders/${orderId}/payment-proof`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'ACCEPT' }),
     });
     if (error) { toast.error(error); setUpdating(false); return; }
     toast.success('Paiement accepté et commande confirmée');
-    reloadRef.current();
+    setRefreshKey((k) => k + 1);
+    setUpdating(false);
   };
 
   const handleRejectPayment = async () => {
     if (!rejectReason.trim()) { toast.error('Veuillez indiquer une raison'); return; }
-    // Cancel order on payment rejection
-    await updateStatus('CANCELLED', { cancelReason: `Paiement rejeté: ${rejectReason}` });
+    if (!orderId) return;
+    setUpdating(true);
+    const { error } = await apiFetch(`/api/orders/${orderId}/payment-proof`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'REJECT', reason: rejectReason }),
+    });
+    if (error) { toast.error(error); setUpdating(false); return; }
+    toast.success('Paiement refusé');
     setRejectOpen(false);
     setRejectReason('');
+    setRefreshKey((k) => k + 1);
+    setUpdating(false);
   };
 
   if (loading) {
@@ -985,6 +1245,7 @@ function OrderDetailView() {
   const canReady = order.status === 'PREPARING';
   const canCancel = ['PENDING', 'PAYMENT_PENDING'].includes(order.status);
   const showPaymentProof = order.paymentMethod !== 'CASH' && ['PENDING', 'UPLOADED'].includes(order.paymentStatus);
+  const currentStatusIdx = STATUS_FLOW.indexOf(order.status);
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
@@ -996,30 +1257,57 @@ function OrderDetailView() {
         </div>
       </div>
 
-      {/* Status & Payment */}
+      {/* Status timeline */}
       <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-medium">Statut :</span>
+        <CardHeader className="pb-3"><CardTitle className="text-lg">Statut de la commande</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 flex-wrap mb-4">
             <StatusBadge status={order.status} />
-            <span className="text-sm font-medium ml-2">Paiement :</span>
+            <span className="text-sm text-muted-foreground">Paiement :</span>
             <PaymentBadge status={order.paymentStatus} />
-            <span className="text-sm text-muted-foreground ml-2">
-              ({PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod})
-            </span>
+            <span className="text-sm text-muted-foreground">({PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod})</span>
           </div>
 
-          {/* Payment proof section */}
+          {/* Timeline bar */}
+          <div className="relative flex items-center justify-between mb-6 px-2">
+            {STATUS_FLOW.filter((s) => s !== 'CANCELLED' && s !== 'REFUNDED').map((s, idx) => {
+              const isActive = idx <= currentStatusIdx;
+              const isCurrent = s === order.status;
+              return (
+                <React.Fragment key={s}>
+                  {idx > 0 && (
+                    <div className={`flex-1 h-0.5 ${idx <= currentStatusIdx ? 'bg-emerald-500' : 'bg-muted'}`} />
+                  )}
+                  <div className="flex flex-col items-center gap-1 z-10">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                      isCurrent ? 'bg-emerald-600 text-white ring-2 ring-emerald-200 dark:ring-emerald-800' :
+                      isActive ? 'bg-emerald-500 text-white' :
+                      'bg-muted text-muted-foreground'
+                    }`}>
+                      {isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : idx + 1}
+                    </div>
+                    <span className={`text-[9px] sm:text-[10px] text-center max-w-14 leading-tight ${
+                      isCurrent ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'
+                    }`}>
+                      {ORDER_STATUS_LABELS[s]}
+                    </span>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+          </div>
+
+          {/* Payment proof */}
           {showPaymentProof && order.paymentProof && (
             <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/10 space-y-3">
               <p className="font-medium text-sm">Preuve de paiement {order.paymentNote && `- ${order.paymentNote}`}</p>
               <img src={order.paymentProof} alt="Preuve de paiement" className="max-h-48 rounded-lg border" />
               {order.paymentStatus === 'UPLOADED' && (
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleAcceptPayment} disabled={updating} className="bg-emerald-600 hover:bg-emerald-700">
+                  <Button size="sm" onClick={handleAcceptPayment} disabled={updating} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
                     <CheckCircle2 className="h-4 w-4 mr-1" /> Accepter
                   </Button>
-                  <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)} disabled={updating}>
+                  <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)} disabled={updating} className="min-h-[44px]">
                     <XCircle className="h-4 w-4 mr-1" /> Refuser
                   </Button>
                 </div>
@@ -1030,25 +1318,25 @@ function OrderDetailView() {
           {/* Status actions */}
           <div className="flex flex-wrap gap-2 pt-2">
             {canConfirm && (
-              <Button onClick={() => updateStatus('CONFIRMED')} disabled={updating} className="bg-emerald-600 hover:bg-emerald-700">
+              <Button onClick={() => updateStatus('CONFIRMED')} disabled={updating} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
                 {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 <CheckCircle2 className="h-4 w-4 mr-1" /> Confirmer
               </Button>
             )}
             {canPrepare && (
-              <Button onClick={() => updateStatus('PREPARING')} disabled={updating} className="bg-orange-600 hover:bg-orange-700">
+              <Button onClick={() => updateStatus('PREPARING')} disabled={updating} className="bg-orange-600 hover:bg-orange-700 min-h-[44px]">
                 {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Commencer préparation
               </Button>
             )}
             {canReady && (
-              <Button onClick={() => updateStatus('READY')} disabled={updating} className="bg-teal-600 hover:bg-teal-700">
+              <Button onClick={() => updateStatus('READY')} disabled={updating} className="bg-teal-600 hover:bg-teal-700 min-h-[44px]">
                 {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Marquer prête
               </Button>
             )}
             {canCancel && (
-              <Button variant="destructive" onClick={() => setCancelOpen(true)} disabled={updating}>
+              <Button variant="destructive" onClick={() => setCancelOpen(true)} disabled={updating} className="min-h-[44px]">
                 <XCircle className="h-4 w-4 mr-1" /> Annuler
               </Button>
             )}
@@ -1162,297 +1450,208 @@ function OrderDetailView() {
   );
 }
 
-// ─── 6. Payment Config ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. STATS (with charts)
+// ═══════════════════════════════════════════════════════════════════════════
 
-function PaymentMethodCard({
-  method, label, needsPhone, config, saving, onSave, onQrUpload,
-}: {
-  method: string;
-  label: string;
-  needsPhone: boolean;
-  config: PaymentConfig | undefined;
-  saving: boolean;
-  onSave: (method: string, body: Record<string, unknown>) => void;
-  onQrUpload: (method: string, e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
-  const isEnabled = config?.isEnabled ?? false;
-  const [phone, setPhone] = useState(config?.phoneNumber || '');
-  const [accountName, setAccountName] = useState(config?.accountName || '');
-  const [accountNumber, setAccountNumber] = useState(config?.accountNumber || '');
-  const [instructions, setInstructions] = useState(config?.instructions || '');
+const PIE_COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6', '#64748b'];
 
-  const handleToggle = () => {
-    onSave(method, { isEnabled: !isEnabled, phoneNumber: needsPhone ? phone : undefined, accountName, accountNumber, instructions });
-  };
+const revenueChartConfig = {
+  revenue: { label: 'Revenus (FCFA)', color: '#10b981' },
+  orders: { label: 'Commandes', color: '#3b82f6' },
+};
 
-  const handleSave = () => {
-    onSave(method, { isEnabled: true, phoneNumber: needsPhone ? phone : undefined, accountName, accountNumber, instructions });
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{label}</CardTitle>
-          <Switch
-            checked={isEnabled}
-            onCheckedChange={handleToggle}
-            disabled={saving}
-            className="data-[state=checked]:bg-emerald-600"
-          />
-        </div>
-      </CardHeader>
-      {isEnabled && (
-        <CardContent className="pt-0 space-y-3">
-          {needsPhone && (
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm">Numéro de téléphone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+223 XX XX XX XX" />
-            </div>
-          )}
-          {!needsPhone && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm">Nom du titulaire</Label>
-                <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm">Numéro de compte</Label>
-                <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
-              </div>
-            </div>
-          )}
-          {method === 'QR_CODE' && (
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm">QR Code</Label>
-              {config?.qrCode ? (
-                <div className="relative w-32 h-32">
-                  <img src={config.qrCode} alt="QR Code" className="w-full h-full object-contain rounded border" />
-                </div>
-              ) : null}
-              <label className="inline-flex items-center gap-2 px-4 py-2 border rounded-md cursor-pointer hover:bg-accent text-sm w-fit">
-                <ImagePlus className="h-4 w-4" /> Télécharger QR
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => onQrUpload(method, e)} />
-              </label>
-            </div>
-          )}
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm">Instructions pour le client</Label>
-            <Textarea rows={2} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Instructions de paiement..." />
-          </div>
-          <Button size="sm" onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Sauvegarder
-          </Button>
-        </CardContent>
-      )}
-    </Card>
-  );
-}
-
-function PaymentConfigView({ merchant }: { merchant: MerchantProfile }) {
-  const [configs, setConfigs] = useState<PaymentConfig[]>([]);
+function StatsView() {
+  const [stats, setStats] = useState<MerchantStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-
-  const METHODS = [
-    { value: 'ORANGE_MONEY', label: 'Orange Money', needsPhone: true },
-    { value: 'MOOV_MONEY', label: 'Moov Money', needsPhone: true },
-    { value: 'WAVE', label: 'Wave', needsPhone: true },
-    { value: 'VISA', label: 'Visa', needsPhone: false },
-    { value: 'MASTERCARD', label: 'Mastercard', needsPhone: false },
-    { value: 'QR_CODE', label: 'QR Code', needsPhone: false },
-  ];
-
-  const reloadRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const [period, setPeriod] = useState('7');
 
   useEffect(() => {
-    const load = async () => {
+    let cancelled = false;
+    (async () => {
       setLoading(true);
-      const { data } = await apiFetch<PaymentConfig[]>(`/api/merchants/${merchant.id}/payment-config`);
-      if (data) setConfigs(data);
-      setLoading(false);
-    };
-    reloadRef.current = load;
-    void load();
-  }, [merchant.id]);
+      const { data } = await apiFetch<MerchantStats>(`/api/stats/merchant?period=${period}`);
+      if (!cancelled) {
+        if (data) setStats(data);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [period]);
 
-  const getConfig = (method: string) => configs.find((c) => c.method === method);
+  const statusData = (stats?.ordersByStatus || []).map((s) => ({
+    name: ORDER_STATUS_LABELS[s.status] || s.status,
+    value: s._count,
+  }));
 
-  const saveConfig = async (method: string, body: Record<string, unknown>) => {
-    setSaving(method);
-    const { error } = await apiFetch(`/api/merchants/${merchant.id}/payment-config`, {
-      method: 'POST',
-      body: JSON.stringify({ method, ...body }),
-    });
-    if (error) { toast.error(error); }
-    else { toast.success('Configuration sauvegardée'); reloadRef.current(); }
-    setSaving(null);
-  };
-
-  const handleQrUpload = async (method: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = await uploadFile(file);
-    if (url) saveConfig(method, { qrCode: url });
-  };
+  // Build daily data from recentOrders if dailyRevenue not provided
+  const dailyData = (stats?.dailyRevenue || []).length > 0
+    ? stats.dailyRevenue.map((d) => ({
+        date: formatDateShort(d.date),
+        revenus: d.revenue,
+        commandes: d.orders,
+      }))
+    : (() => {
+        // Group recent orders by date
+        const dayMap: Record<string, { revenue: number; orders: number }> = {};
+        (stats?.recentOrders || []).forEach((o) => {
+          const day = formatDateShort(o.createdAt);
+          if (!dayMap[day]) dayMap[day] = { revenue: 0, orders: 0 };
+          dayMap[day].revenue += o.total;
+          dayMap[day].orders += 1;
+        });
+        return Object.entries(dayMap).map(([date, v]) => ({ date, revenus: v.revenue, commandes: v.orders }));
+      })();
 
   if (loading) {
-    return <div className="space-y-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-40 w-full" />)}</div>;
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => <Card key={i}><CardContent className="p-4"><Skeleton className="h-20 w-full" /></CardContent></Card>)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card><CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
+          <Card><CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <h2 className="text-xl font-bold">Configuration des paiements</h2>
-      <p className="text-sm text-muted-foreground">Configurez les méthodes de paiement acceptées par votre boutique.</p>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h2 className="text-xl font-bold">Statistiques</h2>
+        <Tabs value={period} onValueChange={setPeriod}>
+          <TabsList>
+            <TabsTrigger value="7">7 jours</TabsTrigger>
+            <TabsTrigger value="30">30 jours</TabsTrigger>
+            <TabsTrigger value="90">90 jours</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
-      {METHODS.map((m) => (
-        <PaymentMethodCard
-          key={m.value}
-          method={m.value}
-          label={m.label}
-          needsPhone={m.needsPhone}
-          config={getConfig(m.value)}
-          saving={saving === m.value}
-          onSave={saveConfig}
-          onQrUpload={handleQrUpload}
-        />
-      ))}
+      {/* Key metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
+          <Card><CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Revenus totaux</p>
+            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{formatPrice(stats?.totalRevenue ?? 0)}</p>
+          </CardContent></Card>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+          <Card><CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Commandes</p>
+            <p className="text-2xl font-bold">{stats?.totalOrders ?? 0}</p>
+          </CardContent></Card>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <Card><CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Produits actifs</p>
+            <p className="text-2xl font-bold">{stats?.totalProducts ?? 0}</p>
+          </CardContent></Card>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <Card><CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Note moyenne</p>
+            <p className="text-2xl font-bold">{stats?.rating ? `${stats.rating.toFixed(1)}/5` : 'N/A'}</p>
+          </CardContent></Card>
+        </motion.div>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Revenue bar chart */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Revenus par jour</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!dailyData.length ? (
+              <p className="text-center text-muted-foreground py-12">Aucune donnée pour cette période</p>
+            ) : (
+              <ChartContainer config={revenueChartConfig} className="h-72 w-full">
+                <BarChart data={dailyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="revenus" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Pie chart */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Commandes par statut</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!statusData.length ? (
+              <p className="text-center text-muted-foreground py-12">Aucune donnée</p>
+            ) : (
+              <ChartContainer config={Object.fromEntries(statusData.map((s, i) => [s.name, { label: s.name, color: PIE_COLORS[i % PIE_COLORS.length] }]))} className="h-72 w-full">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    dataKey="value"
+                    paddingAngle={2}
+                  >
+                    {statusData.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const item = payload[0];
+                      return (
+                        <div className="rounded-lg border bg-background px-3 py-2 shadow-lg text-xs">
+                          <p className="font-medium">{item.name}</p>
+                          <p className="text-muted-foreground">{item.value} commande(s)</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                </PieChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
 
-// ─── 7. Delivery Zones ──────────────────────────────────────────────────────
-
-function DeliveryZonesView({ merchant }: { merchant: MerchantProfile }) {
-  const [zones, setZones] = useState<DeliveryZone[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [city, setCity] = useState('Bamako');
-  const [quartier, setQuartier] = useState('');
-  const [fee, setFee] = useState('');
-
-  const reloadRef = useRef<() => Promise<void>>(() => Promise.resolve());
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const { data } = await apiFetch<DeliveryZone[]>(`/api/merchants/${merchant.id}/delivery-zones`);
-      if (data) setZones(data);
-      setLoading(false);
-    };
-    reloadRef.current = load;
-    void load();
-  }, [merchant.id]);
-
-  const handleAdd = async () => {
-    if (!fee) { toast.error('Les frais de livraison sont requis'); return; }
-    setSaving(true);
-    const { error } = await apiFetch(`/api/merchants/${merchant.id}/delivery-zones`, {
-      method: 'POST',
-      body: JSON.stringify({ city, quartier: quartier || null, fee: parseInt(fee) || 0 }),
-    });
-    if (error) { toast.error(error); }
-    else { toast.success('Zone ajoutée'); setQuartier(''); setFee(''); reloadRef.current(); }
-    setSaving(false);
-  };
-
-  const handleDelete = async (zoneId: string) => {
-    if (!confirm('Supprimer cette zone ?')) return;
-    const { error } = await apiFetch(`/api/merchants/${merchant.id}/delivery-zones?zoneId=${zoneId}`, { method: 'DELETE' });
-    if (error) { toast.error(error); return; }
-    toast.success('Zone supprimée');
-    reloadRef.current();
-  };
-
-  return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <h2 className="text-xl font-bold">Zones de livraison</h2>
-      <p className="text-sm text-muted-foreground">Définissez les zones et frais de livraison.</p>
-
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Ajouter une zone</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm">Ville</Label>
-              <Select value={city} onValueChange={setCity}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Bamako">Bamako</SelectItem>
-                  <SelectItem value="Kayes">Kayes</SelectItem>
-                  <SelectItem value="Sikasso">Sikasso</SelectItem>
-                  <SelectItem value="Ségou">Ségou</SelectItem>
-                  <SelectItem value="Mopti">Mopti</SelectItem>
-                  <SelectItem value="Gao">Gao</SelectItem>
-                  <SelectItem value="Tombouctou">Tombouctou</SelectItem>
-                  <SelectItem value="Koulikoro">Koulikoro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm">Quartier</Label>
-              <Input value={quartier} onChange={(e) => setQuartier(e.target.value)} placeholder="Optionnel" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm">Frais (FCFA)</Label>
-              <div className="flex gap-2">
-                <Input type="number" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="0" />
-                <Button onClick={handleAdd} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 shrink-0">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4">
-          {loading ? (
-            <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-          ) : !zones.length ? (
-            <p className="text-center text-muted-foreground py-8">Aucune zone configurée</p>
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {zones.map((z) => (
-                <div key={z.id} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div>
-                    <p className="font-medium text-sm">{z.city}{z.quartier ? ` · ${z.quartier}` : ''}</p>
-                    <p className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold">{formatPrice(z.fee)}</p>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(z.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ─── 8. Subscription ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. SUBSCRIPTION
+// ═══════════════════════════════════════════════════════════════════════════
 
 function SubscriptionView({ merchant }: { merchant: MerchantProfile }) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data } = await apiFetch<Plan[]>('/api/plans');
-      if (data) setPlans(data);
-      setLoading(false);
+      if (!cancelled && data) setPlans(data);
+      if (!cancelled) setLoading(false);
     })();
+    return () => { cancelled = true; };
   }, []);
 
   const currentSub = merchant.subscriptions?.[0];
   const currentPlan = currentSub?.plan;
 
   if (loading) {
-    return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-64 w-full" />)}</div>;
+    return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-72 w-full" />)}</div>;
   }
 
   let features: string[] = [];
@@ -1462,38 +1661,82 @@ function SubscriptionView({ merchant }: { merchant: MerchantProfile }) {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold">Abonnement</h2>
-        <p className="text-sm text-muted-foreground">Choisissez le plan adapté à votre activité.</p>
+        <p className="text-sm text-muted-foreground">Gérez votre abonnement et accédez aux fonctionnalités premium.</p>
       </div>
 
+      {/* Current plan */}
       {currentSub && currentPlan && (
-        <Card className="border-emerald-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Plan actuel</p>
-                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{currentPlan.name}</p>
-                {features.length > 0 && (
-                  <ul className="mt-2 space-y-1">
-                    {features.map((f, i) => (
-                      <li key={i} className="text-xs text-muted-foreground flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-600" /> {f}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="border-emerald-500">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Plan actuel</p>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{currentPlan.name}</p>
+                  {features.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {features.map((f, i) => (
+                        <li key={i} className="text-xs text-muted-foreground flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> {f}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold">{formatPrice(currentPlan.price)}</p>
+                  <p className="text-xs text-muted-foreground">/ {currentPlan.duration} jours</p>
+                  <Badge variant="secondary" className="mt-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    Actif
+                  </Badge>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold">{formatPrice(currentPlan.price)}</p>
-                <p className="text-xs text-muted-foreground">/ {currentPlan.duration} jours</p>
-                <Badge variant="secondary" className="mt-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                  Actif
-                </Badge>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Premium offer */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.1 }}
+      >
+        <Card className="border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <CardContent className="p-6 relative">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-xl bg-emerald-600 text-white shrink-0">
+                <Zap className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-emerald-800 dark:text-emerald-300">Accès Premium à vie</h3>
+                <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">4 000 FCFA <span className="text-sm font-normal text-muted-foreground">seulement</span></p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Accédez à toutes les fonctionnalités premium pour toujours : produits illimités, commandes illimitées, priorité de livraison, badge vedette, statistiques avancées.
+                </p>
+
+                <Separator className="my-4" />
+
+                <div>
+                  <p className="text-sm font-medium mb-2">Instructions de paiement :</p>
+                  <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                    <li>Envoyez <strong>4 000 FCFA</strong> via Orange Money ou Wave</li>
+                    <li>Envoyez la capture d&apos;écran de la preuve de paiement au support</li>
+                    <li>Votre compte sera mis à jour sous 24h</li>
+                  </ol>
+                </div>
+
+                <div className="mt-4">
+                  <SupportContact variant="compact" />
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
-      )}
+      </motion.div>
 
+      {/* All plans */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {plans.map((plan) => {
           const isCurrent = currentPlan?.id === plan.id;
@@ -1538,143 +1781,262 @@ function SubscriptionView({ merchant }: { merchant: MerchantProfile }) {
   );
 }
 
-// ─── 9. Settings ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 9. PAYMENT CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
 
-function SettingsView({ merchant }: { merchant: MerchantProfile }) {
-  const [form, setForm] = useState({
-    businessName: merchant.businessName,
-    businessType: merchant.businessType,
-    description: merchant.description || '',
-    address: merchant.address,
-    city: merchant.city,
-    quartier: merchant.quartier || '',
-    phone: merchant.phone,
-    email: merchant.email || '',
-    website: merchant.website || '',
-    operatingHours: merchant.operatingHours,
-  });
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [logo, setLogo] = useState(merchant.logo || '');
+function PaymentMethodCard({
+  method, label, needsPhone, config, saving, onSave,
+}: {
+  method: string;
+  label: string;
+  needsPhone: boolean;
+  config: PaymentConfig | undefined;
+  saving: boolean;
+  onSave: (method: string, body: Record<string, unknown>) => void;
+}) {
+  const isEnabled = config?.isEnabled ?? false;
+  const [phone, setPhone] = useState(config?.phoneNumber || '');
+  const [accountName, setAccountName] = useState(config?.accountName || '');
+  const [accountNumber, setAccountNumber] = useState(config?.accountNumber || '');
+  const [instructions, setInstructions] = useState(config?.instructions || '');
 
-  const setField = (key: string, val: string) =>
-    setForm((prev) => ({ ...prev, [key]: val }));
-
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const url = await uploadFile(file);
-    if (url) {
-      setLogo(url);
-      // Save logo immediately
-      await apiFetch(`/api/merchants/${merchant.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ logo: url }),
-      });
-      toast.success('Logo mis à jour');
-    }
-    setUploading(false);
+  const handleToggle = () => {
+    onSave(method, { isEnabled: !isEnabled, phoneNumber: needsPhone ? phone : undefined, accountName, accountNumber, instructions });
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    const { error } = await apiFetch(`/api/merchants/${merchant.id}`, {
-      method: 'PUT',
-      body: JSON.stringify(form),
-    });
-    if (error) { toast.error(error); }
-    else { toast.success('Paramètres sauvegardés'); }
-    setSaving(false);
+  const handleSave = () => {
+    onSave(method, { isEnabled: true, phoneNumber: needsPhone ? phone : undefined, accountName, accountNumber, instructions });
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <h2 className="text-xl font-bold">Paramètres</h2>
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">{label}</CardTitle>
+          <Switch
+            checked={isEnabled}
+            onCheckedChange={handleToggle}
+            disabled={saving}
+            className="data-[state=checked]:bg-emerald-600"
+          />
+        </div>
+      </CardHeader>
+      {isEnabled && (
+        <CardContent className="pt-0 space-y-3">
+          {needsPhone && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm">Numéro de téléphone</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+223 XX XX XX XX" />
+            </div>
+          )}
+          {!needsPhone && method !== 'CASH' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm">Nom du titulaire</Label>
+                <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm">Numéro de compte</Label>
+                <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm">Instructions pour le client</Label>
+            <Textarea rows={2} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Instructions de paiement..." />
+          </div>
+          <Button size="sm" onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Sauvegarder
+          </Button>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function PaymentConfigView({ merchant }: { merchant: MerchantProfile }) {
+  const [configs, setConfigs] = useState<PaymentConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const METHODS = [
+    { value: 'CASH', label: 'Cash', needsPhone: false },
+    { value: 'ORANGE_MONEY', label: 'Orange Money', needsPhone: true },
+    { value: 'MOOV_MONEY', label: 'Moov Money', needsPhone: true },
+    { value: 'WAVE', label: 'Wave', needsPhone: true },
+    { value: 'VISA', label: 'Visa', needsPhone: false },
+    { value: 'MASTERCARD', label: 'Mastercard', needsPhone: false },
+    { value: 'QR_CODE', label: 'QR Code', needsPhone: false },
+  ];
+
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data } = await apiFetch<PaymentConfig[]>(`/api/merchants/${merchant.id}/payment-config`);
+      if (!cancelled && data) setConfigs(data);
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [merchant.id, refreshKey]);
+
+  const getConfig = (method: string) => configs.find((c) => c.method === method);
+
+  const saveConfig = async (method: string, body: Record<string, unknown>) => {
+    setSaving(method);
+    const { error } = await apiFetch(`/api/merchants/${merchant.id}/payment-config`, {
+      method: 'POST',
+      body: JSON.stringify({ method, ...body }),
+    });
+    if (error) { toast.error(error); }
+    else { toast.success('Configuration sauvegardée'); setRefreshKey((k) => k + 1); }
+    setSaving(null);
+  };
+
+  if (loading) {
+    return <div className="space-y-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-40 w-full" />)}</div>;
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-4">
+      <h2 className="text-xl font-bold">Configuration des paiements</h2>
+      <p className="text-sm text-muted-foreground">Configurez les méthodes de paiement acceptées par votre boutique.</p>
+
+      {METHODS.map((m) => (
+        <PaymentMethodCard
+          key={`${m.value}-${getConfig(m.value)?.id || 'new'}`}
+          method={m.value}
+          label={m.label}
+          needsPhone={m.needsPhone}
+          config={getConfig(m.value)}
+          saving={saving === m.value}
+          onSave={saveConfig}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10. DELIVERY ZONES
+// ═══════════════════════════════════════════════════════════════════════════
+
+function DeliveryZonesView({ merchant }: { merchant: MerchantProfile }) {
+  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [city, setCity] = useState('Bamako');
+  const [quartier, setQuartier] = useState('');
+  const [fee, setFee] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data } = await apiFetch<DeliveryZone[]>(`/api/merchants/${merchant.id}/delivery-zones`);
+      if (!cancelled && data) setZones(data);
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [merchant.id, refreshKey]);
+
+  const handleAdd = async () => {
+    if (!fee) { toast.error('Les frais de livraison sont requis'); return; }
+    setSaving(true);
+    const { error } = await apiFetch(`/api/merchants/${merchant.id}/delivery-zones`, {
+      method: 'POST',
+      body: JSON.stringify({ city, quartier: quartier || null, fee: parseInt(fee) || 0 }),
+    });
+    if (error) { toast.error(error); }
+    else { toast.success('Zone ajoutée'); setQuartier(''); setFee(''); setRefreshKey((k) => k + 1); }
+    setSaving(false);
+  };
+
+  const handleDelete = async (zoneId: string) => {
+    if (!confirm('Supprimer cette zone ?')) return;
+    const { error } = await apiFetch(`/api/merchants/${merchant.id}/delivery-zones?zoneId=${zoneId}`, { method: 'DELETE' });
+    if (error) { toast.error(error); return; }
+    toast.success('Zone supprimée');
+    setRefreshKey((k) => k + 1);
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-4">
+      <h2 className="text-xl font-bold">Zones de livraison</h2>
+      <p className="text-sm text-muted-foreground">Définissez les zones et frais de livraison.</p>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Logo de la boutique</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Ajouter une zone</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="relative w-20 h-20 rounded-xl overflow-hidden border bg-muted flex items-center justify-center shrink-0">
-              {logo ? (
-                <img src={logo} alt="Logo" className="w-full h-full object-cover" />
-              ) : (
-                <Store className="h-8 w-8 text-muted-foreground/40" />
-              )}
-              {uploading && <div className="absolute inset-0 bg-black/30 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-white" /></div>}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm">Ville</Label>
+              <Select value={city} onValueChange={setCity}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Bamako">Bamako</SelectItem>
+                  <SelectItem value="Kayes">Kayes</SelectItem>
+                  <SelectItem value="Sikasso">Sikasso</SelectItem>
+                  <SelectItem value="Ségou">Ségou</SelectItem>
+                  <SelectItem value="Mopti">Mopti</SelectItem>
+                  <SelectItem value="Gao">Gao</SelectItem>
+                  <SelectItem value="Tombouctou">Tombouctou</SelectItem>
+                  <SelectItem value="Koulikoro">Koulikoro</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <label className="inline-flex items-center gap-2 px-4 py-2 border rounded-md cursor-pointer hover:bg-accent text-sm">
-              <ImagePlus className="h-4 w-4" /> Changer le logo
-              <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-            </label>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm">Quartier</Label>
+              <Input value={quartier} onChange={(e) => setQuartier(e.target.value)} placeholder="Optionnel" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm">Frais (FCFA)</Label>
+              <div className="flex gap-2">
+                <Input type="number" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="0" />
+                <Button onClick={handleAdd} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 shrink-0 min-h-[44px] min-w-[44px]">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="p-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label>Nom de la boutique</Label>
-              <Input value={form.businessName} onChange={(e) => setField('businessName', e.target.value)} />
+        <CardContent className="p-4">
+          {loading ? (
+            <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+          ) : !zones.length ? (
+            <p className="text-center text-muted-foreground py-8">Aucune zone configurée</p>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {zones.map((z) => (
+                <div key={z.id} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div>
+                    <p className="font-medium text-sm">{z.city}{z.quartier ? ` · ${z.quartier}` : ''}</p>
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold">{formatPrice(z.fee)}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(z.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Type d&apos;activité</Label>
-              <Select value={form.businessType} onValueChange={(v) => setField('businessType', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(BUSINESS_TYPES).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <Label>Description</Label>
-              <Textarea rows={2} value={form.description} onChange={(e) => setField('description', e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Adresse</Label>
-              <Input value={form.address} onChange={(e) => setField('address', e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Ville</Label>
-              <Input value={form.city} onChange={(e) => setField('city', e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Quartier</Label>
-              <Input value={form.quartier} onChange={(e) => setField('quartier', e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Téléphone</Label>
-              <Input value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Email</Label>
-              <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Site web</Label>
-              <Input value={form.website} onChange={(e) => setField('website', e.target.value)} placeholder="https://..." />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Horaires d&apos;ouverture</Label>
-              <Input value={form.operatingHours} onChange={(e) => setField('operatingHours', e.target.value)} placeholder="08:00-22:00" />
-            </div>
-          </div>
-
-          <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Sauvegarder
-          </Button>
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
 
-// ─── 10. Coupons ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 11. COUPONS
+// ═══════════════════════════════════════════════════════════════════════════
 
 function CouponsView() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -1685,18 +2047,18 @@ function CouponsView() {
     code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', endDate: '',
   });
 
-  const reloadRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    const load = async () => {
+    let cancelled = false;
+    (async () => {
       setLoading(true);
       const { data } = await apiFetch<Coupon[]>('/api/coupons');
-      if (data) setCoupons(data);
-      setLoading(false);
-    };
-    reloadRef.current = load;
-    void load();
-  }, []);
+      if (!cancelled && data) setCoupons(data);
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [refreshKey]);
 
   const setField = (key: string, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -1723,7 +2085,7 @@ function CouponsView() {
       toast.success('Coupon créé');
       setDialogOpen(false);
       setForm({ code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', endDate: '' });
-      reloadRef.current();
+      setRefreshKey((k) => k + 1);
     }
     setSaving(false);
   };
@@ -1733,7 +2095,7 @@ function CouponsView() {
     const { error } = await apiFetch(`/api/coupons/${id}`, { method: 'DELETE' });
     if (error) { toast.error(error); return; }
     toast.success('Coupon supprimé');
-    reloadRef.current();
+    setRefreshKey((k) => k + 1);
   };
 
   const couponTypeLabel: Record<string, string> = {
@@ -1746,7 +2108,7 @@ function CouponsView() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Coupons</h2>
-        <Button onClick={() => setDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={() => setDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
           <PlusCircle className="h-4 w-4 mr-2" /> Créer un coupon
         </Button>
       </div>
@@ -1768,7 +2130,7 @@ function CouponsView() {
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{c.code}</p>
                       <Badge variant="secondary">{couponTypeLabel[c.type] || c.type}</Badge>
                       <Badge variant={c.isActive ? 'default' : 'outline'}>
@@ -1780,7 +2142,7 @@ function CouponsView() {
                         c.type === 'FIXED' ? `${formatPrice(c.value)} de réduction` :
                           'Livraison gratuite'}
                       {c.minOrder > 0 && ` · Min: ${formatPrice(c.minOrder)}`}
-                      {c.maxUses && ` · Max: ${c.usedCount}/${c.maxUses} utilisations`}
+                      {c.maxUses && ` · ${c.usedCount}/${c.maxUses} utilisations`}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Expire le {new Date(c.endDate).toLocaleDateString('fr-FR')}
@@ -1841,7 +2203,7 @@ function CouponsView() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
-            <Button onClick={handleCreate} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={handleCreate} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Créer
             </Button>
@@ -1852,229 +2214,44 @@ function CouponsView() {
   );
 }
 
-// ─── 11. Stats ──────────────────────────────────────────────────────────────
-
-function StatsView() {
-  const [stats, setStats] = useState<MerchantStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await apiFetch<MerchantStats>('/api/stats/merchant');
-      if (data) setStats(data);
-      setLoading(false);
-    })();
-  }, []);
-
-  if (loading) {
-    return <div className="space-y-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-48 w-full" />)}</div>;
-  }
-
-  const statusBreakdown = stats?.ordersByStatus || [];
-  const maxCount = Math.max(...statusBreakdown.map((s) => s._count), 1);
-
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-bold">Statistiques</h2>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Revenus totaux</p>
-            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{formatPrice(stats?.totalRevenue ?? 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Commandes</p>
-            <p className="text-2xl font-bold">{stats?.totalOrders ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Produits</p>
-            <p className="text-2xl font-bold">{stats?.totalProducts ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Note moyenne</p>
-            <p className="text-2xl font-bold">{stats?.rating ? `${stats.rating.toFixed(1)}/5` : 'N/A'}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Revenue chart (bar representation) */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Commandes par statut</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!statusBreakdown.length ? (
-            <p className="text-center text-muted-foreground py-8">Aucune donnée</p>
-          ) : (
-            <div className="space-y-3">
-              {statusBreakdown.map((s) => (
-                <div key={s.status} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2">
-                      <StatusBadge status={s.status} />
-                    </span>
-                    <span className="font-semibold">{s._count}</span>
-                  </div>
-                  <div className="h-3 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-600 rounded-full transition-all duration-500"
-                      style={{ width: `${(s._count / maxCount) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Recent orders table */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Dernières commandes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!stats?.recentOrders?.length ? (
-            <p className="text-center text-muted-foreground py-8">Aucune commande</p>
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {stats.recentOrders.map((o) => (
-                <div key={o.id} className="flex items-center justify-between p-3 rounded-lg border text-sm">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{o.orderNumber}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(o.createdAt)}</p>
-                  </div>
-                  <div className="flex items-center gap-2 ml-3">
-                    <span className="font-semibold">{formatPrice(o.total)}</span>
-                    <StatusBadge status={o.status} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ─── 12. Notifications ──────────────────────────────────────────────────────
-
-function NotificationsView() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  const reloadRef = useRef<() => Promise<void>>(() => Promise.resolve());
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const { data } = await apiFetch<{ notifications: Notification[]; unreadCount: number }>('/api/notifications');
-      if (data) {
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
-      }
-      setLoading(false);
-    };
-    reloadRef.current = load;
-    void load();
-  }, []);
-
-  const markAllRead = async () => {
-    const { error } = await apiFetch('/api/notifications', { method: 'PUT' });
-    if (error) { toast.error(error); return; }
-    toast.success('Toutes les notifications marquées comme lues');
-    reloadRef.current();
-  };
-
-  const markOneRead = async (id: string) => {
-    await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
-    reloadRef.current();
-  };
-
-  const typeColors: Record<string, string> = {
-    ORDER: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-    PAYMENT: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-    DELIVERY: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-    PROMO: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
-    INFO: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
-    SYSTEM: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold">Notifications</h2>
-          {unreadCount > 0 && <p className="text-sm text-muted-foreground">{unreadCount} non lue(s)</p>}
-        </div>
-        {unreadCount > 0 && (
-          <Button variant="outline" size="sm" onClick={markAllRead}>
-            <CheckCircle2 className="h-4 w-4 mr-1" /> Tout marquer comme lu
-          </Button>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
-      ) : !notifications.length ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Bell className="h-12 w-12 text-muted-foreground mb-3" />
-            <p className="text-lg font-medium">Aucune notification</p>
-            <p className="text-muted-foreground text-sm mt-1">Vos notifications apparaîtront ici</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2 max-h-[70vh] overflow-y-auto">
-          {notifications.map((n) => (
-            <Card
-              key={n.id}
-              className={`cursor-pointer transition-colors ${!n.isRead ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-900/5' : ''}`}
-              onClick={() => { if (!n.isRead) markOneRead(n.id); }}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <Badge variant="secondary" className={typeColors[n.type] || typeColors.INFO}>
-                    {n.type}
-                  </Badge>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm ${!n.isRead ? 'font-semibold' : 'font-medium'}`}>{n.title}</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">{n.message}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
-                  </div>
-                  {!n.isRead && <div className="w-2 h-2 rounded-full bg-emerald-600 mt-1.5 shrink-0" />}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── 13. Profile ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 12. PROFILE
+// ═══════════════════════════════════════════════════════════════════════════
 
 function ProfileView({ merchant }: { merchant: MerchantProfile }) {
   const { user, logout } = useAuthStore();
   const { setSpace } = useSpaceStore();
-  const [notifs, setNotifs] = useState<{ unreadCount: number } | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    businessName: merchant.businessName,
+    businessType: merchant.businessType,
+    description: merchant.description || '',
+    address: merchant.address,
+    city: merchant.city,
+    quartier: merchant.quartier || '',
+    phone: merchant.phone,
+    email: merchant.email || '',
+    website: merchant.website || '',
+    operatingHours: merchant.operatingHours,
+  });
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await apiFetch<{ unreadCount: number }>('/api/notifications?limit=1');
-      if (data) setNotifs(data);
-    })();
-  }, []);
+  const setField = (key: string, val: string) =>
+    setForm((prev) => ({ ...prev, [key]: val }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await apiFetch(`/api/merchants/me`, {
+      method: 'PUT',
+      body: JSON.stringify(form),
+    });
+    if (error) { toast.error(error); }
+    else {
+      toast.success('Profil mis à jour');
+      setEditMode(false);
+    }
+    setSaving(false);
+  };
 
   const handleLogout = () => {
     logout();
@@ -2082,14 +2259,15 @@ function ProfileView({ merchant }: { merchant: MerchantProfile }) {
   };
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6">
       <h2 className="text-xl font-bold">Mon profil</h2>
 
+      {/* User info card */}
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center gap-4 mb-6">
             <Avatar className="h-16 w-16">
-              <AvatarImage src={user?.avatar || undefined} />
+              <AvatarImage src={user?.avatar || merchant.logo || undefined} />
               <AvatarFallback className="bg-emerald-100 text-emerald-700 text-lg">
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </AvatarFallback>
@@ -2100,46 +2278,123 @@ function ProfileView({ merchant }: { merchant: MerchantProfile }) {
             </div>
           </div>
 
-          <div className="space-y-3 text-sm">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span>{user?.phone}</span>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <Store className="h-4 w-4 text-muted-foreground" />
-              <span>{merchant.businessName}</span>
-              <Badge variant="secondary" className="ml-auto">{BUSINESS_TYPES[merchant.businessType] || merchant.businessType}</Badge>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>{merchant.address}, {merchant.city}{merchant.quartier ? ` · ${merchant.quartier}` : ''}</span>
-            </div>
-            {merchant.email && (
+          {!editMode ? (
+            <div className="space-y-3 text-sm">
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span>{merchant.email}</span>
+                <Store className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="font-medium">{form.businessName}</span>
+                <Badge variant="secondary" className="ml-auto">{BUSINESS_TYPES[form.businessType] || form.businessType}</Badge>
               </div>
-            )}
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <Star className="h-4 w-4 text-amber-500" />
-              <span>{merchant.rating.toFixed(1)}/5 ({merchant.totalRatings} avis)</span>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>{form.address}, {form.city}{form.quartier ? ` · ${form.quartier}` : ''}</span>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>{user?.phone}</span>
+              </div>
+              {form.email && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span>{form.email}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Star className="h-4 w-4 text-amber-500 shrink-0" />
+                <span>{merchant.rating.toFixed(1)}/5 ({merchant.totalRatings} avis)</span>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Compte vérifié</span>
+              </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <Bell className="h-4 w-4 text-muted-foreground" />
-              <span>{notifs?.unreadCount ?? 0} notification(s) non lue(s)</span>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label>Nom de la boutique</Label>
+                  <Input value={form.businessName} onChange={(e) => setField('businessName', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Type d&apos;activité</Label>
+                  <Select value={form.businessType} onValueChange={(v) => setField('businessType', v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(BUSINESS_TYPES).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <Label>Description</Label>
+                  <Textarea rows={2} value={form.description} onChange={(e) => setField('description', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Adresse</Label>
+                  <Input value={form.address} onChange={(e) => setField('address', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Ville</Label>
+                  <Input value={form.city} onChange={(e) => setField('city', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Quartier</Label>
+                  <Input value={form.quartier} onChange={(e) => setField('quartier', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Téléphone</Label>
+                  <Input value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Email</Label>
+                  <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Site web</Label>
+                  <Input value={form.website} onChange={(e) => setField('website', e.target.value)} placeholder="https://..." />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Horaires d&apos;ouverture</Label>
+                  <Input value={form.operatingHours} onChange={(e) => setField('operatingHours', e.target.value)} placeholder="08:00-22:00" />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setEditMode(false)}>Annuler</Button>
+                <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
+                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Sauvegarder
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {!editMode && (
+            <Button variant="outline" className="mt-4 w-full min-h-[44px]" onClick={() => setEditMode(true)}>
+              <Edit className="h-4 w-4 mr-2" /> Modifier mes informations
+            </Button>
+          )}
         </CardContent>
       </Card>
 
-      <Button variant="destructive" className="w-full" onClick={handleLogout}>
+      {/* Support contact */}
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-lg">Assistance & Contact</CardTitle></CardHeader>
+        <CardContent>
+          <SupportContact variant="compact" />
+        </CardContent>
+      </Card>
+
+      <Button variant="destructive" className="w-full min-h-[44px]" onClick={handleLogout}>
         <LogOut className="h-4 w-4 mr-2" /> Se déconnecter
       </Button>
     </div>
   );
 }
 
-// ─── 14. Support ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 13. SUPPORT
+// ═══════════════════════════════════════════════════════════════════════════
 
 function SupportView() {
   const [subject, setSubject] = useState('');
@@ -2170,10 +2425,12 @@ function SupportView() {
   if (sent) {
     return (
       <div className="max-w-lg mx-auto text-center py-16">
-        <CheckCircle2 className="h-16 w-16 text-emerald-600 mx-auto mb-4" />
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>
+          <CheckCircle2 className="h-16 w-16 text-emerald-600 mx-auto mb-4" />
+        </motion.div>
         <h2 className="text-xl font-bold">Ticket envoyé</h2>
         <p className="text-muted-foreground mt-2">Notre équipe vous répondra dans les plus brefs délais.</p>
-        <Button onClick={() => setSent(false)} className="mt-6 bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={() => setSent(false)} className="mt-6 bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
           Envoyer un autre ticket
         </Button>
       </div>
@@ -2202,19 +2459,125 @@ function SupportView() {
               placeholder="Donnez-nous tous les détails nécessaires..."
             />
           </div>
-          <Button onClick={handleSubmit} disabled={sending} className="w-full bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={handleSubmit} disabled={sending} className="w-full bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
             {sending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             <Send className="h-4 w-4 mr-2" /> Envoyer le ticket
           </Button>
         </CardContent>
       </Card>
 
-      {/* Informations de contact développeur */}
       <Card>
         <CardContent className="p-4">
-          <SupportContactCard />
+          <SupportContact variant="full" />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 14. NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function NotificationsView() {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data } = await apiFetch<{ notifications: Notification[]; unreadCount: number }>('/api/notifications');
+      if (!cancelled && data) {
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [refreshKey]);
+
+  const markAllRead = async () => {
+    const { error } = await apiFetch('/api/notifications', { method: 'PUT' });
+    if (error) { toast.error(error); return; }
+    toast.success('Toutes les notifications marquées comme lues');
+    setRefreshKey((k) => k + 1);
+  };
+
+  const markOneRead = async (id: string) => {
+    await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+    setRefreshKey((k) => k + 1);
+  };
+
+  const typeColors: Record<string, string> = {
+    ORDER: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+    PAYMENT: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+    DELIVERY: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+    PROMO: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+    INFO: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+    SYSTEM: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  };
+
+  const typeLabels: Record<string, string> = {
+    ORDER: 'Commande',
+    PAYMENT: 'Paiement',
+    DELIVERY: 'Livraison',
+    PROMO: 'Promo',
+    INFO: 'Info',
+    SYSTEM: 'Système',
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold">Notifications</h2>
+          {unreadCount > 0 && <p className="text-sm text-muted-foreground">{unreadCount} non lue(s)</p>}
+        </div>
+        {unreadCount > 0 && (
+          <Button variant="outline" size="sm" onClick={markAllRead} className="min-h-[44px]">
+            <CheckCircle2 className="h-4 w-4 mr-1" /> Tout marquer comme lu
+          </Button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+      ) : !notifications.length ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Bell className="h-12 w-12 text-muted-foreground mb-3" />
+            <p className="text-lg font-medium">Aucune notification</p>
+            <p className="text-muted-foreground text-sm mt-1">Vos notifications apparaîtront ici</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+          {notifications.map((n) => (
+            <Card
+              key={n.id}
+              className={`cursor-pointer transition-colors ${!n.isRead ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-900/5' : ''}`}
+              onClick={() => { if (!n.isRead) markOneRead(n.id); }}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <Badge variant="secondary" className={typeColors[n.type] || typeColors.INFO}>
+                    {typeLabels[n.type] || n.type}
+                  </Badge>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${!n.isRead ? 'font-semibold' : 'font-medium'}`}>{n.title}</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">{n.message}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
+                  </div>
+                  {!n.isRead && <div className="w-2 h-2 rounded-full bg-emerald-600 mt-1.5 shrink-0" />}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2223,10 +2586,25 @@ function SupportView() {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
+const PAGE_TITLES: Record<string, string> = {
+  dashboard: 'Tableau de bord',
+  products: 'Produits',
+  'add-product': 'Ajouter un produit',
+  orders: 'Commandes',
+  'order-detail': 'Détails de la commande',
+  stats: 'Statistiques',
+  coupons: 'Coupons',
+  'payment-config': 'Configuration des paiements',
+  'delivery-zones': 'Zones de livraison',
+  subscription: 'Abonnement',
+  notifications: 'Notifications',
+  profile: 'Mon profil',
+  support: 'Support',
+};
+
 export default function MerchantApp() {
   const { view, navigate } = useMerchantNav();
   const { user } = useAuthStore();
-  const logout = useAuthStore((s) => s.logout);
   const [merchant, setMerchant] = useState<MerchantProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -2235,23 +2613,29 @@ export default function MerchantApp() {
 
   // Fetch merchant profile
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data, error } = await apiFetch<MerchantProfile>('/api/merchants/me');
-      if (data) setMerchant(data);
-      if (error) toast.error(error);
-      setLoading(false);
+      if (!cancelled) {
+        if (data) setMerchant(data);
+        if (error) toast.error(error);
+        setLoading(false);
+      }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   // Fetch unread notifications count
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data } = await apiFetch<{ unreadCount: number }>('/api/notifications?limit=1');
-      if (data) setNotifs(data);
+      if (!cancelled && data) setNotifs(data);
     })();
+    return () => { cancelled = true; };
   }, [view]);
 
-  // ─── Approval check ───
+  // ─── Loading ───
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -2263,6 +2647,7 @@ export default function MerchantApp() {
     );
   }
 
+  // ─── Not found ───
   if (!merchant) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -2277,57 +2662,25 @@ export default function MerchantApp() {
     );
   }
 
+  // ─── Waiting for approval ───
   if (!merchant.isApproved) {
-    const handleLogout = () => {
-      logout();
-      toast.success('Déconnexion réussie');
-    };
     return (
-      <div className="min-h-screen flex flex-col bg-background">
-        {/* Header bar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <span className="text-lg font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
-            Rapigo Mali
-          </span>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-destructive hover:text-destructive">
-            <LogOut className="h-4 w-4 mr-1" />
-            Déconnexion
-          </Button>
-        </header>
-
-        <div className="flex-1 flex items-center justify-center p-4">
-          <Card className="max-w-md w-full">
-            <CardContent className="flex flex-col items-center py-12 text-center">
-              <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center mb-6">
-                <Clock className="h-10 w-10 text-amber-600" />
-              </div>
-              <h2 className="text-2xl font-bold">En attente d&apos;approbation</h2>
-              <p className="text-muted-foreground mt-3 max-w-sm">
-                Votre compte marchand <strong>{merchant.businessName}</strong> est en cours de vérification par notre équipe.
-                Vous recevrez une notification une fois votre compte approuvé.
-              </p>
-              <p className="text-sm text-muted-foreground mt-4">
-                Merci de votre patience. Le processus prend généralement 24 à 48 heures.
-              </p>
-
-              {/* Informations de support */}
-              <Separator className="my-6 w-full" />
-              <div className="w-full bg-muted/50 rounded-lg p-4">
-                <SupportContactCard />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <WaitingScreen
+        merchant={merchant}
+        onLogout={() => {
+          useAuthStore.getState().logout();
+          useSpaceStore.getState().setSpace('landing');
+        }}
+      />
     );
   }
 
-  // ─── Layout ───
+  // ─── Render view ───
   const renderView = () => {
     switch (view) {
-      case 'dashboard': return <DashboardView merchant={merchant} />;
-      case 'products': return <ProductsView merchant={merchant} />;
-      case 'add-product': return <AddProductView merchant={merchant} />;
+      case 'dashboard': return <DashboardView />;
+      case 'products': return <ProductsView merchantId={merchant.id} />;
+      case 'add-product': return <AddProductView />;
       case 'orders': return <OrdersView />;
       case 'order-detail': return <OrderDetailView />;
       case 'stats': return <StatsView />;
@@ -2335,29 +2688,11 @@ export default function MerchantApp() {
       case 'payment-config': return <PaymentConfigView merchant={merchant} />;
       case 'delivery-zones': return <DeliveryZonesView merchant={merchant} />;
       case 'subscription': return <SubscriptionView merchant={merchant} />;
-      case 'settings': return <SettingsView merchant={merchant} />;
-      case 'notifications': return <NotificationsView />;
       case 'profile': return <ProfileView merchant={merchant} />;
+      case 'notifications': return <NotificationsView />;
       case 'support': return <SupportView />;
-      default: return <DashboardView merchant={merchant} />;
+      default: return <DashboardView />;
     }
-  };
-
-  const pageTitle: Record<string, string> = {
-    dashboard: 'Tableau de bord',
-    products: 'Produits',
-    'add-product': 'Ajouter un produit',
-    orders: 'Commandes',
-    'order-detail': 'Détails de la commande',
-    stats: 'Statistiques',
-    coupons: 'Coupons',
-    'payment-config': 'Configuration paiements',
-    'delivery-zones': 'Zones de livraison',
-    subscription: 'Abonnement',
-    settings: 'Paramètres',
-    notifications: 'Notifications',
-    profile: 'Mon profil',
-    support: 'Support',
   };
 
   return (
@@ -2366,7 +2701,7 @@ export default function MerchantApp() {
       <aside className={`hidden lg:flex flex-col border-r bg-card transition-all duration-200 ${sidebarCollapsed ? 'w-16' : 'w-64'} sticky top-0 h-screen`}>
         <div className="flex items-center gap-3 p-4 border-b">
           {merchant.logo ? (
-            <img src={merchant.logo} alt="" className={`h-8 w-8 rounded-lg object-cover shrink-0`} />
+            <img src={merchant.logo} alt="" className="h-8 w-8 rounded-lg object-cover shrink-0" />
           ) : (
             <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shrink-0">
               <Store className="h-4 w-4 text-white" />
@@ -2390,7 +2725,7 @@ export default function MerchantApp() {
                 <button
                   key={item.view}
                   onClick={() => navigate(item.view)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
                     active
                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
                       : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -2407,47 +2742,61 @@ export default function MerchantApp() {
       </aside>
 
       {/* ─── Mobile Sidebar Overlay ─── */}
-      {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-card border-r flex flex-col shadow-xl">
-            <div className="flex items-center gap-3 p-4 border-b">
-              {merchant.logo ? (
-                <img src={merchant.logo} alt="" className="h-8 w-8 rounded-lg object-cover" />
-              ) : (
-                <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-                  <Store className="h-4 w-4 text-white" />
-                </div>
-              )}
-              <span className="font-bold text-sm truncate">{merchant.businessName}</span>
-              <Button variant="ghost" size="icon" className="ml-auto h-7 w-7" onClick={() => setSidebarOpen(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <ScrollArea className="flex-1 py-2">
-              <nav className="space-y-1 px-2">
-                {SIDEBAR_ITEMS.map((item) => {
-                  const active = view === item.view;
-                  return (
-                    <button
-                      key={item.view}
-                      onClick={() => { navigate(item.view); setSidebarOpen(false); }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        active
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
-                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                      }`}
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </ScrollArea>
-          </aside>
-        </div>
-      )}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <div className="lg:hidden fixed inset-0 z-50">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: -288 }}
+              animate={{ x: 0 }}
+              exit={{ x: -288 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="absolute left-0 top-0 bottom-0 w-72 bg-card border-r flex flex-col shadow-xl"
+            >
+              <div className="flex items-center gap-3 p-4 border-b">
+                {merchant.logo ? (
+                  <img src={merchant.logo} alt="" className="h-8 w-8 rounded-lg object-cover" />
+                ) : (
+                  <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+                    <Store className="h-4 w-4 text-white" />
+                  </div>
+                )}
+                <span className="font-bold text-sm truncate">{merchant.businessName}</span>
+                <Button variant="ghost" size="icon" className="ml-auto h-7 w-7" onClick={() => setSidebarOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <ScrollArea className="flex-1 py-2">
+                <nav className="space-y-1 px-2">
+                  {SIDEBAR_ITEMS.map((item) => {
+                    const active = view === item.view;
+                    return (
+                      <button
+                        key={item.view}
+                        onClick={() => { navigate(item.view); setSidebarOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+                          active
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                        }`}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </ScrollArea>
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ─── Main Content ─── */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -2457,7 +2806,7 @@ export default function MerchantApp() {
             <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9" onClick={() => setSidebarOpen(true)}>
               <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="font-semibold text-lg hidden sm:block">{pageTitle[view] || 'Tableau de bord'}</h1>
+            <h1 className="font-semibold text-lg hidden sm:block">{PAGE_TITLES[view] || 'Tableau de bord'}</h1>
 
             <div className="ml-auto flex items-center gap-2">
               {/* Notifications */}
@@ -2498,11 +2847,11 @@ export default function MerchantApp() {
                   <DropdownMenuItem onClick={() => navigate('profile')}>
                     <User className="h-4 w-4 mr-2" /> Mon profil
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('settings')}>
-                    <Settings className="h-4 w-4 mr-2" /> Paramètres
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('notifications')}>
                     <Bell className="h-4 w-4 mr-2" /> Notifications
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('support')}>
+                    <MessageSquare className="h-4 w-4 mr-2" /> Support
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -2519,19 +2868,21 @@ export default function MerchantApp() {
 
         {/* Page Content */}
         <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6">
-          {renderView()}
+          <PageTransition keyVal={view}>
+            {renderView()}
+          </PageTransition>
         </main>
 
         {/* ─── Mobile Bottom Nav ─── */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t z-30 safe-area-inset-bottom">
           <div className="flex items-center justify-around h-16">
-            {BOTTOM_NAV_ITEMS.map((item) => {
+            {MOBILE_NAV_ITEMS.map((item) => {
               const active = view === item.view;
               return (
                 <button
                   key={item.view}
                   onClick={() => navigate(item.view)}
-                  className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors relative ${
+                  className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors relative min-w-[56px] min-h-[44px] ${
                     active ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'
                   }`}
                 >

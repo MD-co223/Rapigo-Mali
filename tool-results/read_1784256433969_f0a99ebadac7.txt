@@ -1,0 +1,2002 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import { useState, useEffect, useRef, useCallback } from 'react';
+     4→     4→import {
+     5→     5→  Home, Search, ClipboardList, Heart, User, MapPin, Clock, Star,
+     6→     6→  Bell, Plus, Minus, Trash2, ShoppingBag, Phone, X, ArrowRight,
+     7→     7→  Truck, Loader2, ChevronLeft, Store, Send, Copy,
+     8→     8→  ArrowUpRight, ArrowDownLeft, CircleAlert,
+     9→     9→  Wallet, HelpCircle, Package, ChevronDown, Upload, Gift, Mail,
+    10→    10→} from 'lucide-react';
+    11→    11→import { Button } from '@/components/ui/button';
+    12→    12→import { Input } from '@/components/ui/input';
+    13→    13→import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+    14→    14→import { Badge } from '@/components/ui/badge';
+    15→    15→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    16→    16→import {
+    17→    17→  Dialog, DialogContent, DialogHeader, DialogTitle,
+    18→    18→  DialogDescription, DialogFooter, DialogClose,
+    19→    19→} from '@/components/ui/dialog';
+    20→    20→import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+    21→    21→import { Separator } from '@/components/ui/separator';
+    22→    22→import { Skeleton } from '@/components/ui/skeleton';
+    23→    23→import { Textarea } from '@/components/ui/textarea';
+    24→    24→import { Label } from '@/components/ui/label';
+    25→    25→import { Progress } from '@/components/ui/progress';
+    26→    26→import {
+    27→    27→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    28→    28→} from '@/components/ui/select';
+    29→    29→import {
+    30→    30→  useAuthStore, useClientNav, useCartStore, apiFetch,
+    31→    31→  formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
+    32→    32→  BUSINESS_TYPES, PAYMENT_METHODS, PAYMENT_STATUS_LABELS,
+    33→    33→} from '@/lib/store';
+    34→    34→import { toast } from 'sonner';
+    35→    35→import { SupportContactCard } from '@/components/support-contact';
+    36→    36→
+    37→    37→// ============================================
+    38→    38→// TYPES
+    39→    39→// ============================================
+    40→    40→interface Merchant {
+    41→    41→  id: string;
+    42→    42→  businessName: string;
+    43→    43→  businessType: string;
+    44→    44→  description?: string;
+    45→    45→  shortDescription?: string;
+    46→    46→  logo?: string;
+    47→    47→  coverImage?: string;
+    48→    48→  address: string;
+    49→    49→  phone: string;
+    50→    50→  operatingHours: string;
+    51→    51→  isFeatured: boolean;
+    52→    52→  isApproved: boolean;
+    53→    53→  rating: number;
+    54→    54→  totalRatings: number;
+    55→    55→  city: string;
+    56→    56→  quartier?: string;
+    57→    57→  paymentConfigs?: MerchantPaymentConfig[];
+    58→    58→  deliveryZones?: DeliveryZone[];
+    59→    59→  products?: Product[];
+    60→    60→}
+    61→    61→
+    62→    62→interface Product {
+    63→    63→  id: string;
+    64→    64→  name: string;
+    65→    65→  slug?: string;
+    66→    66→  shortDescription?: string;
+    67→    67→  longDescription?: string;
+    68→    68→  price: number;
+    69→    69→  comparePrice?: number;
+    70→    70→  image?: string;
+    71→    71→  images?: string;
+    72→    72→  stock: number;
+    73→    73→  isAvailable: boolean;
+    74→    74→  isFeatured: boolean;
+    75→    75→  rating: number;
+    76→    76→  totalSold: number;
+    77→    77→  merchantId: string;
+    78→    78→  preparationTime?: number;
+    79→    79→  variants?: string;
+    80→    80→  options?: string;
+    81→    81→  supplements?: string;
+    82→    82→  category?: { name: string; icon?: string; id: string };
+    83→    83→  merchant?: { businessName: string; id: string };
+    84→    84→}
+    85→    85→
+    86→    86→interface Order {
+    87→    87→  id: string;
+    88→    88→  orderNumber: string;
+    89→    89→  status: string;
+    90→    90→  subtotal: number;
+    91→    91→  deliveryFee: number;
+    92→    92→  serviceFee: number;
+    93→    93→  discount: number;
+    94→    94→  total: number;
+    95→    95→  paymentMethod: string;
+    96→    96→  paymentStatus: string;
+    97→    97→  paymentProof?: string;
+    98→    98→  deliveryAddress: string;
+    99→    99→  deliveryCity?: string;
+   100→   100→  deliveryQuartier?: string;
+   101→   101→  notes?: string;
+   102→   102→  estimatedTime?: number;
+   103→   103→  createdAt: string;
+   104→   104→  deliveredAt?: string;
+   105→   105→  cancelledAt?: string;
+   106→   106→  items?: OrderItem[];
+   107→   107→  merchant?: { businessName: string; phone: string; businessType: string };
+   108→   108→  driver?: { user: { firstName: string; lastName: string; phone: string; avatar?: string }; vehicleType?: string; vehiclePlate?: string; vehicleColor?: string };
+   109→   109→  rating?: { score: number; comment?: string };
+   110→   110→}
+   111→   111→
+   112→   112→interface OrderItem {
+   113→   113→  id: string;
+   114→   114→  productName: string;
+   115→   115→  quantity: number;
+   116→   116→  unitPrice: number;
+   117→   117→  totalPrice: number;
+   118→   118→  productImage?: string;
+   119→   119→  variants?: string;
+   120→   120→  supplements?: string;
+   121→   121→  notes?: string;
+   122→   122→}
+   123→   123→
+   124→   124→interface Category {
+   125→   125→  id: string;
+   126→   126→  name: string;
+   127→   127→  slug: string;
+   128→   128→  icon?: string;
+   129→   129→  image?: string;
+   130→   130→}
+   131→   131→
+   132→   132→interface AppNotification {
+   133→   133→  id: string;
+   134→   134→  title: string;
+   135→   135→  message: string;
+   136→   136→  type: string;
+   137→   137→  isRead: boolean;
+   138→   138→  createdAt: string;
+   139→   139→}
+   140→   140→
+   141→   141→interface FavoriteProduct {
+   142→   142→  id: string;
+   143→   143→  productId: string;
+   144→   144→  product: Product;
+   145→   145→  createdAt: string;
+   146→   146→}
+   147→   147→
+   148→   148→interface WalletData {
+   149→   149→  balance: number;
+   150→   150→  currency: string;
+   151→   151→}
+   152→   152→
+   153→   153→interface Transaction {
+   154→   154→  id: string;
+   155→   155→  type: string;
+   156→   156→  amount: number;
+   157→   157→  description: string;
+   158→   158→  createdAt: string;
+   159→   159→}
+   160→   160→
+   161→   161→interface SupportTicket {
+   162→   162→  id: string;
+   163→   163→  subject: string;
+   164→   164→  status: string;
+   165→   165→  priority: string;
+   166→   166→  createdAt: string;
+   167→   167→}
+   168→   168→
+   169→   169→interface MerchantPaymentConfig {
+   170→   170→  id: string;
+   171→   171→  method: string;
+   172→   172→  isEnabled: boolean;
+   173→   173→  phoneNumber?: string;
+   174→   174→  accountName?: string;
+   175→   175→  accountNumber?: string;
+   176→   176→  qrCode?: string;
+   177→   177→  instructions?: string;
+   178→   178→}
+   179→   179→
+   180→   180→interface DeliveryZone {
+   181→   181→  id: string;
+   182→   182→  city: string;
+   183→   183→  quartier?: string;
+   184→   184→  fee: number;
+   185→   185→}
+   186→   186→
+   187→   187→// ============================================
+   188→   188→// CONSTANTS
+   189→   189→// ============================================
+   190→   190→const BAMAKO_QUARTIERS = [
+   191→   191→  'Badalabougou', 'Baco Djicoroni', 'Banconi', 'Boulkassoumbougou',
+   192→   192→  'Daoudabougou', 'Djicoroni Para', 'Faladiè', 'Hamdallaye',
+   193→   193→  'Kalaban-Coura', 'Korofina', 'Lafiabougou', 'Magnambougou',
+   194→   194→  'Missabougou', 'Niamakoro', 'Quinzambougou', 'Sabalibougou',
+   195→   195→  'Sébenikoro', 'Sotuba', 'Torokorobougou', 'Yirimadio',
+   196→   196→];
+   197→   197→
+   198→   198→const SEGOU_QUARTIERS = [
+   199→   199→  'Ségou-Koura', 'Ségou-Ville', 'Sokolo', 'Markala',
+   200→   200→  'Dioro', 'Tominian', 'San',
+   201→   201→];
+   202→   202→
+   203→   203→const AVAILABLE_PAYMENT_METHODS = [
+   204→   204→  'CASH', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE', 'QR_CODE', 'WALLET',
+   205→   205→];
+   206→   206→
+   207→   207→// ============================================
+   208→   208→// HELPERS
+   209→   209→// ============================================
+   210→   210→function Spinner({ className = '' }: { className?: string }) {
+   211→   211→  return <Loader2 className={`w-5 h-5 animate-spin text-primary ${className}`} />;
+   212→   212→}
+   213→   213→
+   214→   214→function LoadingState() {
+   215→   215→  return (
+   216→   216→    <div className="flex items-center justify-center py-20">
+   217→   217→      <Spinner className="w-8 h-8" />
+   218→   218→    </div>
+   219→   219→  );
+   220→   220→}
+   221→   221→
+   222→   222→function EmptyState({
+   223→   223→  icon: Icon,
+   224→   224→  message,
+   225→   225→  action,
+   226→   226→  onAction,
+   227→   227→}: {
+   228→   228→  icon: React.ElementType;
+   229→   229→  message: string;
+   230→   230→  action?: string;
+   231→   231→  onAction?: () => void;
+   232→   232→}) {
+   233→   233→  return (
+   234→   234→    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+   235→   235→      <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+   236→   236→        <Icon className="w-8 h-8 text-muted-foreground" />
+   237→   237→      </div>
+   238→   238→      <p className="text-muted-foreground text-sm max-w-xs">{message}</p>
+   239→   239→      {action && onAction && (
+   240→   240→        <Button variant="outline" className="mt-4" onClick={onAction}>
+   241→   241→          {action}
+   242→   242→        </Button>
+   243→   243→      )}
+   244→   244→    </div>
+   245→   245→  );
+   246→   246→}
+   247→   247→
+   248→   248→function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+   249→   249→  return (
+   250→   250→    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+   251→   251→      <div className="w-16 h-16 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4">
+   252→   252→        <CircleAlert className="w-8 h-8 text-red-500" />
+   253→   253→      </div>
+   254→   254→      <p className="text-muted-foreground text-sm mb-4">{message}</p>
+   255→   255→      {onRetry && (
+   256→   256→        <Button variant="outline" onClick={onRetry}>
+   257→   257→          Réessayer
+   258→   258→        </Button>
+   259→   259→      )}
+   260→   260→    </div>
+   261→   261→  );
+   262→   262→}
+   263→   263→
+   264→   264→function parseJsonSafe<T>(str: string | undefined | null): T | null {
+   265→   265→  if (!str) return null;
+   266→   266→  try { return JSON.parse(str); } catch { return null; }
+   267→   267→}
+   268→   268→
+   269→   269→// ============================================
+   270→   270→// MERCHANT CARD (reusable)
+   271→   271→// ============================================
+   272→   272→function MerchantCard({ merchant, onClick }: { merchant: Merchant; onClick: () => void }) {
+   273→   273→  return (
+   274→   274→    <button
+   275→   275→      onClick={onClick}
+   276→   276→      className="w-full text-left rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow"
+   277→   277→    >
+   278→   278→      <div className="relative h-28 bg-muted">
+   279→   279→        {merchant.coverImage ? (
+   280→   280→          <img src={merchant.coverImage} alt={merchant.businessName} className="w-full h-full object-cover" />
+   281→   281→        ) : (
+   282→   282→          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-900/10">
+   283→   283→            <Store className="w-10 h-10 text-emerald-500" />
+   284→   284→          </div>
+   285→   285→        )}
+   286→   286→        {merchant.logo && (
+   287→   287→          <div className="absolute bottom-0 left-3 translate-y-1/2 w-12 h-12 rounded-xl border-2 border-background bg-background overflow-hidden shadow-sm">
+   288→   288→            <img src={merchant.logo} alt="" className="w-full h-full object-cover" />
+   289→   289→          </div>
+   290→   290→        )}
+   291→   291→      </div>
+   292→   292→      <div className="p-3 pt-5">
+   293→   293→        <div className="flex items-start justify-between gap-2">
+   294→   294→          <div className="min-w-0">
+   295→   295→            <h3 className="font-semibold text-sm truncate">{merchant.businessName}</h3>
+   296→   296→            <Badge variant="secondary" className="mt-1 text-[10px]">
+   297→   297→              {BUSINESS_TYPES[merchant.businessType] || merchant.businessType}
+   298→   298→            </Badge>
+   299→   299→          </div>
+   300→   300→          {merchant.rating > 0 && (
+   301→   301→            <div className="flex items-center gap-1 shrink-0">
+   302→   302→              <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+   303→   303→              <span className="text-xs font-medium">{merchant.rating.toFixed(1)}</span>
+   304→   304→            </div>
+   305→   305→          )}
+   306→   306→        </div>
+   307→   307→        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+   308→   308→          <span className="flex items-center gap-1">
+   309→   309→            <Clock className="w-3 h-3" />
+   310→   310→            {merchant.operatingHours}
+   311→   311→          </span>
+   312→   312→        </div>
+   313→   313→        <p className="text-xs text-muted-foreground mt-1 truncate">{merchant.address}</p>
+   314→   314→      </div>
+   315→   315→    </button>
+   316→   316→  );
+   317→   317→}
+   318→   318→
+   319→   319→// ============================================
+   320→   320→// PRODUCT CARD (reusable)
+   321→   321→// ============================================
+   322→   322→function ProductCard({ product, onClick }: { product: Product; onClick: () => void }) {
+   323→   323→  return (
+   324→   324→    <Card className="overflow-hidden rounded-xl">
+   325→   325→      <button className="w-full text-left" onClick={onClick}>
+   326→   326→        <div className="aspect-square bg-muted relative">
+   327→   327→          {product.image ? (
+   328→   328→            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+   329→   329→          ) : (
+   330→   330→            <div className="w-full h-full flex items-center justify-center">
+   331→   331→              <Package className="w-10 h-10 text-muted-foreground/40" />
+   332→   332→            </div>
+   333→   333→          )}
+   334→   334→          {product.comparePrice && product.comparePrice > product.price && (
+   335→   335→            <Badge className="absolute top-2 left-2 bg-red-500 text-white text-[10px] px-1.5 py-0">
+   336→   336→              -{Math.round((1 - product.price / product.comparePrice) * 100)}%
+   337→   337→            </Badge>
+   338→   338→          )}
+   339→   339→        </div>
+   340→   340→      </button>
+   341→   341→      <CardContent className="p-3">
+   342→   342→        <h4 className="font-medium text-xs truncate">{product.name}</h4>
+   343→   343→        <p className="text-[10px] text-muted-foreground truncate">{product.merchant?.businessName}</p>
+   344→   344→        <div className="flex items-center justify-between mt-2">
+   345→   345→          <div>
+   346→   346→            <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
+   347→   347→              {formatPrice(product.price)}
+   348→   348→            </span>
+   349→   349→            {product.comparePrice && product.comparePrice > product.price && (
+   350→   350→              <span className="text-[10px] text-muted-foreground line-through ml-1">
+   351→   351→                {formatPrice(product.comparePrice)}
+   352→   352→              </span>
+   353→   353→            )}
+   354→   354→          </div>
+   355→   355→        </div>
+   356→   356→      </CardContent>
+   357→   357→    </Card>
+   358→   358→  );
+   359→   359→}
+   360→   360→
+   361→   361→// ============================================
+   362→   362→// 1. HOME VIEW
+   363→   363→// ============================================
+   364→   364→function HomeView() {
+   365→   365→  const { navigate } = useClientNav();
+   366→   366→  const { user } = useAuthStore();
+   367→   367→  const { items } = useCartStore();
+   368→   368→
+   369→   369→  const [merchants, setMerchants] = useState<Merchant[]>([]);
+   370→   370→  const [categories, setCategories] = useState<Category[]>([]);
+   371→   371→  const [loading, setLoading] = useState(true);
+   372→   372→  const [error, setError] = useState<string | null>(null);
+   373→   373→  const [retryCount, setRetryCount] = useState(0);
+   374→   374→
+   375→   375→  useEffect(() => {
+   376→   376→    let cancelled = false;
+   377→   377→    (async () => {
+   378→   378→      setLoading(true);
+   379→   379→      setError(null);
+   380→   380→      const [mRes, cRes] = await Promise.all([
+   381→   381→        apiFetch<Merchant[]>('/api/merchants?approved=true'),
+   382→   382→        apiFetch<Category[]>('/api/categories'),
+   383→   383→      ]);
+   384→   384→      if (cancelled) return;
+   385→   385→      if (mRes.error && !mRes.data) setError(mRes.error);
+   386→   386→      const allMerchants = mRes.data ? (Array.isArray(mRes.data) ? mRes.data : []) : [];
+   387→   387→      // Featured first, then all others
+   388→   388→      const featured = allMerchants.filter((m) => m.isFeatured);
+   389→   389→      const others = allMerchants.filter((m) => !m.isFeatured);
+   390→   390→      setMerchants([...featured, ...others]);
+   391→   391→      if (cRes.data) setCategories(Array.isArray(cRes.data) ? cRes.data : []);
+   392→   392→      setLoading(false);
+   393→   393→    })();
+   394→   394→    return () => { cancelled = true; };
+   395→   395→  }, [retryCount]);
+   396→   396→
+   397→   397→  const getGreeting = () => {
+   398→   398→    const h = new Date().getHours();
+   399→   399→    if (h < 12) return 'Bonjour';
+   400→   400→    if (h < 18) return 'Bon après-midi';
+   401→   401→    return 'Bonsoir';
+   402→   402→  };
+   403→   403→
+   404→   404→  return (
+   405→   405→    <div className="space-y-6 p-4 pb-24">
+   406→   406→      <div>
+   407→   407→        <h1 className="text-2xl font-bold">
+   408→   408→          {getGreeting()}, {user?.firstName || ''} 👋
+   409→   409→        </h1>
+   410→   410→        <p className="text-muted-foreground text-sm mt-1">
+   411→   411→          Que souhaitez-vous commander aujourd&apos;hui ?
+   412→   412→        </p>
+   413→   413→      </div>
+   414→   414→
+   415→   415→      <button
+   416→   416→        onClick={() => navigate('search')}
+   417→   417→        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors text-left"
+   418→   418→      >
+   419→   419→        <Search className="w-5 h-5 text-muted-foreground" />
+   420→   420→        <span className="text-muted-foreground text-sm">Rechercher un produit, un marchand...</span>
+   421→   421→      </button>
+   422→   422→
+   423→   423→      {!loading && categories.length > 0 && (
+   424→   424→        <div>
+   425→   425→          <h2 className="font-semibold mb-3">Catégories</h2>
+   426→   426→          <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+   427→   427→            {categories.map((cat) => (
+   428→   428→              <button
+   429→   429→                key={cat.id}
+   430→   430→                onClick={() => navigate('category', { id: cat.id })}
+   431→   431→                className="flex flex-col items-center gap-1.5 min-w-[72px] p-3 rounded-xl bg-card hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors border shrink-0"
+   432→   432→              >
+   433→   433→                <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+   434→   434→                  <Store className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+   435→   435→                </div>
+   436→   436→                <span className="text-xs font-medium text-center leading-tight">{cat.name}</span>
+   437→   437→              </button>
+   438→   438→            ))}
+   439→   439→          </div>
+   440→   440→        </div>
+   441→   441→      )}
+   442→   442→
+   443→   443→      <button
+   444→   444→        onClick={() => navigate('search')}
+   445→   445→        className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-400 p-5 text-white text-left hover:opacity-95 transition-opacity"
+   446→   446→      >
+   447→   447→        <h3 className="text-lg font-bold">Livraison rapide à Bamako</h3>
+   448→   448→        <p className="text-sm text-white/80 mt-1">Commandez vos plats, médicaments et courses préférés</p>
+   449→   449→        <div className="flex items-center gap-1 mt-3 text-sm font-medium">
+   450→   450→          Explorer <ArrowRight className="w-4 h-4" />
+   451→   451→        </div>
+   452→   452→      </button>
+   453→   453→
+   454→   454→      <div>
+   455→   455→        <div className="flex items-center justify-between mb-3">
+   456→   456→          <h2 className="font-semibold">Marchands populaires</h2>
+   457→   457→          <button
+   458→   458→            onClick={() => navigate('search')}
+   459→   459→            className="text-sm text-emerald-600 dark:text-emerald-400 font-medium hover:underline"
+   460→   460→          >
+   461→   461→            Voir tout
+   462→   462→          </button>
+   463→   463→        </div>
+   464→   464→        {loading ? (
+   465→   465→          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+   466→   466→            {[1, 2, 3, 4].map((i) => (
+   467→   467→              <Skeleton key={i} className="h-48 rounded-xl" />
+   468→   468→            ))}
+   469→   469→          </div>
+   470→   470→        ) : error ? (
+   471→   471→          <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
+   472→   472→        ) : merchants.length === 0 ? (
+   473→   473→          <EmptyState icon={Store} message="Aucun marchand disponible pour le moment" action="Réessayer" onAction={() => setRetryCount((c) => c + 1)} />
+   474→   474→        ) : (
+   475→   475→          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+   476→   476→            {merchants.slice(0, 6).map((m) => (
+   477→   477→              <MerchantCard
+   478→   478→                key={m.id}
+   479→   479→                merchant={m}
+   480→   480→                onClick={() => navigate('merchant-detail', { id: m.id })}
+   481→   481→              />
+   482→   482→            ))}
+   483→   483→          </div>
+   484→   484→        )}
+   485→   485→      </div>
+   486→   486→    </div>
+   487→   487→  );
+   488→   488→}
+   489→   489→
+   490→   490→// ============================================
+   491→   491→// 2. SEARCH VIEW
+   492→   492→// ============================================
+   493→   493→function SearchView() {
+   494→   494→  const { navigate } = useClientNav();
+   495→   495→  const { addItem, merchantId: cartMerchantId, clearCart } = useCartStore();
+   496→   496→
+   497→   497→  const [query, setQuery] = useState('');
+   498→   498→  const [products, setProducts] = useState<Product[]>([]);
+   499→   499→  const [merchants, setMerchants] = useState<Merchant[]>([]);
+   500→   500→  const [activeTab, setActiveTab] = useState('produits');
+   501→   501→  const [loading, setLoading] = useState(false);
+   502→   502→  const [searched, setSearched] = useState(false);
+   503→   503→  const inputRef = useRef<HTMLInputElement>(null);
+   504→   504→  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   505→   505→
+   506→   506→  useEffect(() => {
+   507→   507→    const t = setTimeout(() => inputRef.current?.focus(), 100);
+   508→   508→    return () => clearTimeout(t);
+   509→   509→  }, []);
+   510→   510→
+   511→   511→  const doSearch = useCallback(async (searchQuery: string) => {
+   512→   512→    if (!searchQuery.trim()) return;
+   513→   513→    setLoading(true);
+   514→   514→    setSearched(true);
+   515→   515→    const [pRes, mRes] = await Promise.all([
+   516→   516→      apiFetch<Product[]>(`/api/products?search=${encodeURIComponent(searchQuery)}`),
+   517→   517→      apiFetch<Merchant[]>(`/api/merchants?search=${encodeURIComponent(searchQuery)}`),
+   518→   518→    ]);
+   519→   519→    setProducts(pRes.data ? (Array.isArray(pRes.data) ? pRes.data : []) : []);
+   520→   520→    setMerchants(mRes.data ? (Array.isArray(mRes.data) ? mRes.data : []) : []);
+   521→   521→    setLoading(false);
+   522→   522→  }, []);
+   523→   523→
+   524→   524→  const handleQueryChange = (value: string) => {
+   525→   525→    setQuery(value);
+   526→   526→    if (debounceRef.current) clearTimeout(debounceRef.current);
+   527→   527→    if (!value.trim()) {
+   528→   528→      setSearched(false);
+   529→   529→      setProducts([]);
+   530→   530→      setMerchants([]);
+   531→   531→      return;
+   532→   532→    }
+   533→   533→    debounceRef.current = setTimeout(() => {
+   534→   534→      doSearch(value);
+   535→   535→    }, 400);
+   536→   536→  };
+   537→   537→
+   538→   538→  const handleAddToCart = (product: Product) => {
+   539→   539→    if (cartMerchantId && cartMerchantId !== product.merchantId) {
+   540→   540→      clearCart();
+   541→   541→    }
+   542→   542→    addItem({
+   543→   543→      productId: product.id,
+   544→   544→      merchantId: product.merchantId,
+   545→   545→      merchantName: product.merchant?.businessName || '',
+   546→   546→      name: product.name,
+   547→   547→      price: product.price,
+   548→   548→      quantity: 1,
+   549→   549→      image: product.image,
+   550→   550→    });
+   551→   551→    toast.success(`${product.name} ajouté au panier`);
+   552→   552→  };
+   553→   553→
+   554→   554→  return (
+   555→   555→    <div className="p-4 pb-24 space-y-4">
+   556→   556→      <div className="flex items-center gap-3">
+   557→   557→        <div className="flex-1 relative">
+   558→   558→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   559→   559→          <Input
+   560→   560→            ref={inputRef}
+   561→   561→            value={query}
+   562→   562→            onChange={(e) => handleQueryChange(e.target.value)}
+   563→   563→            placeholder="Rechercher..."
+   564→   564→            className="pl-9 pr-10"
+   565→   565→          />
+   566→   566→          {query && (
+   567→   567→            <button
+   568→   568→              onClick={() => handleQueryChange('')}
+   569→   569→              className="absolute right-3 top-1/2 -translate-y-1/2"
+   570→   570→            >
+   571→   571→              <X className="w-4 h-4 text-muted-foreground" />
+   572→   572→            </button>
+   573→   573→          )}
+   574→   574→        </div>
+   575→   575→      </div>
+   576→   576→
+   577→   577→      {loading && <LoadingState />}
+   578→   578→
+   579→   579→      {!loading && searched && products.length === 0 && merchants.length === 0 && (
+   580→   580→        <EmptyState icon={Search} message="Aucun résultat trouvé pour votre recherche" />
+   581→   581→      )}
+   582→   582→
+   583→   583→      {!loading && searched && (products.length > 0 || merchants.length > 0) && (
+   584→   584→        <Tabs value={activeTab} onValueChange={setActiveTab}>
+   585→   585→          <TabsList className="w-full">
+   586→   586→            <TabsTrigger value="produits" className="flex-1 text-xs">
+   587→   587→              Produits {products.length > 0 ? `(${products.length})` : ''}
+   588→   588→            </TabsTrigger>
+   589→   589→            <TabsTrigger value="commercants" className="flex-1 text-xs">
+   590→   590→              Commerçants {merchants.length > 0 ? `(${merchants.length})` : ''}
+   591→   591→            </TabsTrigger>
+   592→   592→          </TabsList>
+   593→   593→
+   594→   594→          <TabsContent value="produits" className="mt-4">
+   595→   595→            {products.length === 0 ? (
+   596→   596→              <EmptyState icon={Package} message="Aucun produit trouvé" />
+   597→   597→            ) : (
+   598→   598→              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+   599→   599→                {products.map((p) => (
+   600→   600→                  <Card key={p.id} className="overflow-hidden rounded-xl">
+   601→   601→                    <button
+   602→   602→                      className="w-full text-left"
+   603→   603→                      onClick={() => navigate('product-detail', { id: p.id })}
+   604→   604→                    >
+   605→   605→                      <div className="aspect-square bg-muted relative">
+   606→   606→                        {p.image ? (
+   607→   607→                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+   608→   608→                        ) : (
+   609→   609→                          <div className="w-full h-full flex items-center justify-center">
+   610→   610→                            <Package className="w-10 h-10 text-muted-foreground/40" />
+   611→   611→                          </div>
+   612→   612→                        )}
+   613→   613→                      </div>
+   614→   614→                    </button>
+   615→   615→                    <CardContent className="p-3">
+   616→   616→                      <h4 className="font-medium text-xs truncate">{p.name}</h4>
+   617→   617→                      <p className="text-xs text-muted-foreground truncate">{p.merchant?.businessName}</p>
+   618→   618→                      <div className="flex items-center justify-between mt-2">
+   619→   619→                        <div>
+   620→   620→                          <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
+   621→   621→                            {formatPrice(p.price)}
+   622→   622→                          </span>
+   623→   623→                          {p.comparePrice && p.comparePrice > p.price && (
+   624→   624→                            <span className="text-[10px] text-muted-foreground line-through ml-1">
+   625→   625→                              {formatPrice(p.comparePrice)}
+   626→   626→                            </span>
+   627→   627→                          )}
+   628→   628→                        </div>
+   629→   629→                        <Button
+   630→   630→                          size="icon"
+   631→   631→                          variant="ghost"
+   632→   632→                          className="h-8 w-8"
+   633→   633→                          onClick={(e) => { e.stopPropagation(); handleAddToCart(p); }}
+   634→   634→                        >
+   635→   635→                          <Plus className="w-4 h-4 text-emerald-600" />
+   636→   636→                        </Button>
+   637→   637→                      </div>
+   638→   638→                    </CardContent>
+   639→   639→                  </Card>
+   640→   640→                ))}
+   641→   641→              </div>
+   642→   642→            )}
+   643→   643→          </TabsContent>
+   644→   644→
+   645→   645→          <TabsContent value="commercants" className="mt-4">
+   646→   646→            {merchants.length === 0 ? (
+   647→   647→              <EmptyState icon={Store} message="Aucun commerçant trouvé" />
+   648→   648→            ) : (
+   649→   649→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   650→   650→                {merchants.map((m) => (
+   651→   651→                  <MerchantCard
+   652→   652→                    key={m.id}
+   653→   653→                    merchant={m}
+   654→   654→                    onClick={() => navigate('merchant-detail', { id: m.id })}
+   655→   655→                  />
+   656→   656→                ))}
+   657→   657→              </div>
+   658→   658→            )}
+   659→   659→          </TabsContent>
+   660→   660→        </Tabs>
+   661→   661→      )}
+   662→   662→
+   663→   663→      {!searched && !loading && (
+   664→   664→        <EmptyState
+   665→   665→          icon={Search}
+   666→   666→          message="Tapez pour rechercher des produits et des commerçants"
+   667→   667→        />
+   668→   668→      )}
+   669→   669→    </div>
+   670→   670→  );
+   671→   671→}
+   672→   672→
+   673→   673→// ============================================
+   674→   674→// 3. CATEGORY VIEW
+   675→   675→// ============================================
+   676→   676→function CategoryView() {
+   677→   677→  const { data, navigate, goBack } = useClientNav();
+   678→   678→  const categoryId = data?.id || '';
+   679→   679→
+   680→   680→  const [categoryName, setCategoryName] = useState('');
+   681→   681→  const [products, setProducts] = useState<Product[]>([]);
+   682→   682→  const [loading, setLoading] = useState(true);
+   683→   683→  const [error, setError] = useState<string | null>(null);
+   684→   684→  const [retryCount, setRetryCount] = useState(0);
+   685→   685→
+   686→   686→  useEffect(() => {
+   687→   687→    if (!categoryId) return;
+   688→   688→    let cancelled = false;
+   689→   689→    (async () => {
+   690→   690→      setLoading(true);
+   691→   691→      setError(null);
+   692→   692→      const [cRes, pRes] = await Promise.all([
+   693→   693→        apiFetch<Category>(`/api/categories/${categoryId}`),
+   694→   694→        apiFetch<Product[]>(`/api/products?categoryId=${categoryId}`),
+   695→   695→      ]);
+   696→   696→      if (cancelled) return;
+   697→   697→      if (cRes.data) {
+   698→   698→        const cat = cRes.data as Category;
+   699→   699→        setCategoryName(cat.name);
+   700→   700→      }
+   701→   701→      if (pRes.error && !pRes.data) setError(pRes.error);
+   702→   702→      if (pRes.data) setProducts(Array.isArray(pRes.data) ? pRes.data : []);
+   703→   703→      setLoading(false);
+   704→   704→    })();
+   705→   705→    return () => { cancelled = true; };
+   706→   706→  }, [categoryId, retryCount]);
+   707→   707→
+   708→   708→  return (
+   709→   709→    <div className="p-4 pb-24 space-y-4">
+   710→   710→      <div className="flex items-center gap-3">
+   711→   711→        <Button variant="ghost" size="icon" onClick={goBack}>
+   712→   712→          <ChevronLeft className="w-5 h-5" />
+   713→   713→        </Button>
+   714→   714→        <h1 className="font-semibold text-lg truncate">{categoryName || 'Catégorie'}</h1>
+   715→   715→      </div>
+   716→   716→
+   717→   717→      {loading ? (
+   718→   718→        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+   719→   719→          {[1, 2, 3, 4, 5, 6].map((i) => (
+   720→   720→            <Skeleton key={i} className="h-52 rounded-xl" />
+   721→   721→          ))}
+   722→   722→        </div>
+   723→   723→      ) : error ? (
+   724→   724→        <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
+   725→   725→      ) : products.length === 0 ? (
+   726→   726→        <EmptyState
+   727→   727→          icon={Package}
+   728→   728→          message={`Aucun produit dans cette catégorie`}
+   729→   729→          action="Retour à l'accueil"
+   730→   730→          onAction={() => navigate('home')}
+   731→   731→        />
+   732→   732→      ) : (
+   733→   733→        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+   734→   734→          {products.map((p) => (
+   735→   735→            <ProductCard
+   736→   736→              key={p.id}
+   737→   737→              product={p}
+   738→   738→              onClick={() => navigate('product-detail', { id: p.id })}
+   739→   739→            />
+   740→   740→          ))}
+   741→   741→        </div>
+   742→   742→      )}
+   743→   743→    </div>
+   744→   744→  );
+   745→   745→}
+   746→   746→
+   747→   747→// ============================================
+   748→   748→// 4. MERCHANT DETAIL VIEW
+   749→   749→// ============================================
+   750→   750→function MerchantDetailView() {
+   751→   751→  const { data, navigate, goBack } = useClientNav();
+   752→   752→  const merchantId = data?.id || '';
+   753→   753→
+   754→   754→  const [merchant, setMerchant] = useState<Merchant | null>(null);
+   755→   755→  const [products, setProducts] = useState<Product[]>([]);
+   756→   756→  const [loading, setLoading] = useState(true);
+   757→   757→  const [error, setError] = useState<string | null>(null);
+   758→   758→  const [retryCount, setRetryCount] = useState(0);
+   759→   759→
+   760→   760→  useEffect(() => {
+   761→   761→    if (!merchantId) return;
+   762→   762→    let cancelled = false;
+   763→   763→    (async () => {
+   764→   764→      setLoading(true);
+   765→   765→      setError(null);
+   766→   766→      const [mRes, pRes] = await Promise.all([
+   767→   767→        apiFetch<Merchant>(`/api/merchants/${merchantId}`),
+   768→   768→        apiFetch<Product[]>(`/api/products?merchantId=${merchantId}`),
+   769→   769→      ]);
+   770→   770→      if (cancelled) return;
+   771→   771→      if (mRes.error && !mRes.data) setError(mRes.error);
+   772→   772→      if (mRes.data) setMerchant(mRes.data as Merchant);
+   773→   773→      if (pRes.data) setProducts(Array.isArray(pRes.data) ? pRes.data : []);
+   774→   774→      setLoading(false);
+   775→   775→    })();
+   776→   776→    return () => { cancelled = true; };
+   777→   777→  }, [merchantId, retryCount]);
+   778→   778→
+   779→   779→  if (loading) return <LoadingState />;
+   780→   780→  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+   781→   781→  if (!merchant) return <EmptyState icon={Store} message="Marchand introuvable" />;
+   782→   782→
+   783→   783→  return (
+   784→   784→    <div className="pb-24">
+   785→   785→      <div className="relative h-48 sm:h-56 bg-muted">
+   786→   786→        {merchant.coverImage ? (
+   787→   787→          <img src={merchant.coverImage} alt="" className="w-full h-full object-cover" />
+   788→   788→        ) : (
+   789→   789→          <div className="w-full h-full bg-gradient-to-br from-emerald-200 to-emerald-100 dark:from-emerald-900/40 dark:to-emerald-900/20" />
+   790→   790→        )}
+   791→   791→        <div className="absolute top-4 left-4">
+   792→   792→          <Button variant="secondary" size="icon" className="rounded-full bg-white/90 dark:bg-black/50 backdrop-blur-sm" onClick={goBack}>
+   793→   793→            <ChevronLeft className="w-5 h-5" />
+   794→   794→          </Button>
+   795→   795→        </div>
+   796→   796→      </div>
+   797→   797→
+   798→   798→      <div className="px-4 -mt-8 relative z-10">
+   799→   799→        <Card className="rounded-xl">
+   800→   800→          <CardContent className="p-4">
+   801→   801→            <div className="flex items-start gap-4">
+   802→   802→              <div className="w-16 h-16 rounded-xl bg-background border-2 border-background shadow overflow-hidden shrink-0">
+   803→   803→                {merchant.logo ? (
+   804→   804→                  <img src={merchant.logo} alt="" className="w-full h-full object-cover" />
+   805→   805→                ) : (
+   806→   806→                  <div className="w-full h-full flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30">
+   807→   807→                    <Store className="w-8 h-8 text-emerald-600" />
+   808→   808→                  </div>
+   809→   809→                )}
+   810→   810→              </div>
+   811→   811→              <div className="flex-1 min-w-0">
+   812→   812→                <h1 className="font-bold text-lg truncate">{merchant.businessName}</h1>
+   813→   813→                <Badge variant="secondary" className="mt-1">
+   814→   814→                  {BUSINESS_TYPES[merchant.businessType] || merchant.businessType}
+   815→   815→                </Badge>
+   816→   816→                <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground flex-wrap">
+   817→   817→                  {merchant.rating > 0 && (
+   818→   818→                    <span className="flex items-center gap-1">
+   819→   819→                      <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+   820→   820→                      {merchant.rating.toFixed(1)} ({merchant.totalRatings})
+   821→   821→                    </span>
+   822→   822→                  )}
+   823→   823→                  <span className="flex items-center gap-1">
+   824→   824→                    <Clock className="w-3.5 h-3.5" />
+   825→   825→                    {merchant.operatingHours}
+   826→   826→                  </span>
+   827→   827→                </div>
+   828→   828→                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+   829→   829→                  <MapPin className="w-3.5 h-3.5 shrink-0" />
+   830→   830→                  <span className="truncate">{merchant.address}</span>
+   831→   831→                </p>
+   832→   832→              </div>
+   833→   833→            </div>
+   834→   834→            {merchant.shortDescription && (
+   835→   835→              <p className="text-sm text-muted-foreground mt-3">{merchant.shortDescription}</p>
+   836→   836→            )}
+   837→   837→          </CardContent>
+   838→   838→        </Card>
+   839→   839→
+   840→   840→        <div className="mt-6">
+   841→   841→          <h2 className="font-semibold text-lg mb-3">Menu ({products.length} produits)</h2>
+   842→   842→          {products.length === 0 ? (
+   843→   843→            <EmptyState icon={Package} message="Aucun produit disponible" />
+   844→   844→          ) : (
+   845→   845→            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+   846→   846→              {products.map((p) => (
+   847→   847→                <ProductCard
+   848→   848→                  key={p.id}
+   849→   849→                  product={p}
+   850→   850→                  onClick={() => navigate('product-detail', { id: p.id, merchantId: p.merchantId })}
+   851→   851→                />
+   852→   852→              ))}
+   853→   853→            </div>
+   854→   854→          )}
+   855→   855→        </div>
+   856→   856→      </div>
+   857→   857→    </div>
+   858→   858→  );
+   859→   859→}
+   860→   860→
+   861→   861→// ============================================
+   862→   862→// 5. PRODUCT DETAIL VIEW
+   863→   863→// ============================================
+   864→   864→function ProductDetailView() {
+   865→   865→  const { data, navigate, goBack } = useClientNav();
+   866→   866→  const { addItem, merchantId: cartMerchantId, clearCart } = useCartStore();
+   867→   867→  const productId = data?.id || '';
+   868→   868→
+   869→   869→  const [product, setProduct] = useState<Product | null>(null);
+   870→   870→  const [merchant, setMerchant] = useState<Merchant | null>(null);
+   871→   871→  const [loading, setLoading] = useState(true);
+   872→   872→  const [error, setError] = useState<string | null>(null);
+   873→   873→  const [quantity, setQuantity] = useState(1);
+   874→   874→  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+   875→   875→  const [selectedSupplements, setSelectedSupplements] = useState<string[]>([]);
+   876→   876→  const [showCartWarning, setShowCartWarning] = useState(false);
+   877→   877→  const [retryCount, setRetryCount] = useState(0);
+   878→   878→
+   879→   879→  const parsedOptions = parseJsonSafe<{ name: string; values: string[]; required?: boolean }[]>(product?.options);
+   880→   880→  const parsedSupplements = parseJsonSafe<{ name: string; price: number }[]>(product?.supplements);
+   881→   881→
+   882→   882→  useEffect(() => {
+   883→   883→    if (!productId) return;
+   884→   884→    let cancelled = false;
+   885→   885→    (async () => {
+   886→   886→      setLoading(true);
+   887→   887→      setError(null);
+   888→   888→      const res = await apiFetch<Product>(`/api/products/${productId}`);
+   889→   889→      if (cancelled) return;
+   890→   890→      if (res.error && !res.data) { setError(res.error); setLoading(false); return; }
+   891→   891→      if (res.data) {
+   892→   892→        const p = res.data as Product;
+   893→   893→        setProduct(p);
+   894→   894→        if (p.merchantId) {
+   895→   895→          const mRes = await apiFetch<Merchant>(`/api/merchants/${p.merchantId}`);
+   896→   896→          if (cancelled) return;
+   897→   897→          if (mRes.data) setMerchant(mRes.data as Merchant);
+   898→   898→        }
+   899→   899→      }
+   900→   900→      setLoading(false);
+   901→   901→    })();
+   902→   902→    return () => { cancelled = true; };
+   903→   903→  }, [productId, retryCount]);
+   904→   904→
+   905→   905→  const doAdd = () => {
+   906→   906→    if (!product || !merchant) return;
+   907→   907→    const supps = selectedSupplements.map((name) => {
+   908→   908→      const s = parsedSupplements?.find((ps) => ps.name === name);
+   909→   909→      return { name, price: s?.price || 0 };
+   910→   910→    }).filter(Boolean);
+   911→   911→
+   912→   912→    addItem({
+   913→   913→      productId: product.id,
+   914→   914→      merchantId: merchant.id,
+   915→   915→      merchantName: merchant.businessName,
+   916→   916→      name: product.name,
+   917→   917→      price: product.price,
+   918→   918→      quantity,
+   919→   919→      image: product.image,
+   920→   920→      supplements: supps.length > 0 ? supps as { name: string; price: number }[] : undefined,
+   921→   921→      variants: Object.keys(selectedVariants).length > 0 ? JSON.stringify(selectedVariants) : undefined,
+   922→   922→    });
+   923→   923→    toast.success(`${product.name} ajouté au panier`);
+   924→   924→    navigate('cart');
+   925→   925→  };
+   926→   926→
+   927→   927→  const handleAddToCart = () => {
+   928→   928→    if (!product || !merchant) return;
+   929→   929→    if (cartMerchantId && cartMerchantId !== product.merchantId) {
+   930→   930→      setShowCartWarning(true);
+   931→   931→      return;
+   932→   932→    }
+   933→   933→    doAdd();
+   934→   934→  };
+   935→   935→
+   936→   936→  const supplementTotal = selectedSupplements.reduce((sum, name) => {
+   937→   937→    const s = parsedSupplements?.find((ps) => ps.name === name);
+   938→   938→    return sum + (s?.price || 0);
+   939→   939→  }, 0);
+   940→   940→
+   941→   941→  if (loading) return <LoadingState />;
+   942→   942→  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+   943→   943→  if (!product) return <EmptyState icon={Package} message="Produit introuvable" />;
+   944→   944→
+   945→   945→  return (
+   946→   946→    <div className="pb-32">
+   947→   947→      <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-sm px-4 py-3 flex items-center gap-3">
+   948→   948→        <Button variant="ghost" size="icon" onClick={goBack}>
+   949→   949→          <ChevronLeft className="w-5 h-5" />
+   950→   950→        </Button>
+   951→   951→        <span className="font-semibold truncate">Détails du produit</span>
+   952→   952→      </div>
+   953→   953→
+   954→   954→      <div className="px-4">
+   955→   955→        <div className="aspect-square rounded-xl bg-muted overflow-hidden">
+   956→   956→          {product.image ? (
+   957→   957→            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+   958→   958→          ) : (
+   959→   959→            <div className="w-full h-full flex items-center justify-center">
+   960→   960→              <Package className="w-20 h-20 text-muted-foreground/30" />
+   961→   961→            </div>
+   962→   962→          )}
+   963→   963→        </div>
+   964→   964→      </div>
+   965→   965→
+   966→   966→      <div className="px-4 mt-4 space-y-4">
+   967→   967→        <div>
+   968→   968→          <div className="flex items-start justify-between gap-3">
+   969→   969→            <div>
+   970→   970→              <h1 className="font-bold text-xl">{product.name}</h1>
+   971→   971→              {product.shortDescription && (
+   972→   972→                <p className="text-sm text-muted-foreground mt-1">{product.shortDescription}</p>
+   973→   973→              )}
+   974→   974→            </div>
+   975→   975→            {merchant && (
+   976→   976→              <Badge variant="secondary" className="shrink-0">{merchant.businessName}</Badge>
+   977→   977→            )}
+   978→   978→          </div>
+   979→   979→          <div className="flex items-center gap-3 mt-2">
+   980→   980→            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+   981→   981→              {formatPrice(product.price)}
+   982→   982→            </span>
+   983→   983→            {product.comparePrice && product.comparePrice > product.price && (
+   984→   984→              <span className="text-sm text-muted-foreground line-through">{formatPrice(product.comparePrice)}</span>
+   985→   985→            )}
+   986→   986→          </div>
+   987→   987→          {product.totalSold > 0 && (
+   988→   988→            <p className="text-xs text-muted-foreground mt-1">{product.totalSold} vendus</p>
+   989→   989→          )}
+   990→   990→        </div>
+   991→   991→
+   992→   992→        <Separator />
+   993→   993→
+   994→   994→        {product.longDescription && (
+   995→   995→          <div>
+   996→   996→            <h3 className="font-semibold text-sm mb-2">Description</h3>
+   997→   997→            <p className="text-sm text-muted-foreground whitespace-pre-line">{product.longDescription}</p>
+   998→   998→          </div>
+   999→   999→        )}
+  1000→  1000→
+  1001→  1001→        {parsedOptions && parsedOptions.length > 0 && (
+  1002→  1002→          <div className="space-y-3">
+  1003→  1003→            {parsedOptions.map((opt) => (
+  1004→  1004→              <div key={opt.name}>
+  1005→  1005→                <Label className="text-sm font-medium mb-2 block">
+  1006→  1006→                  {opt.name} {opt.required && <span className="text-red-500">*</span>}
+  1007→  1007→                </Label>
+  1008→  1008→                <div className="flex flex-wrap gap-2">
+  1009→  1009→                  {opt.values.map((val) => (
+  1010→  1010→                    <button
+  1011→  1011→                      key={val}
+  1012→  1012→                      onClick={() => setSelectedVariants((prev) => ({ ...prev, [opt.name]: val }))}
+  1013→  1013→                      className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+  1014→  1014→                        selectedVariants[opt.name] === val
+  1015→  1015→                          ? 'bg-emerald-600 text-white border-emerald-600'
+  1016→  1016→                          : 'bg-card text-foreground border-border hover:border-emerald-600'
+  1017→  1017→                      }`}
+  1018→  1018→                    >
+  1019→  1019→                      {val}
+  1020→  1020→                    </button>
+  1021→  1021→                  ))}
+  1022→  1022→                </div>
+  1023→  1023→              </div>
+  1024→  1024→            ))}
+  1025→  1025→          </div>
+  1026→  1026→        )}
+  1027→  1027→
+  1028→  1028→        {parsedSupplements && parsedSupplements.length > 0 && (
+  1029→  1029→          <div>
+  1030→  1030→            <Label className="text-sm font-medium mb-2 block">Suppléments</Label>
+  1031→  1031→            <div className="space-y-2">
+  1032→  1032→              {parsedSupplements.map((sup) => {
+  1033→  1033→                const isSelected = selectedSupplements.includes(sup.name);
+  1034→  1034→                return (
+  1035→  1035→                  <button
+  1036→  1036→                    key={sup.name}
+  1037→  1037→                    onClick={() =>
+  1038→  1038→                      setSelectedSupplements((prev) =>
+  1039→  1039→                        isSelected ? prev.filter((n) => n !== sup.name) : [...prev, sup.name]
+  1040→  1040→                      )
+  1041→  1041→                    }
+  1042→  1042→                    className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${
+  1043→  1043→                      isSelected
+  1044→  1044→                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-600'
+  1045→  1045→                        : 'bg-card border-border hover:border-emerald-600'
+  1046→  1046→                    }`}
+  1047→  1047→                  >
+  1048→  1048→                    <span className="text-sm">{sup.name}</span>
+  1049→  1049→                    <span className="text-sm font-medium">
+  1050→  1050→                      {sup.price > 0 ? `+${formatPrice(sup.price)}` : 'Gratuit'}
+  1051→  1051→                    </span>
+  1052→  1052→                  </button>
+  1053→  1053→                );
+  1054→  1054→              })}
+  1055→  1055→            </div>
+  1056→  1056→          </div>
+  1057→  1057→        )}
+  1058→  1058→
+  1059→  1059→        <div>
+  1060→  1060→          <Label className="text-sm font-medium mb-2 block">Quantité</Label>
+  1061→  1061→          <div className="flex items-center gap-4">
+  1062→  1062→            <Button variant="outline" size="icon" className="rounded-full h-9 w-9" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
+  1063→  1063→              <Minus className="w-4 h-4" />
+  1064→  1064→            </Button>
+  1065→  1065→            <span className="text-lg font-semibold w-8 text-center">{quantity}</span>
+  1066→  1066→            <Button variant="outline" size="icon" className="rounded-full h-9 w-9" onClick={() => setQuantity((q) => q + 1)}>
+  1067→  1067→              <Plus className="w-4 h-4" />
+  1068→  1068→            </Button>
+  1069→  1069→          </div>
+  1070→  1070→        </div>
+  1071→  1071→      </div>
+  1072→  1072→
+  1073→  1073→      <div className="fixed bottom-0 left-0 right-0 z-30 bg-background border-t p-4">
+  1074→  1074→        <div className="flex items-center gap-3 max-w-lg mx-auto">
+  1075→  1075→          <div className="flex-1">
+  1076→  1076→            <p className="text-xs text-muted-foreground">Total</p>
+  1077→  1077→            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+  1078→  1078→              {formatPrice((product.price + supplementTotal) * quantity)}
+  1079→  1079→            </p>
+  1080→  1080→          </div>
+  1081→  1081→          <Button
+  1082→  1082→            className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 max-w-xs"
+  1083→  1083→            size="lg"
+  1084→  1084→            onClick={handleAddToCart}
+  1085→  1085→          >
+  1086→  1086→            <ShoppingBag className="w-4 h-4 mr-2" />
+  1087→  1087→            Ajouter au panier
+  1088→  1088→          </Button>
+  1089→  1089→        </div>
+  1090→  1090→      </div>
+  1091→  1091→
+  1092→  1092→      <Dialog open={showCartWarning} onOpenChange={setShowCartWarning}>
+  1093→  1093→        <DialogContent>
+  1094→  1094→          <DialogHeader>
+  1095→  1095→            <DialogTitle>Panier d&apos;un autre marchand</DialogTitle>
+  1096→  1096→            <DialogDescription>
+  1097→  1097→              Votre panier contient des articles d&apos;un autre marchand. Voulez-vous vider le panier et ajouter cet article ?
+  1098→  1098→            </DialogDescription>
+  1099→  1099→          </DialogHeader>
+  1100→  1100→          <DialogFooter>
+  1101→  1101→            <Button variant="outline" onClick={() => setShowCartWarning(false)}>Annuler</Button>
+  1102→  1102→            <Button
+  1103→  1103→              className="bg-emerald-600 hover:bg-emerald-700"
+  1104→  1104→              onClick={() => { clearCart(); setShowCartWarning(false); doAdd(); }}
+  1105→  1105→            >
+  1106→  1106→              Vider et ajouter
+  1107→  1107→            </Button>
+  1108→  1108→          </DialogFooter>
+  1109→  1109→        </DialogContent>
+  1110→  1110→      </Dialog>
+  1111→  1111→    </div>
+  1112→  1112→  );
+  1113→  1113→}
+  1114→  1114→
+  1115→  1115→// ============================================
+  1116→  1116→// 6. CART VIEW
+  1117→  1117→// ============================================
+  1118→  1118→function CartView() {
+  1119→  1119→  const { navigate, goBack } = useClientNav();
+  1120→  1120→  const { items, merchantName, removeItem, updateQuantity, clearCart, getTotal } = useCartStore();
+  1121→  1121→
+  1122→  1122→  const subtotal = getTotal();
+  1123→  1123→  const deliveryFee = 500;
+  1124→  1124→  const total = subtotal + deliveryFee;
+  1125→  1125→
+  1126→  1126→  if (items.length === 0) {
+  1127→  1127→    return (
+  1128→  1128→      <div className="p-4 pb-24">
+  1129→  1129→        <div className="flex items-center gap-3 mb-6">
+  1130→  1130→          <Button variant="ghost" size="icon" onClick={goBack}>
+  1131→  1131→            <ChevronLeft className="w-5 h-5" />
+  1132→  1132→          </Button>
+  1133→  1133→          <h1 className="font-semibold text-lg">Mon panier</h1>
+  1134→  1134→        </div>
+  1135→  1135→        <EmptyState
+  1136→  1136→          icon={ShoppingBag}
+  1137→  1137→          message="Votre panier est vide"
+  1138→  1138→          action="Explorer les marchands"
+  1139→  1139→          onAction={() => navigate('home')}
+  1140→  1140→        />
+  1141→  1141→      </div>
+  1142→  1142→    );
+  1143→  1143→  }
+  1144→  1144→
+  1145→  1145→  return (
+  1146→  1146→    <div className="p-4 pb-52 space-y-4">
+  1147→  1147→      <div className="flex items-center justify-between">
+  1148→  1148→        <div className="flex items-center gap-3">
+  1149→  1149→          <Button variant="ghost" size="icon" onClick={goBack}>
+  1150→  1150→            <ChevronLeft className="w-5 h-5" />
+  1151→  1151→          </Button>
+  1152→  1152→          <h1 className="font-semibold text-lg">Mon panier</h1>
+  1153→  1153→        </div>
+  1154→  1154→        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600" onClick={clearCart}>
+  1155→  1155→          <Trash2 className="w-4 h-4 mr-1" />
+  1156→  1156→          Vider
+  1157→  1157→        </Button>
+  1158→  1158→      </div>
+  1159→  1159→
+  1160→  1160→      {merchantName && (
+  1161→  1161→        <p className="text-sm text-muted-foreground">
+  1162→  1162→          Commande chez <span className="font-medium text-foreground">{merchantName}</span>
+  1163→  1163→        </p>
+  1164→  1164→      )}
+  1165→  1165→
+  1166→  1166→      <div className="space-y-3">
+  1167→  1167→        {items.map((item) => {
+  1168→  1168→          const suppTotal = item.supplements?.reduce((s, sup) => s + sup.price, 0) || 0;
+  1169→  1169→          return (
+  1170→  1170→            <Card key={item.productId} className="rounded-xl">
+  1171→  1171→              <CardContent className="p-3 flex gap-3">
+  1172→  1172→                <div className="w-16 h-16 rounded-lg bg-muted overflow-hidden shrink-0">
+  1173→  1173→                  {item.image ? (
+  1174→  1174→                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+  1175→  1175→                  ) : (
+  1176→  1176→                    <div className="w-full h-full flex items-center justify-center">
+  1177→  1177→                      <Package className="w-6 h-6 text-muted-foreground/40" />
+  1178→  1178→                    </div>
+  1179→  1179→                  )}
+  1180→  1180→                </div>
+  1181→  1181→                <div className="flex-1 min-w-0">
+  1182→  1182→                  <div className="flex items-start justify-between gap-2">
+  1183→  1183→                    <h4 className="font-medium text-sm truncate">{item.name}</h4>
+  1184→  1184→                    <Button
+  1185→  1185→                      variant="ghost"
+  1186→  1186→                      size="icon"
+  1187→  1187→                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500"
+  1188→  1188→                      onClick={() => removeItem(item.productId)}
+  1189→  1189→                    >
+  1190→  1190→                      <Trash2 className="w-3.5 h-3.5" />
+  1191→  1191→                    </Button>
+  1192→  1192→                  </div>
+  1193→  1193→                  {item.supplements && item.supplements.length > 0 && (
+  1194→  1194→                    <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+  1195→  1195→                      +{item.supplements.map((s) => s.name).join(', ')}
+  1196→  1196→                    </p>
+  1197→  1197→                  )}
+  1198→  1198→                  <div className="flex items-center justify-between mt-2">
+  1199→  1199→                    <span className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">
+  1200→  1200→                      {formatPrice((item.price + suppTotal) * item.quantity)}
+  1201→  1201→                    </span>
+  1202→  1202→                    <div className="flex items-center gap-2">
+  1203→  1203→                      <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, item.quantity - 1)}>
+  1204→  1204→                        <Minus className="w-3 h-3" />
+  1205→  1205→                      </Button>
+  1206→  1206→                      <span className="text-sm font-medium w-5 text-center">{item.quantity}</span>
+  1207→  1207→                      <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, item.quantity + 1)}>
+  1208→  1208→                        <Plus className="w-3 h-3" />
+  1209→  1209→                      </Button>
+  1210→  1210→                    </div>
+  1211→  1211→                  </div>
+  1212→  1212→                </div>
+  1213→  1213→              </CardContent>
+  1214→  1214→            </Card>
+  1215→  1215→          );
+  1216→  1216→        })}
+  1217→  1217→      </div>
+  1218→  1218→
+  1219→  1219→      <Card className="rounded-xl">
+  1220→  1220→        <CardContent className="p-4 space-y-2">
+  1221→  1221→          <div className="flex justify-between text-sm">
+  1222→  1222→            <span className="text-muted-foreground">Sous-total</span>
+  1223→  1223→            <span>{formatPrice(subtotal)}</span>
+  1224→  1224→          </div>
+  1225→  1225→          <div className="flex justify-between text-sm">
+  1226→  1226→            <span className="text-muted-foreground">Frais de livraison</span>
+  1227→  1227→            <span>{formatPrice(deliveryFee)}</span>
+  1228→  1228→          </div>
+  1229→  1229→          <Separator />
+  1230→  1230→          <div className="flex justify-between font-bold">
+  1231→  1231→            <span>Total</span>
+  1232→  1232→            <span className="text-emerald-600 dark:text-emerald-400">{formatPrice(total)}</span>
+  1233→  1233→          </div>
+  1234→  1234→        </CardContent>
+  1235→  1235→      </Card>
+  1236→  1236→
+  1237→  1237→      <div className="fixed bottom-0 left-0 right-0 z-30 bg-background border-t p-4">
+  1238→  1238→        <Button
+  1239→  1239→          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+  1240→  1240→          size="lg"
+  1241→  1241→          onClick={() => navigate('checkout')}
+  1242→  1242→        >
+  1243→  1243→          Passer la commande — {formatPrice(total)}
+  1244→  1244→        </Button>
+  1245→  1245→      </div>
+  1246→  1246→    </div>
+  1247→  1247→  );
+  1248→  1248→}
+  1249→  1249→
+  1250→  1250→// ============================================
+  1251→  1251→// 7. CHECKOUT VIEW
+  1252→  1252→// ============================================
+  1253→  1253→function CheckoutView() {
+  1254→  1254→  const { navigate, goBack } = useClientNav();
+  1255→  1255→  const { items, merchantId, clearCart, getTotal } = useCartStore();
+  1256→  1256→  const { user } = useAuthStore();
+  1257→  1257→
+  1258→  1258→  const [address, setAddress] = useState('');
+  1259→  1259→  const [city, setCity] = useState('Bamako');
+  1260→  1260→  const [quartier, setQuartier] = useState('');
+  1261→  1261→  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  1262→  1262→  const [notes, setNotes] = useState('');
+  1263→  1263→  const [submitting, setSubmitting] = useState(false);
+  1264→  1264→
+  1265→  1265→  const subtotal = getTotal();
+  1266→  1266→  const deliveryFee = 500;
+  1267→  1267→  const total = subtotal + deliveryFee;
+  1268→  1268→
+  1269→  1269→  const currentQuartiers = city === 'Ségou' ? SEGOU_QUARTIERS : BAMAKO_QUARTIERS;
+  1270→  1270→
+  1271→  1271→  const handleCityChange = (newCity: string) => {
+  1272→  1272→    setCity(newCity);
+  1273→  1273→    setQuartier('');
+  1274→  1274→  };
+  1275→  1275→
+  1276→  1276→  const handleSubmit = async () => {
+  1277→  1277→    if (!address.trim()) { toast.error('Veuillez entrer votre adresse de livraison'); return; }
+  1278→  1278→    if (items.length === 0) { toast.error('Votre panier est vide'); return; }
+  1279→  1279→
+  1280→  1280→    setSubmitting(true);
+  1281→  1281→    try {
+  1282→  1282→      const res = await apiFetch<Order>('/api/orders', {
+  1283→  1283→        method: 'POST',
+  1284→  1284→        body: JSON.stringify({
+  1285→  1285→          merchantId,
+  1286→  1286→          items: items.map((item) => ({
+  1287→  1287→            productId: item.productId,
+  1288→  1288→            productName: item.name,
+  1289→  1289→            quantity: item.quantity,
+  1290→  1290→            unitPrice: item.price,
+  1291→  1291→            totalPrice: (item.price + (item.supplements?.reduce((s, sup) => s + sup.price, 0) || 0)) * item.quantity,
+  1292→  1292→            productImage: item.image,
+  1293→  1293→            variants: item.variants,
+  1294→  1294→            supplements: item.supplements ? JSON.stringify(item.supplements) : undefined,
+  1295→  1295→          })),
+  1296→  1296→          deliveryAddress: address,
+  1297→  1297→          deliveryCity: city,
+  1298→  1298→          deliveryQuartier: quartier || undefined,
+  1299→  1299→          paymentMethod,
+  1300→  1300→          notes: notes || undefined,
+  1301→  1301→          subtotal,
+  1302→  1302→          deliveryFee,
+  1303→  1303→          total,
+  1304→  1304→        }),
+  1305→  1305→      });
+  1306→  1306→
+  1307→  1307→      if (res.error) { toast.error(res.error); setSubmitting(false); return; }
+  1308→  1308→
+  1309→  1309→      const order = res.data as Order;
+  1310→  1310→      clearCart();
+  1311→  1311→      toast.success('Commande passée avec succès !');
+  1312→  1312→
+  1313→  1313→      if (paymentMethod !== 'CASH') {
+  1314→  1314→        navigate('tracking', { id: order.id });
+  1315→  1315→      } else {
+  1316→  1316→        navigate('orders');
+  1317→  1317→      }
+  1318→  1318→    } catch {
+  1319→  1319→      toast.error('Erreur lors de la commande');
+  1320→  1320→    }
+  1321→  1321→    setSubmitting(false);
+  1322→  1322→  };
+  1323→  1323→
+  1324→  1324→  if (items.length === 0) {
+  1325→  1325→    return (
+  1326→  1326→      <div className="p-4 pb-24">
+  1327→  1327→        <EmptyState icon={ShoppingBag} message="Votre panier est vide" action="Retour" onAction={() => navigate('home')} />
+  1328→  1328→      </div>
+  1329→  1329→    );
+  1330→  1330→  }
+  1331→  1331→
+  1332→  1332→  return (
+  1333→  1333→    <div className="p-4 pb-32 space-y-4">
+  1334→  1334→      <div className="flex items-center gap-3">
+  1335→  1335→        <Button variant="ghost" size="icon" onClick={goBack}>
+  1336→  1336→          <ChevronLeft className="w-5 h-5" />
+  1337→  1337→        </Button>
+  1338→  1338→        <h1 className="font-semibold text-lg">Passer la commande</h1>
+  1339→  1339→      </div>
+  1340→  1340→
+  1341→  1341→      <Card className="rounded-xl">
+  1342→  1342→        <CardHeader className="pb-2">
+  1343→  1343→          <CardTitle className="text-base">Adresse de livraison</CardTitle>
+  1344→  1344→        </CardHeader>
+  1345→  1345→        <CardContent className="space-y-3">
+  1346→  1346→          <div>
+  1347→  1347→            <Label htmlFor="checkout-address">Adresse</Label>
+  1348→  1348→            <Input
+  1349→  1349→              id="checkout-address"
+  1350→  1350→              value={address}
+  1351→  1351→              onChange={(e) => setAddress(e.target.value)}
+  1352→  1352→              placeholder="Ex: Rue 123, près de la mosquée"
+  1353→  1353→            />
+  1354→  1354→          </div>
+  1355→  1355→          <div className="grid grid-cols-2 gap-3">
+  1356→  1356→            <div>
+  1357→  1357→              <Label htmlFor="checkout-city">Ville</Label>
+  1358→  1358→              <Select value={city} onValueChange={handleCityChange}>
+  1359→  1359→                <SelectTrigger id="checkout-city">
+  1360→  1360→                  <SelectValue placeholder="Ville" />
+  1361→  1361→                </SelectTrigger>
+  1362→  1362→                <SelectContent>
+  1363→  1363→                  <SelectItem value="Bamako">Bamako</SelectItem>
+  1364→  1364→                  <SelectItem value="Ségou">Ségou</SelectItem>
+  1365→  1365→                </SelectContent>
+  1366→  1366→              </Select>
+  1367→  1367→            </div>
+  1368→  1368→            <div>
+  1369→  1369→              <Label htmlFor="checkout-quartier">Quartier</Label>
+  1370→  1370→              <Select value={quartier} onValueChange={setQuartier}>
+  1371→  1371→                <SelectTrigger id="checkout-quartier">
+  1372→  1372→                  <SelectValue placeholder="Quartier" />
+  1373→  1373→                </SelectTrigger>
+  1374→  1374→                <SelectContent>
+  1375→  1375→                  {currentQuartiers.map((q) => (
+  1376→  1376→                    <SelectItem key={q} value={q}>{q}</SelectItem>
+  1377→  1377→                  ))}
+  1378→  1378→                </SelectContent>
+  1379→  1379→              </Select>
+  1380→  1380→            </div>
+  1381→  1381→          </div>
+  1382→  1382→        </CardContent>
+  1383→  1383→      </Card>
+  1384→  1384→
+  1385→  1385→      <Card className="rounded-xl">
+  1386→  1386→        <CardHeader className="pb-2">
+  1387→  1387→          <CardTitle className="text-base">Mode de paiement</CardTitle>
+  1388→  1388→        </CardHeader>
+  1389→  1389→        <CardContent className="space-y-2">
+  1390→  1390→          <div className="space-y-2">
+  1391→  1391→            {AVAILABLE_PAYMENT_METHODS.map((method) => (
+  1392→  1392→              <button
+  1393→  1393→                key={method}
+  1394→  1394→                onClick={() => setPaymentMethod(method)}
+  1395→  1395→                className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${
+  1396→  1396→                  paymentMethod === method
+  1397→  1397→                    ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'
+  1398→  1398→                    : 'border-border hover:border-emerald-600'
+  1399→  1399→                }`}
+  1400→  1400→              >
+  1401→  1401→                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+  1402→  1402→                  paymentMethod === method ? 'border-emerald-600' : 'border-muted-foreground'
+  1403→  1403→                }`}>
+  1404→  1404→                  {paymentMethod === method && (
+  1405→  1405→                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+  1406→  1406→                  )}
+  1407→  1407→                </div>
+  1408→  1408→                <span className="text-sm font-medium">
+  1409→  1409→                  {PAYMENT_METHODS[method] || method}
+  1410→  1410→                </span>
+  1411→  1411→              </button>
+  1412→  1412→            ))}
+  1413→  1413→          </div>
+  1414→  1414→        </CardContent>
+  1415→  1415→      </Card>
+  1416→  1416→
+  1417→  1417→      <Card className="rounded-xl">
+  1418→  1418→        <CardHeader className="pb-2">
+  1419→  1419→          <CardTitle className="text-base">Notes pour la commande</CardTitle>
+  1420→  1420→        </CardHeader>
+  1421→  1421→        <CardContent>
+  1422→  1422→          <Textarea
+  1423→  1423→            value={notes}
+  1424→  1424→            onChange={(e) => setNotes(e.target.value)}
+  1425→  1425→            placeholder="Instructions spéciales, allergies..."
+  1426→  1426→            rows={3}
+  1427→  1427→          />
+  1428→  1428→        </CardContent>
+  1429→  1429→      </Card>
+  1430→  1430→
+  1431→  1431→      <Card className="rounded-xl">
+  1432→  1432→        <CardContent className="p-4 space-y-2">
+  1433→  1433→          <p className="text-sm font-medium mb-1">Résumé de la commande</p>
+  1434→  1434→          {items.map((item) => (
+  1435→  1435→            <div key={item.productId} className="flex justify-between text-sm">
+  1436→  1436→              <span className="text-muted-foreground truncate mr-2">
+  1437→  1437→                {item.name} x{item.quantity}
+  1438→  1438→              </span>
+  1439→  1439→              <span className="shrink-0">{formatPrice(item.price * item.quantity)}</span>
+  1440→  1440→            </div>
+  1441→  1441→          ))}
+  1442→  1442→          <Separator className="my-1" />
+  1443→  1443→          <div className="flex justify-between text-sm">
+  1444→  1444→            <span className="text-muted-foreground">Sous-total ({items.length} articles)</span>
+  1445→  1445→            <span>{formatPrice(subtotal)}</span>
+  1446→  1446→          </div>
+  1447→  1447→          <div className="flex justify-between text-sm">
+  1448→  1448→            <span className="text-muted-foreground">Livraison</span>
+  1449→  1449→            <span>{formatPrice(deliveryFee)}</span>
+  1450→  1450→          </div>
+  1451→  1451→          <Separator />
+  1452→  1452→          <div className="flex justify-between font-bold">
+  1453→  1453→            <span>Total</span>
+  1454→  1454→            <span className="text-emerald-600 dark:text-emerald-400">{formatPrice(total)}</span>
+  1455→  1455→          </div>
+  1456→  1456→          <p className="text-xs text-muted-foreground">
+  1457→  1457→            Paiement : {PAYMENT_METHODS[paymentMethod] || paymentMethod}
+  1458→  1458→          </p>
+  1459→  1459→        </CardContent>
+  1460→  1460→      </Card>
+  1461→  1461→
+  1462→  1462→      <div className="fixed bottom-0 left-0 right-0 z-30 bg-background border-t p-4">
+  1463→  1463→        <Button
+  1464→  1464→          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+  1465→  1465→          size="lg"
+  1466→  1466→          onClick={handleSubmit}
+  1467→  1467→          disabled={submitting}
+  1468→  1468→        >
+  1469→  1469→          {submitting ? <Spinner className="w-4 h-4 mr-2" /> : null}
+  1470→  1470→          Confirmer la commande — {formatPrice(total)}
+  1471→  1471→        </Button>
+  1472→  1472→      </div>
+  1473→  1473→    </div>
+  1474→  1474→  );
+  1475→  1475→}
+  1476→  1476→
+  1477→  1477→// ============================================
+  1478→  1478→// 8. ORDERS VIEW
+  1479→  1479→// ============================================
+  1480→  1480→function OrdersView() {
+  1481→  1481→  const { navigate } = useClientNav();
+  1482→  1482→  const [orders, setOrders] = useState<Order[]>([]);
+  1483→  1483→  const [loading, setLoading] = useState(true);
+  1484→  1484→  const [error, setError] = useState<string | null>(null);
+  1485→  1485→  const [activeTab, setActiveTab] = useState('all');
+  1486→  1486→  const [retryCount, setRetryCount] = useState(0);
+  1487→  1487→
+  1488→  1488→  useEffect(() => {
+  1489→  1489→    let cancelled = false;
+  1490→  1490→    (async () => {
+  1491→  1491→      setLoading(true);
+  1492→  1492→      setError(null);
+  1493→  1493→      const res = await apiFetch<Order[]>('/api/orders');
+  1494→  1494→      if (cancelled) return;
+  1495→  1495→      if (res.error && !res.data) setError(res.error);
+  1496→  1496→      if (res.data) setOrders(Array.isArray(res.data) ? res.data : []);
+  1497→  1497→      setLoading(false);
+  1498→  1498→    })();
+  1499→  1499→    return () => { cancelled = true; };
+  1500→  1500→  }, [retryCount]);
+  1501→  1501→
+  1502→  1502→  const filteredOrders = orders.filter((o) => {
+  1503→  1503→    if (activeTab === 'all') return true;
+  1504→  1504→    if (activeTab === 'active') return !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(o.status);
+  1505→  1505→    if (activeTab === 'completed') return o.status === 'DELIVERED';
+  1506→  1506→    if (activeTab === 'cancelled') return o.status === 'CANCELLED' || o.status === 'REFUNDED';
+  1507→  1507→    return true;
+  1508→  1508→  });
+  1509→  1509→
+  1510→  1510→  return (
+  1511→  1511→    <div className="p-4 pb-24 space-y-4">
+  1512→  1512→      <h1 className="font-semibold text-lg">Mes commandes</h1>
+  1513→  1513→
+  1514→  1514→      <Tabs value={activeTab} onValueChange={setActiveTab}>
+  1515→  1515→        <TabsList className="w-full">
+  1516→  1516→          <TabsTrigger value="all" className="flex-1 text-xs">Toutes</TabsTrigger>
+  1517→  1517→          <TabsTrigger value="active" className="flex-1 text-xs">En cours</TabsTrigger>
+  1518→  1518→          <TabsTrigger value="completed" className="flex-1 text-xs">Terminées</TabsTrigger>
+  1519→  1519→          <TabsTrigger value="cancelled" className="flex-1 text-xs">Annulées</TabsTrigger>
+  1520→  1520→        </TabsList>
+  1521→  1521→      </Tabs>
+  1522→  1522→
+  1523→  1523→      {loading ? (
+  1524→  1524→        <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
+  1525→  1525→      ) : error ? (
+  1526→  1526→        <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
+  1527→  1527→      ) : filteredOrders.length === 0 ? (
+  1528→  1528→        <EmptyState
+  1529→  1529→          icon={ClipboardList}
+  1530→  1530→          message={activeTab === 'all' ? 'Aucune commande pour le moment' : 'Aucune commande dans cette catégorie'}
+  1531→  1531→          action="Commander"
+  1532→  1532→          onAction={() => navigate('home')}
+  1533→  1533→        />
+  1534→  1534→      ) : (
+  1535→  1535→        <div className="space-y-3">
+  1536→  1536→          {filteredOrders.map((order) => (
+  1537→  1537→            <Card
+  1538→  1538→              key={order.id}
+  1539→  1539→              className="rounded-xl cursor-pointer hover:shadow-md transition-shadow"
+  1540→  1540→              onClick={() => navigate('order-detail', { id: order.id })}
+  1541→  1541→            >
+  1542→  1542→              <CardContent className="p-4">
+  1543→  1543→                <div className="flex items-start justify-between">
+  1544→  1544→                  <div>
+  1545→  1545→                    <p className="font-semibold text-sm">#{order.orderNumber}</p>
+  1546→  1546→                    <p className="text-xs text-muted-foreground mt-0.5">{order.merchant?.businessName}</p>
+  1547→  1547→                  </div>
+  1548→  1548→                  <Badge className={ORDER_STATUS_COLORS[order.status] || ''}>
+  1549→  1549→                    {ORDER_STATUS_LABELS[order.status] || order.status}
+  1550→  1550→                  </Badge>
+  1551→  1551→                </div>
+  1552→  1552→                <div className="flex items-center justify-between mt-3">
+  1553→  1553→                  <span className="text-xs text-muted-foreground">
+  1554→  1554→                    {new Date(order.createdAt).toLocaleDateString('fr-FR', {
+  1555→  1555→                      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  1556→  1556→                    })}
+  1557→  1557→                  </span>
+  1558→  1558→                  <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
+  1559→  1559→                    {formatPrice(order.total)}
+  1560→  1560→                  </span>
+  1561→  1561→                </div>
+  1562→  1562→              </CardContent>
+  1563→  1563→            </Card>
+  1564→  1564→          ))}
+  1565→  1565→        </div>
+  1566→  1566→      )}
+  1567→  1567→    </div>
+  1568→  1568→  );
+  1569→  1569→}
+  1570→  1570→
+  1571→  1571→// ============================================
+  1572→  1572→// 9. ORDER DETAIL VIEW
+  1573→  1573→// ============================================
+  1574→  1574→function OrderDetailView() {
+  1575→  1575→  const { data, navigate, goBack } = useClientNav();
+  1576→  1576→  const orderId = data?.id || '';
+  1577→  1577→
+  1578→  1578→  const [order, setOrder] = useState<Order | null>(null);
+  1579→  1579→  const [loading, setLoading] = useState(true);
+  1580→  1580→  const [error, setError] = useState<string | null>(null);
+  1581→  1581→  const [ratingScore, setRatingScore] = useState(0);
+  1582→  1582→  const [ratingComment, setRatingComment] = useState('');
+  1583→  1583→  const [submittingRating, setSubmittingRating] = useState(false);
+  1584→  1584→  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  1585→  1585→  const [proofFile, setProofFile] = useState<File | null>(null);
+  1586→  1586→  const [uploading, setUploading] = useState(false);
+  1587→  1587→  const [retryCount, setRetryCount] = useState(0);
+  1588→  1588→  const fileRef = useRef<HTMLInputElement>(null);
+  1589→  1589→
+  1590→  1590→  useEffect(() => {
+  1591→  1591→    if (!orderId) return;
+  1592→  1592→    let cancelled = false;
+  1593→  1593→    (async () => {
+  1594→  1594→      setLoading(true);
+  1595→  1595→      setError(null);
+  1596→  1596→      const res = await apiFetch<Order>(`/api/orders/${orderId}`);
+  1597→  1597→      if (cancelled) return;
+  1598→  1598→      if (res.error && !res.data) setError(res.error);
+  1599→  1599→      if (res.data) setOrder(res.data as Order);
+  1600→  1600→      setLoading(false);
+  1601→  1601→    })();
+  1602→  1602→    return () => { cancelled = true; };
+  1603→  1603→  }, [orderId, retryCount]);
+  1604→  1604→
+  1605→  1605→  const handleSubmitRating = async () => {
+  1606→  1606→    if (ratingScore === 0) { toast.error('Veuillez sélectionner une note'); return; }
+  1607→  1607→    setSubmittingRating(true);
+  1608→  1608→    const res = await apiFetch(`/api/orders/${orderId}/rating`, {
+  1609→  1609→      method: 'POST',
+  1610→  1610→      body: JSON.stringify({ score: ratingScore, comment: ratingComment || undefined }),
+  1611→  1611→    });
+  1612→  1612→    if (res.error) toast.error(res.error);
+  1613→  1613→    else { toast.success('Merci pour votre avis !'); setRetryCount((c) => c + 1); }
+  1614→  1614→    setSubmittingRating(false);
+  1615→  1615→  };
+  1616→  1616→
+  1617→  1617→  const handleUploadProof = async () => {
+  1618→  1618→    if (!proofFile) return;
+  1619→  1619→    setUploading(true);
+  1620→  1620→    try {
+  1621→  1621→      const formData = new FormData();
+  1622→  1622→      formData.append('file', proofFile);
+  1623→  1623→      const uploadRes = await fetch('/api/upload', {
+  1624→  1624→        method: 'POST',
+  1625→  1625→        body: formData,
+  1626→  1626→        headers: { Authorization: `Bearer ${useAuthStore.getState().token}` },
+  1627→  1627→      });
+  1628→  1628→      const uploadData = await uploadRes.json();
+  1629→  1629→      if (!uploadRes.ok || !uploadData.url) { toast.error('Erreur de téléchargement'); setUploading(false); return; }
+  1630→  1630→      const proofRes = await apiFetch(`/api/orders/${orderId}/payment-proof`, {
+  1631→  1631→        method: 'POST',
+  1632→  1632→        body: JSON.stringify({ proofUrl: uploadData.url }),
+  1633→  1633→      });
+  1634→  1634→      if (proofRes.error) toast.error(proofRes.error);
+  1635→  1635→      else { toast.success('Preuve envoyée !'); setRetryCount((c) => c + 1); setShowUploadDialog(false); }
+  1636→  1636→    } catch { toast.error('Erreur'); }
+  1637→  1637→    setUploading(false);
+  1638→  1638→  };
+  1639→  1639→
+  1640→  1640→  const ORDER_STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED'];
+  1641→  1641→  const currentIndex = order ? ORDER_STEPS.indexOf(order.status) : -1;
+  1642→  1642→
+  1643→  1643→  if (loading) return <LoadingState />;
+  1644→  1644→  if (error) return <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+  1645→  1645→  if (!order) return <EmptyState icon={Package} message="Commande introuvable" />;
+  1646→  1646→
+  1647→  1647→  return (
+  1648→  1648→    <div className="p-4 pb-24 space-y-4">
+  1649→  1649→      <div className="flex items-center gap-3">
+  1650→  1650→        <Button variant="ghost" size="icon" onClick={goBack}>
+  1651→  1651→          <ChevronLeft className="w-5 h-5" />
+  1652→  1652→        </Button>
+  1653→  1653→        <div>
+  1654→  1654→          <h1 className="font-semibold text-lg">Commande #{order.orderNumber}</h1>
+  1655→  1655→          <p className="text-xs text-muted-foreground">
+  1656→  1656→            {new Date(order.createdAt).toLocaleDateString('fr-FR', {
+  1657→  1657→              day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  1658→  1658→            })}
+  1659→  1659→          </p>
+  1660→  1660→        </div>
+  1661→  1661→      </div>
+  1662→  1662→
+  1663→  1663→      <Card className="rounded-xl">
+  1664→  1664→        <CardContent className="p-4">
+  1665→  1665→          <div className="flex items-center justify-between mb-4">
+  1666→  1666→            <Badge className={ORDER_STATUS_COLORS[order.status] || 'text-sm px-3 py-1'}>
+  1667→  1667→              {ORDER_STATUS_LABELS[order.status] || order.status}
+  1668→  1668→            </Badge>
+  1669→  1669→            {order.estimatedTime && (
+  1670→  1670→              <span className="text-sm text-muted-foreground flex items-center gap-1">
+  1671→  1671→                <Clock className="w-4 h-4" /> ~{order.estimatedTime} min
+  1672→  1672→              </span>
+  1673→  1673→            )}
+  1674→  1674→          </div>
+  1675→  1675→
+  1676→  1676→          {currentIndex >= 0 && (
+  1677→  1677→            <div className="space-y-2">
+  1678→  1678→              <Progress value={((currentIndex + 1) / ORDER_STEPS.length) * 100} className="h-2" />
+  1679→  1679→              <div className="flex justify-between">
+  1680→  1680→                {ORDER_STEPS.map((step, i) => (
+  1681→  1681→                  <div
+  1682→  1682→                    key={step}
+  1683→  1683→                    className={`text-[9px] text-center flex-1 ${
+  1684→  1684→                      i <= currentIndex ? 'text-emerald-600 font-medium' : 'text-muted-foreground'
+  1685→  1685→                    }`}
+  1686→  1686→                  >
+  1687→  1687→                    {ORDER_STATUS_LABELS[step]?.replace('ée', '').replace('é', '') || step}
+  1688→  1688→                  </div>
+  1689→  1689→                ))}
+  1690→  1690→              </div>
+  1691→  1691→            </div>
+  1692→  1692→          )}
+  1693→  1693→        </CardContent>
+  1694→  1694→      </Card>
+  1695→  1695→
+  1696→  1696→      <Card className="rounded-xl">
+  1697→  1697→        <CardHeader className="pb-2">
+  1698→  1698→          <CardTitle className="text-base">Paiement</CardTitle>
+  1699→  1699→        </CardHeader>
+  1700→  1700→        <CardContent className="space-y-2">
+  1701→  1701→          <div className="flex justify-between text-sm">
+  1702→  1702→            <span className="text-muted-foreground">Méthode</span>
+  1703→  1703→            <span>{PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod}</span>
+  1704→  1704→          </div>
+  1705→  1705→          <div className="flex justify-between text-sm">
+  1706→  1706→            <span className="text-muted-foreground">Statut</span>
+  1707→  1707→            <Badge variant="secondary">{PAYMENT_STATUS_LABELS[order.paymentStatus] || order.paymentStatus}</Badge>
+  1708→  1708→          </div>
+  1709→  1709→          {order.status === 'PAYMENT_PENDING' && (
+  1710→  1710→            <Button className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowUploadDialog(true)}>
+  1711→  1711→              <Upload className="w-4 h-4 mr-2" />
+  1712→  1712→              Envoyer la preuve de paiement
+  1713→  1713→            </Button>
+  1714→  1714→          )}
+  1715→  1715→        </CardContent>
+  1716→  1716→      </Card>
+  1717→  1717→
+  1718→  1718→      <Card className="rounded-xl">
+  1719→  1719→        <CardHeader className="pb-2">
+  1720→  1720→          <CardTitle className="text-base">Articles ({order.items?.length || 0})</CardTitle>
+  1721→  1721→        </CardHeader>
+  1722→  1722→        <CardContent className="space-y-3">
+  1723→  1723→          {(order.items || []).map((item) => (
+  1724→  1724→            <div key={item.id} className="flex items-center gap-3">
+  1725→  1725→              <div className="w-12 h-12 rounded-lg bg-muted overflow-hidden shrink-0">
+  1726→  1726→                {item.productImage ? (
+  1727→  1727→                  <img src={item.productImage} alt="" className="w-full h-full object-cover" />
+  1728→  1728→                ) : (
+  1729→  1729→                  <div className="w-full h-full flex items-center justify-center">
+  1730→  1730→                    <Package className="w-5 h-5 text-muted-foreground/40" />
+  1731→  1731→                  </div>
+  1732→  1732→                )}
+  1733→  1733→              </div>
+  1734→  1734→              <div className="flex-1 min-w-0">
+  1735→  1735→                <p className="text-sm font-medium truncate">{item.productName}</p>
+  1736→  1736→                <p className="text-xs text-muted-foreground">x{item.quantity}</p>
+  1737→  1737→              </div>
+  1738→  1738→              <span className="text-sm font-medium">{formatPrice(item.totalPrice)}</span>
+  1739→  1739→            </div>
+  1740→  1740→          ))}
+  1741→  1741→          <Separator />
+  1742→  1742→          <div className="space-y-1">
+  1743→  1743→            <div className="flex justify-between text-sm">
+  1744→  1744→              <span className="text-muted-foreground">Sous-total</span>
+  1745→  1745→              <span>{formatPrice(order.subtotal)}</span>
+  1746→  1746→            </div>
+  1747→  1747→            <div className="flex justify-between text-sm">
+  1748→  1748→              <span className="text-muted-foreground">Livraison</span>
+  1749→  1749→              <span>{formatPrice(order.deliveryFee)}</span>
+  1750→  1750→            </div>
+  1751→  1751→            {order.discount > 0 && (
+  1752→  1752→              <div className="flex justify-between text-sm text-emerald-600">
+  1753→  1753→                <span>Remise</span>
+  1754→  1754→                <span>-{formatPrice(order.discount)}</span>
+  1755→  1755→              </div>
+  1756→  1756→            )}
+  1757→  1757→            <Separator />
+  1758→  1758→            <div className="flex justify-between font-bold">
+  1759→  1759→              <span>Total</span>
+  1760→  1760→              <span className="text-emerald-600 dark:text-emerald-400">{formatPrice(order.total)}</span>
+  1761→  1761→            </div>
+  1762→  1762→          </div>
+  1763→  1763→        </CardContent>
+  1764→  1764→      </Card>
+  1765→  1765→
+  1766→  1766→      <Card className="rounded-xl">
+  1767→  1767→        <CardHeader className="pb-2">
+  1768→  1768→          <CardTitle className="text-base">Livraison</CardTitle>
+  1769→  1769→        </CardHeader>
+  1770→  1770→        <CardContent className="space-y-2">
+  1771→  1771→          <p className="text-sm">{order.deliveryAddress}</p>
+  1772→  1772→          {order.deliveryQuartier && (
+  1773→  1773→            <p className="text-sm text-muted-foreground">{order.deliveryQuartier}, {order.deliveryCity}</p>
+  1774→  1774→          )}
+  1775→  1775→          {order.notes && (
+  1776→  1776→            <p className="text-sm text-muted-foreground italic">&quot;{order.notes}&quot;</p>
+  1777→  1777→          )}
+  1778→  1778→          {order.driver && (
+  1779→  1779→            <div className="mt-2 pt-2 border-t">
+  1780→  1780→              <p className="text-sm font-medium">Livreur assigné</p>
+  1781→  1781→              <div className="flex items-center gap-3 mt-2">
+  1782→  1782→                <Avatar className="h-10 w-10">
+  1783→  1783→                  <AvatarFallback className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 text-sm">
+  1784→  1784→                    {order.driver.user.firstName[0]}{order.driver.user.lastName[0]}
+  1785→  1785→                  </AvatarFallback>
+  1786→  1786→                </Avatar>
+  1787→  1787→                <div className="flex-1">
+  1788→  1788→                  <p className="text-sm font-medium">
+  1789→  1789→                    {order.driver.user.firstName} {order.driver.user.lastName}
+  1790→  1790→                  </p>
+  1791→  1791→                  <p className="text-xs text-muted-foreground">
+  1792→  1792→                    {order.driver.vehicleType} {order.driver.vehiclePlate ? `• ${order.driver.vehicleColor || ''} ${order.driver.vehiclePlate}` : ''}
+  1793→  1793→                  </p>
+  1794→  1794→                </div>
+  1795→  1795→                <Button size="icon" variant="outline" className="h-9 w-9" asChild>
+  1796→  1796→                  <a href={`tel:${order.driver.user.phone}`}>
+  1797→  1797→                    <Phone className="w-4 h-4 text-emerald-600" />
+  1798→  1798→                  </a>
+  1799→  1799→                </Button>
+  1800→  1800→              </div>
+  1801→  1801→              <Button
+  1802→  1802→                variant="outline"
+  1803→  1803→                className="w-full mt-2"
+  1804→  1804→                onClick={() => navigate('tracking', { id: order.id })}
+  1805→  1805→              >
+  1806→  1806→                <Truck className="w-4 h-4 mr-2" />
+  1807→  1807→                Suivre la livraison
+  1808→  1808→              </Button>
+  1809→  1809→            </div>
+  1810→  1810→          )}
+  1811→  1811→        </CardContent>
+  1812→  1812→      </Card>
+  1813→  1813→
+  1814→  1814→      {order.status === 'DELIVERED' && !order.rating && (
+  1815→  1815→        <Card className="rounded-xl">
+  1816→  1816→          <CardHeader className="pb-2">
+  1817→  1817→            <CardTitle className="text-base">Évaluer cette commande</CardTitle>
+  1818→  1818→            <CardDescription>Comment était votre expérience ?</CardDescription>
+  1819→  1819→          </CardHeader>
+  1820→  1820→          <CardContent className="space-y-3">
+  1821→  1821→            <div className="flex gap-1 justify-center">
+  1822→  1822→              {[1, 2, 3, 4, 5].map((star) => (
+  1823→  1823→                <button key={star} onClick={() => setRatingScore(star)}>
+  1824→  1824→                  <Star className={`w-8 h-8 transition-colors ${
+  1825→  1825→                    star <= ratingScore ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/30'
+  1826→  1826→                  }`} />
+  1827→  1827→                </button>
+  1828→  1828→              ))}
+  1829→  1829→            </div>
+  1830→  1830→            <Textarea
+  1831→  1831→              value={ratingComment}
+  1832→  1832→              onChange={(e) => setRatingComment(e.target.value)}
+  1833→  1833→              placeholder="Laissez un commentaire (optionnel)"
+  1834→  1834→              rows={2}
+  1835→  1835→            />
+  1836→  1836→            <Button
+  1837→  1837→              className="w-full bg-emerald-600 hover:bg-emerald-700"
+  1838→  1838→              onClick={handleSubmitRating}
+  1839→  1839→              disabled={submittingRating || ratingScore === 0}
+  1840→  1840→            >
+  1841→  1841→              {submittingRating ? <Spinner className="w-4 h-4 mr-2" /> : null}
+  1842→  1842→              Envoyer l&apos;avis
+  1843→  1843→            </Button>
+  1844→  1844→          </CardContent>
+  1845→  1845→        </Card>
+  1846→  1846→      )}
+  1847→  1847→
+  1848→  1848→      {order.status === 'DELIVERED' && order.rating && (
+  1849→  1849→        <Card className="rounded-xl">
+  1850→  1850→          <CardContent className="p-4">
+  1851→  1851→            <p className="text-sm font-medium mb-1">Votre avis</p>
+  1852→  1852→            <div className="flex gap-0.5">
+  1853→  1853→              {[1, 2, 3, 4, 5].map((star) => (
+  1854→  1854→                <Star key={star} className={`w-4 h-4 ${star <= order.rating!.score ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/30'}`} />
+  1855→  1855→              ))}
+  1856→  1856→            </div>
+  1857→  1857→            {order.rating.comment && (
+  1858→  1858→              <p className="text-sm text-muted-foreground mt-1">{order.rating.comment}</p>
+  1859→  1859→            )}
+  1860→  1860→          </CardContent>
+  1861→  1861→        </Card>
+  1862→  1862→      )}
+  1863→  1863→
+  1864→  1864→      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+  1865→  1865→        <DialogContent>
+  1866→  1866→          <DialogHeader>
+  1867→  1867→            <DialogTitle>Preuve de paiement</DialogTitle>
+  1868→  1868→            <DialogDescription>Téléchargez la capture d&apos;écran de votre paiement.</DialogDescription>
+  1869→  1869→          </DialogHeader>
+  1870→  1870→          <input
+  1871→  1871→            ref={fileRef}
+  1872→  1872→            type="file"
+  1873→  1873→            accept="image/*"
+  1874→  1874→            className="hidden"
+  1875→  1875→            onChange={(e) => { if (e.target.files?.[0]) setProofFile(e.target.files[0]); }}
+  1876→  1876→          />
+  1877→  1877→          <button
+  1878→  1878→            onClick={() => fileRef.current?.click()}
+  1879→  1879→            className="w-full border-2 border-dashed rounded-lg p-8 flex flex-col items-center gap-2 hover:border-emerald-600 transition-colors"
+  1880→  1880→          >
+  1881→  1881→            <Upload className="w-8 h-8 text-muted-foreground" />
+  1882→  1882→            <span className="text-sm text-muted-foreground">{proofFile ? proofFile.name : 'Choisir une image'}</span>
+  1883→  1883→          </button>
+  1884→  1884→          <DialogFooter>
+  1885→  1885→            <DialogClose asChild><Button variant="outline">Annuler</Button></DialogClose>
+  1886→  1886→            <Button
+  1887→  1887→              className="bg-emerald-600 hover:bg-emerald-700"
+  1888→  1888→              onClick={handleUploadProof}
+  1889→  1889→              disabled={!proofFile || uploading}
+  1890→  1890→            >
+  1891→  1891→              {uploading ? <Spinner className="w-4 h-4 mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+  1892→  1892→              Envoyer
+  1893→  1893→            </Button>
+  1894→  1894→          </DialogFooter>
+  1895→  1895→        </DialogContent>
+  1896→  1896→      </Dialog>
+  1897→  1897→    </div>
+  1898→  1898→  );
+  1899→  1899→}
+  1900→  1900→
+  1901→  1901→// ============================================
+  1902→  1902→// 10. FAVORITES VIEW
+  1903→  1903→// ============================================
+  1904→  1904→function FavoritesView() {
+  1905→  1905→  const { navigate } = useClientNav();
+  1906→  1906→  const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
+  1907→  1907→  const [loading, setLoading] = useState(true);
+  1908→  1908→  const [error, setError] = useState<string | null>(null);
+  1909→  1909→  const [retryCount, setRetryCount] = useState(0);
+  1910→  1910→
+  1911→  1911→  useEffect(() => {
+  1912→  1912→    let cancelled = false;
+  1913→  1913→    (async () => {
+  1914→  1914→      setLoading(true);
+  1915→  1915→      setError(null);
+  1916→  1916→      const res = await apiFetch<FavoriteProduct[]>('/api/favorites');
+  1917→  1917→      if (cancelled) return;
+  1918→  1918→      if (res.error && !res.data) setError(res.error);
+  1919→  1919→      if (res.data) setFavorites(Array.isArray(res.data) ? res.data : []);
+  1920→  1920→      setLoading(false);
+  1921→  1921→    })();
+  1922→  1922→    return () => { cancelled = true; };
+  1923→  1923→  }, [retryCount]);
+  1924→  1924→
+  1925→  1925→  const handleRemove = async (productId: string, favoriteId: string) => {
+  1926→  1926→    const res = await apiFetch(`/api/favorites/${favoriteId}`, {
+  1927→  1927→      method: 'DELETE',
+  1928→  1928→    });
+  1929→  1929→    if (res.error) toast.error(res.error);
+  1930→  1930→    else {
+  1931→  1931→      toast.success('Retiré des favoris');
+  1932→  1932→      setFavorites((prev) => prev.filter((f) => f.id !== favoriteId));
+  1933→  1933→    }
+  1934→  1934→  };
+  1935→  1935→
+  1936→  1936→  if (loading) {
+  1937→  1937→    return (
+  1938→  1938→      <div className="p-4 pb-24 space-y-4">
+  1939→  1939→        <h1 className="font-semibold text-lg">Mes favoris</h1>
+  1940→  1940→        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+  1941→  1941→          {[1, 2, 3, 4].map((i) => (
+  1942→  1942→            <Skeleton key={i} className="h-52 rounded-xl" />
+  1943→  1943→          ))}
+  1944→  1944→        </div>
+  1945→  1945→      </div>
+  1946→  1946→    );
+  1947→  1947→  }
+  1948→  1948→
+  1949→  1949→  if (error) {
+  1950→  1950→    return (
+  1951→  1951→      <div className="p-4 pb-24 space-y-4">
+  1952→  1952→        <h1 className="font-semibold text-lg">Mes favoris</h1>
+  1953→  1953→        <ErrorState message={error} onRetry={() => setRetryCount((c) => c + 1)} />
+  1954→  1954→      </div>
+  1955→  1955→    );
+  1956→  1956→  }
+  1957→  1957→
+  1958→  1958→  return (
+  1959→  1959→    <div className="p-4 pb-24 space-y-4">
+  1960→  1960→      <h1 className="font-semibold text-lg">Mes favoris</h1>
+  1961→  1961→
+  1962→  1962→      {favorites.length === 0 ? (
+  1963→  1963→        <EmptyState
+  1964→  1964→          icon={Heart}
+  1965→  1965→          message="Aucun favori pour le moment. Ajoutez des produits en les aimant !"
+  1966→  1966→          action="Explorer"
+  1967→  1967→          onAction={() => navigate('home')}
+  1968→  1968→        />
+  1969→  1969→      ) : (
+  1970→  1970→        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+  1971→  1971→          {favorites.map((fav) => (
+  1972→  1972→            <Card key={fav.id} className="overflow-hidden rounded-xl">
+  1973→  1973→              <button className="w-full text-left" onClick={() => navigate('product-detail', { id: fav.productId })}>
+  1974→  1974→                <div className="aspect-square bg-muted relative">
+  1975→  1975→                  {fav.product?.image ? (
+  1976→  1976→                    <img src={fav.product.image} alt={fav.product.name} className="w-full h-full object-cover" />
+  1977→  1977→                  ) : (
+  1978→  1978→                    <div className="w-full h-full flex items-center justify-center">
+  1979→  1979→                      <Package className="w-10 h-10 text-muted-foreground/40" />
+  1980→  1980→                    </div>
+  1981→  1981→                  )}
+  1982→  1982→                  <button
+  1983→  1983→                    onClick={(e) => { e.stopPropagation(); handleRemove(fav.productId, fav.id); }}
+  1984→  1984→                    className="absolute top-2 right-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+  1985→  1985→                  >
+  1986→  1986→                    <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+  1987→  1987→                  </button>
+  1988→  1988→                </div>
+  1989→  1989→              </button>
+  1990→  1990→              <CardContent className="p-3">
+  1991→  1991→                <h4 className="font-medium text-xs truncate">{fav.product?.name}</h4>
+  1992→  1992→                <p className="text-xs text-muted-foreground truncate">{fav.product?.merchant?.businessName}</p>
+  1993→  1993→                {fav.product && (
+  1994→  1994→                  <p className="font-bold text-sm text-emerald-600 dark:text-emerald-400 mt-1">{formatPrice(fav.product.price)}</p>
+  1995→  1995→                )}
+  1996→  1996→              </CardContent>
+  1997→  1997→            </Card>
+  1998→  1998→          ))}
+  1999→  1999→        </div>
+  2000→  2000→      )}
+
+[showing lines 1-2000 of 2002; use offset=2001 with limit to continue reading]

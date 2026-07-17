@@ -1,123 +1,86 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding Rapigo Mali V2.0...');
-
-  // Clean all data (except we just created fresh DB, but be safe)
-  await prisma.auditLog.deleteMany();
-  await prisma.driverLocation.deleteMany();
-  await prisma.transaction.deleteMany();
-  await prisma.wallet.deleteMany();
-  await prisma.message.deleteMany();
-  await prisma.chat.deleteMany();
-  await prisma.notification.deleteMany();
-  await prisma.rating.deleteMany();
-  await prisma.delivery.deleteMany();
-  await prisma.payment.deleteMany();
-  await prisma.orderItem.deleteMany();
-  await prisma.order.deleteMany();
-  await prisma.couponUsage.deleteMany();
-  await prisma.coupon.deleteMany();
-  await prisma.referral.deleteMany();
-  await prisma.favorite.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.deliveryZone.deleteMany();
-  await prisma.merchantPaymentConfig.deleteMany();
-  await prisma.subscription.deleteMany();
-  await prisma.advertisement.deleteMany();
-  await prisma.supportTicket.deleteMany();
-  await prisma.report.deleteMany();
-  await prisma.client.deleteMany();
-  await prisma.driver.deleteMany();
-  await prisma.merchant.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.plan.deleteMany();
-  await prisma.setting.deleteMany();
-  await prisma.user.deleteMany();
+  console.log('🌱 Seed Rapigo Mali V2.4 Enterprise...');
 
   // ============================================
-  // SUPER ADMINISTRATOR
+  // NETTOYAGE COMPLET
+  // ============================================
+  const tableNames = [
+    'auditLog', 'driverLocation', 'transaction', 'wallet', 'message', 'chat',
+    'notification', 'rating', 'delivery', 'payment', 'orderItem', 'order',
+    'couponUsage', 'coupon', 'referral', 'favorite', 'product', 'deliveryZone',
+    'merchantPaymentConfig', 'subscription', 'advertisement', 'supportTicket',
+    'report', 'client', 'driver', 'merchant', 'category', 'plan', 'setting', 'user',
+  ];
+
+  for (const table of tableNames) {
+    await (prisma as Record<string, { deleteMany: () => Promise<unknown> }>)[table].deleteMany();
+  }
+  console.log('✅ Données nettoyées');
+
+  // ============================================
+  // SUPER ADMINISTRATEUR - Mr. Diarra Moussa
+  // Impossible à supprimer, bloquer ou désactiver
   // ============================================
   const adminPassword = await bcrypt.hash('pispa2026', 12);
   const admin = await prisma.user.create({
     data: {
       email: 'diarramoussaka7@gmail.com',
-      phone: '+22370000000',
+      phone: '+22377163862',
       password: adminPassword,
-      firstName: 'Super',
-      lastName: 'Administrateur',
+      firstName: 'Diarra',
+      lastName: 'Moussa',
       role: 'ADMIN',
       isSuperAdmin: true,
       isVerified: true,
       isActive: true,
     },
   });
-  console.log('✅ Super Admin created:', admin.email);
+
+  await prisma.wallet.create({
+    data: { userId: admin.id, balance: 0 },
+  });
+  console.log('✅ Super Admin créé :', admin.email);
 
   // ============================================
-  // PLANS D'ABONNEMENT
+  // PLAN UNIQUE À VIE - PREMIUM LIFETIME
   // ============================================
-  const plans = [
-    {
-      name: 'Starter',
-      slug: 'starter',
-      price: 0,
-      duration: 30,
-      features: JSON.stringify(['5 produits maximum', 'Commandes illimitées', 'Support email']),
-      maxProducts: 5,
-      maxOrders: null,
-      maxCoupons: 1,
-      priority: 0,
-    },
-    {
-      name: 'Pro',
-      slug: 'pro',
-      price: 15000,
-      duration: 30,
-      features: JSON.stringify(['50 produits maximum', 'Commandes illimitées', '5 coupons', 'Support prioritaire', 'Statistiques avancées']),
-      maxProducts: 50,
-      maxOrders: null,
-      maxCoupons: 5,
-      priority: 10,
-    },
-    {
-      name: 'Business',
-      slug: 'business',
-      price: 35000,
-      duration: 30,
-      features: JSON.stringify(['200 produits maximum', 'Commandes illimitées', 'Coupons illimités', 'Support dédié', 'Statistiques avancées', 'Publicités', 'Livraison multi-zones']),
-      maxProducts: 200,
-      maxOrders: null,
-      maxCoupons: null,
-      priority: 20,
-    },
-    {
-      name: 'Enterprise',
-      slug: 'enterprise',
-      price: 75000,
-      duration: 30,
-      features: JSON.stringify(['Produits illimités', 'Commandes illimitées', 'Coupons illimités', 'Support 24/7', 'Statistiques complètes', 'Publicités prioritaires', 'API access', 'Livraison multi-zones', 'Badge vérifié']),
+  await prisma.plan.create({
+    data: {
+      name: 'Rapigo Mali Premium',
+      slug: 'premium_lifetime',
+      price: 4000,
+      duration: 36500, // 100 ans = vie
+      features: JSON.stringify([
+        'Accès Premium à vie',
+        'Produits illimités',
+        'Commandes illimitées',
+        'Coupons illimités',
+        'Statistiques avancées',
+        'Support prioritaire',
+        'Badge vérifié',
+        'Zones de livraison multiples',
+        'Configuration paiement complète',
+      ]),
       maxProducts: null,
       maxOrders: null,
       maxCoupons: null,
-      priority: 30,
+      priority: 10,
+      isActive: true,
     },
-  ];
-
-  for (const plan of plans) {
-    await prisma.plan.create({ data: plan });
-  }
-  console.log(`✅ ${plans.length} plans created`);
+  });
+  console.log('✅ Plan Premium à vie créé — 4 000 FCFA');
 
   // ============================================
-  // CATEGORIES
+  // CATÉGORIES
   // ============================================
   const categories = [
     { name: 'Restaurants', slug: 'restaurants', icon: 'UtensilsCrossed', sortOrder: 1 },
-    { name: 'Fast Food', slug: 'fast-food', icon: 'Burger', sortOrder: 2, parentId: undefined },
+    { name: 'Fast Food', slug: 'fast-food', icon: 'Burger', sortOrder: 2 },
     { name: 'Plats locaux', slug: 'plats-locaux', icon: 'Soup', sortOrder: 3 },
     { name: 'Pâtisserie', slug: 'patisserie', icon: 'Cake', sortOrder: 4 },
     { name: 'Boissons', slug: 'boissons', icon: 'Wine', sortOrder: 5 },
@@ -134,64 +97,60 @@ async function main() {
   ];
 
   for (const cat of categories) {
-    await prisma.category.create({
-      data: {
-        name: cat.name,
-        slug: cat.slug,
-        icon: cat.icon,
-        sortOrder: cat.sortOrder,
-        isActive: true,
-      },
-    });
+    await prisma.category.create({ data: { ...cat, isActive: true } });
   }
-  console.log(`✅ ${categories.length} categories created`);
+  console.log(`✅ ${categories.length} catégories créées`);
 
   // ============================================
-  // SYSTEM SETTINGS
+  // PARAMÈTRES SYSTÈME
   // ============================================
   const settings = [
-    // General
+    // Général
     { key: 'app_name', value: 'Rapigo Mali', type: 'STRING', group: 'GENERAL' },
+    { key: 'app_slogan', value: 'Rapide, Fiable, Partout au Mali.', type: 'STRING', group: 'GENERAL' },
     { key: 'app_currency', value: 'XOF', type: 'STRING', group: 'GENERAL' },
     { key: 'app_country', value: 'Mali', type: 'STRING', group: 'GENERAL' },
     { key: 'default_city', value: 'Bamako', type: 'STRING', group: 'GENERAL' },
     { key: 'support_email', value: 'diarramoussaka7@gmail.com', type: 'STRING', group: 'GENERAL' },
     { key: 'support_phone', value: '+223 77 16 38 62', type: 'STRING', group: 'GENERAL' },
+    { key: 'support_whatsapp', value: '+22377163862', type: 'STRING', group: 'GENERAL' },
     { key: 'support_developer', value: 'Mr. Diarra Moussa', type: 'STRING', group: 'GENERAL' },
-    
+    { key: 'version', value: '2.4.0', type: 'STRING', group: 'GENERAL' },
+
     // Commission
     { key: 'default_commission_rate', value: '10', type: 'NUMBER', group: 'COMMISSION' },
     { key: 'min_commission', value: '0', type: 'NUMBER', group: 'COMMISSION' },
     { key: 'driver_commission_rate', value: '15', type: 'NUMBER', group: 'COMMISSION' },
-    
-    // Delivery
+
+    // Livraison
     { key: 'default_delivery_fee', value: '500', type: 'NUMBER', group: 'DELIVERY' },
     { key: 'max_delivery_radius', value: '15', type: 'NUMBER', group: 'DELIVERY' },
     { key: 'free_delivery_threshold', value: '5000', type: 'NUMBER', group: 'DELIVERY' },
-    
-    // Payment
+
+    // Paiement
     { key: 'payment_methods_enabled', value: '["CASH","ORANGE_MONEY","MOOV_MONEY","WAVE","VISA","MASTERCARD","QR_CODE"]', type: 'JSON', group: 'PAYMENT' },
     { key: 'cash_on_delivery_enabled', value: 'true', type: 'BOOLEAN', group: 'PAYMENT' },
     { key: 'payment_proof_required', value: 'true', type: 'BOOLEAN', group: 'PAYMENT' },
-    
-    // Security
+
+    // Sécurité
     { key: 'max_login_attempts', value: '5', type: 'NUMBER', group: 'SECURITY' },
     { key: 'session_duration_hours', value: '168', type: 'NUMBER', group: 'SECURITY' },
-    { key: 'otp_expiry_minutes', value: '10', type: 'NUMBER', group: 'SECURITY' },
-    
+
     // Notification
-    { key: 'notification_email_enabled', value: 'false', type: 'BOOLEAN', group: 'NOTIFICATION' },
-    { key: 'notification_sms_enabled', value: 'false', type: 'BOOLEAN', group: 'NOTIFICATION' },
     { key: 'notification_push_enabled', value: 'true', type: 'BOOLEAN', group: 'NOTIFICATION' },
+
+    // Abonnement
+    { key: 'subscription_model', value: 'LIFETIME', type: 'STRING', group: 'SUBSCRIPTION' },
+    { key: 'premium_price', value: '4000', type: 'NUMBER', group: 'SUBSCRIPTION' },
   ];
 
   for (const setting of settings) {
     await prisma.setting.create({ data: setting });
   }
-  console.log(`✅ ${settings.length} settings created`);
+  console.log(`✅ ${settings.length} paramètres créés`);
 
   // ============================================
-  // DEFAULT CITIES & QUARTIERS (in settings)
+  // VILLES & QUARTIERS
   // ============================================
   const cities = [
     {
@@ -201,7 +160,7 @@ async function main() {
         'Daoudabougou', 'Djicoroni Para', 'Faladiè', 'Hamdallaye',
         'Kalaban-Coura', 'Korofina', 'Lafiabougou', 'Mahamana',
         'Missabougou', 'Niamakoro', 'Quinzambougou', 'Sabalibougou',
-        'Sekoro', 'Sotuba', 'Tokorou', 'Yirimadio'
+        'Sekoro', 'Sotuba', 'Tokorou', 'Yirimadio',
       ]),
     },
     {
@@ -220,18 +179,15 @@ async function main() {
       },
     });
   }
-  console.log(`✅ ${cities.length} cities configured`);
+  console.log(`✅ ${cities.length} villes configurées`);
 
-  console.log('\n🎉 Rapigo Mali V2.1 seeded successfully!');
-  console.log('📧 Admin: diarramoussaka7@gmail.com');
-  console.log('🔑 All other data is empty — ready for real data entry.');
+  console.log('\n🎉 Rapigo Mali V2.4 Enterprise — Seed terminé !');
+  console.log('📧 Super Admin : diarramoussaka7@gmail.com');
+  console.log('📱 Téléphone : +223 77 16 38 62');
+  console.log('🔑 Mot de passe : pispa2026');
+  console.log('💎 Plan Premium à vie : 4 000 FCFA');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });

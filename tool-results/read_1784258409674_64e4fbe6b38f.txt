@@ -1,0 +1,883 @@
+  1990→      <Card>
+  1991→        <CardContent className="p-4">
+  1992→          {loading ? (
+  1993→            <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+  1994→          ) : !zones.length ? (
+  1995→            <p className="text-center text-muted-foreground py-8">Aucune zone configurée</p>
+  1996→          ) : (
+  1997→            <div className="space-y-2 max-h-96 overflow-y-auto">
+  1998→              {zones.map((z) => (
+  1999→                <div key={z.id} className="flex items-center justify-between p-3 rounded-lg border">
+  2000→                  <div>
+  2001→                    <p className="font-medium text-sm">{z.city}{z.quartier ? ` · ${z.quartier}` : ''}</p>
+  2002→                    <p className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold">{formatPrice(z.fee)}</p>
+  2003→                  </div>
+  2004→                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(z.id)}>
+  2005→                    <Trash2 className="h-4 w-4" />
+  2006→                  </Button>
+  2007→                </div>
+  2008→              ))}
+  2009→            </div>
+  2010→          )}
+  2011→        </CardContent>
+  2012→      </Card>
+  2013→    </div>
+  2014→  );
+  2015→}
+  2016→
+  2017→// ═══════════════════════════════════════════════════════════════════════════
+  2018→// 11. COUPONS
+  2019→// ═══════════════════════════════════════════════════════════════════════════
+  2020→
+  2021→function CouponsView() {
+  2022→  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  2023→  const [loading, setLoading] = useState(true);
+  2024→  const [dialogOpen, setDialogOpen] = useState(false);
+  2025→  const [saving, setSaving] = useState(false);
+  2026→  const [form, setForm] = useState({
+  2027→    code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', endDate: '',
+  2028→  });
+  2029→
+  2030→  const reloadRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  2031→
+  2032→  useEffect(() => {
+  2033→    const load = async () => {
+  2034→      setLoading(true);
+  2035→      const { data } = await apiFetch<Coupon[]>('/api/coupons');
+  2036→      if (data) setCoupons(data);
+  2037→      setLoading(false);
+  2038→    };
+  2039→    reloadRef.current = load;
+  2040→    void load();
+  2041→  }, []);
+  2042→
+  2043→  const setField = (key: string, val: string) =>
+  2044→    setForm((prev) => ({ ...prev, [key]: val }));
+  2045→
+  2046→  const handleCreate = async () => {
+  2047→    if (!form.code || !form.value || !form.endDate) {
+  2048→      toast.error('Code, valeur et date de fin requis');
+  2049→      return;
+  2050→    }
+  2051→    setSaving(true);
+  2052→    const { error } = await apiFetch('/api/coupons', {
+  2053→      method: 'POST',
+  2054→      body: JSON.stringify({
+  2055→        code: form.code,
+  2056→        type: form.type,
+  2057→        value: parseFloat(form.value) || 0,
+  2058→        minOrder: parseInt(form.minOrder) || 0,
+  2059→        maxUses: form.maxUses ? parseInt(form.maxUses) : null,
+  2060→        endDate: form.endDate,
+  2061→      }),
+  2062→    });
+  2063→    if (error) { toast.error(error); }
+  2064→    else {
+  2065→      toast.success('Coupon créé');
+  2066→      setDialogOpen(false);
+  2067→      setForm({ code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', endDate: '' });
+  2068→      reloadRef.current();
+  2069→    }
+  2070→    setSaving(false);
+  2071→  };
+  2072→
+  2073→  const handleDelete = async (id: string) => {
+  2074→    if (!confirm('Supprimer ce coupon ?')) return;
+  2075→    const { error } = await apiFetch(`/api/coupons/${id}`, { method: 'DELETE' });
+  2076→    if (error) { toast.error(error); return; }
+  2077→    toast.success('Coupon supprimé');
+  2078→    reloadRef.current();
+  2079→  };
+  2080→
+  2081→  const couponTypeLabel: Record<string, string> = {
+  2082→    PERCENTAGE: 'Pourcentage',
+  2083→    FIXED: 'Montant fixe',
+  2084→    FREE_DELIVERY: 'Livraison gratuite',
+  2085→  };
+  2086→
+  2087→  return (
+  2088→    <div className="space-y-4">
+  2089→      <div className="flex items-center justify-between">
+  2090→        <h2 className="text-xl font-bold">Coupons</h2>
+  2091→        <Button onClick={() => setDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700">
+  2092→          <PlusCircle className="h-4 w-4 mr-2" /> Créer un coupon
+  2093→        </Button>
+  2094→      </div>
+  2095→
+  2096→      {loading ? (
+  2097→        <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+  2098→      ) : !coupons.length ? (
+  2099→        <Card>
+  2100→          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+  2101→            <Ticket className="h-12 w-12 text-muted-foreground mb-3" />
+  2102→            <p className="text-lg font-medium">Aucun coupon</p>
+  2103→            <p className="text-muted-foreground text-sm mt-1">Créez votre premier coupon de réduction</p>
+  2104→          </CardContent>
+  2105→        </Card>
+  2106→      ) : (
+  2107→        <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+  2108→          {coupons.map((c) => (
+  2109→            <Card key={c.id}>
+  2110→              <CardContent className="p-4">
+  2111→                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+  2112→                  <div>
+  2113→                    <div className="flex items-center gap-2 flex-wrap">
+  2114→                      <p className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{c.code}</p>
+  2115→                      <Badge variant="secondary">{couponTypeLabel[c.type] || c.type}</Badge>
+  2116→                      <Badge variant={c.isActive ? 'default' : 'outline'}>
+  2117→                        {c.isActive ? 'Actif' : 'Inactif'}
+  2118→                      </Badge>
+  2119→                    </div>
+  2120→                    <p className="text-sm text-muted-foreground mt-1">
+  2121→                      {c.type === 'PERCENTAGE' ? `${c.value}% de réduction` :
+  2122→                        c.type === 'FIXED' ? `${formatPrice(c.value)} de réduction` :
+  2123→                          'Livraison gratuite'}
+  2124→                      {c.minOrder > 0 && ` · Min: ${formatPrice(c.minOrder)}`}
+  2125→                      {c.maxUses && ` · ${c.usedCount}/${c.maxUses} utilisations`}
+  2126→                    </p>
+  2127→                    <p className="text-xs text-muted-foreground mt-0.5">
+  2128→                      Expire le {new Date(c.endDate).toLocaleDateString('fr-FR')}
+  2129→                    </p>
+  2130→                  </div>
+  2131→                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => handleDelete(c.id)}>
+  2132→                    <Trash2 className="h-4 w-4" />
+  2133→                  </Button>
+  2134→                </div>
+  2135→              </CardContent>
+  2136→            </Card>
+  2137→          ))}
+  2138→        </div>
+  2139→      )}
+  2140→
+  2141→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+  2142→        <DialogContent>
+  2143→          <DialogHeader>
+  2144→            <DialogTitle>Créer un coupon</DialogTitle>
+  2145→            <DialogDescription>Créez un code promo pour vos clients</DialogDescription>
+  2146→          </DialogHeader>
+  2147→          <div className="space-y-4">
+  2148→            <div className="flex flex-col gap-1.5">
+  2149→              <Label>Code *</Label>
+  2150→              <Input value={form.code} onChange={(e) => setField('code', e.target.value.toUpperCase())} placeholder="PROMO2024" />
+  2151→            </div>
+  2152→            <div className="flex flex-col gap-1.5">
+  2153→              <Label>Type *</Label>
+  2154→              <Select value={form.type} onValueChange={(v) => setField('type', v)}>
+  2155→                <SelectTrigger><SelectValue /></SelectTrigger>
+  2156→                <SelectContent>
+  2157→                  <SelectItem value="PERCENTAGE">Pourcentage</SelectItem>
+  2158→                  <SelectItem value="FIXED">Montant fixe</SelectItem>
+  2159→                  <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
+  2160→                </SelectContent>
+  2161→              </Select>
+  2162→            </div>
+  2163→            {form.type !== 'FREE_DELIVERY' && (
+  2164→              <div className="flex flex-col gap-1.5">
+  2165→                <Label>Valeur *</Label>
+  2166→                <Input type="number" value={form.value} onChange={(e) => setField('value', e.target.value)} placeholder={form.type === 'PERCENTAGE' ? '10' : '1000'} />
+  2167→              </div>
+  2168→            )}
+  2169→            <div className="grid grid-cols-2 gap-3">
+  2170→              <div className="flex flex-col gap-1.5">
+  2171→                <Label>Commande min. (FCFA)</Label>
+  2172→                <Input type="number" value={form.minOrder} onChange={(e) => setField('minOrder', e.target.value)} placeholder="0" />
+  2173→              </div>
+  2174→              <div className="flex flex-col gap-1.5">
+  2175→                <Label>Utilisations max</Label>
+  2176→                <Input type="number" value={form.maxUses} onChange={(e) => setField('maxUses', e.target.value)} placeholder="Illimité" />
+  2177→              </div>
+  2178→            </div>
+  2179→            <div className="flex flex-col gap-1.5">
+  2180→              <Label>Date de fin *</Label>
+  2181→              <Input type="date" value={form.endDate} onChange={(e) => setField('endDate', e.target.value)} />
+  2182→            </div>
+  2183→          </div>
+  2184→          <DialogFooter>
+  2185→            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+  2186→            <Button onClick={handleCreate} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+  2187→              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  2188→              Créer
+  2189→            </Button>
+  2190→          </DialogFooter>
+  2191→        </DialogContent>
+  2192→      </Dialog>
+  2193→    </div>
+  2194→  );
+  2195→}
+  2196→
+  2197→// ═══════════════════════════════════════════════════════════════════════════
+  2198→// 12. PROFILE
+  2199→// ═══════════════════════════════════════════════════════════════════════════
+  2200→
+  2201→function ProfileView({ merchant }: { merchant: MerchantProfile }) {
+  2202→  const { user, logout } = useAuthStore();
+  2203→  const { setSpace } = useSpaceStore();
+  2204→  const [editMode, setEditMode] = useState(false);
+  2205→  const [saving, setSaving] = useState(false);
+  2206→  const [form, setForm] = useState({
+  2207→    businessName: merchant.businessName,
+  2208→    businessType: merchant.businessType,
+  2209→    description: merchant.description || '',
+  2210→    address: merchant.address,
+  2211→    city: merchant.city,
+  2212→    quartier: merchant.quartier || '',
+  2213→    phone: merchant.phone,
+  2214→    email: merchant.email || '',
+  2215→    website: merchant.website || '',
+  2216→    operatingHours: merchant.operatingHours,
+  2217→  });
+  2218→
+  2219→  const setField = (key: string, val: string) =>
+  2220→    setForm((prev) => ({ ...prev, [key]: val }));
+  2221→
+  2222→  const handleSave = async () => {
+  2223→    setSaving(true);
+  2224→    const { error } = await apiFetch(`/api/merchants/me`, {
+  2225→      method: 'PUT',
+  2226→      body: JSON.stringify(form),
+  2227→    });
+  2228→    if (error) { toast.error(error); }
+  2229→    else {
+  2230→      toast.success('Profil mis à jour');
+  2231→      setEditMode(false);
+  2232→    }
+  2233→    setSaving(false);
+  2234→  };
+  2235→
+  2236→  const handleLogout = () => {
+  2237→    logout();
+  2238→    setSpace('landing');
+  2239→  };
+  2240→
+  2241→  return (
+  2242→    <div className="max-w-2xl mx-auto space-y-6">
+  2243→      <h2 className="text-xl font-bold">Mon profil</h2>
+  2244→
+  2245→      {/* User info card */}
+  2246→      <Card>
+  2247→        <CardContent className="p-6">
+  2248→          <div className="flex items-center gap-4 mb-6">
+  2249→            <Avatar className="h-16 w-16">
+  2250→              <AvatarImage src={user?.avatar || merchant.logo || undefined} />
+  2251→              <AvatarFallback className="bg-emerald-100 text-emerald-700 text-lg">
+  2252→                {user?.firstName?.[0]}{user?.lastName?.[0]}
+  2253→              </AvatarFallback>
+  2254→            </Avatar>
+  2255→            <div>
+  2256→              <p className="font-semibold text-lg">{user?.firstName} {user?.lastName}</p>
+  2257→              <p className="text-sm text-muted-foreground">{user?.email}</p>
+  2258→            </div>
+  2259→          </div>
+  2260→
+  2261→          {!editMode ? (
+  2262→            <div className="space-y-3 text-sm">
+  2263→              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+  2264→                <Store className="h-4 w-4 text-muted-foreground shrink-0" />
+  2265→                <span className="font-medium">{form.businessName}</span>
+  2266→                <Badge variant="secondary" className="ml-auto">{BUSINESS_TYPES[form.businessType] || form.businessType}</Badge>
+  2267→              </div>
+  2268→              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+  2269→                <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+  2270→                <span>{form.address}, {form.city}{form.quartier ? ` · ${form.quartier}` : ''}</span>
+  2271→              </div>
+  2272→              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+  2273→                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+  2274→                <span>{user?.phone}</span>
+  2275→              </div>
+  2276→              {form.email && (
+  2277→                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+  2278→                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+  2279→                  <span>{form.email}</span>
+  2280→                </div>
+  2281→              )}
+  2282→              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+  2283→                <Star className="h-4 w-4 text-amber-500 shrink-0" />
+  2284→                <span>{merchant.rating.toFixed(1)}/5 ({merchant.totalRatings} avis)</span>
+  2285→              </div>
+  2286→              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+  2287→                <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+  2288→                <span>Compte vérifié</span>
+  2289→              </div>
+  2290→            </div>
+  2291→          ) : (
+  2292→            <div className="space-y-4">
+  2293→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  2294→                <div className="flex flex-col gap-1.5">
+  2295→                  <Label>Nom de la boutique</Label>
+  2296→                  <Input value={form.businessName} onChange={(e) => setField('businessName', e.target.value)} />
+  2297→                </div>
+  2298→                <div className="flex flex-col gap-1.5">
+  2299→                  <Label>Type d&apos;activité</Label>
+  2300→                  <Select value={form.businessType} onValueChange={(v) => setField('businessType', v)}>
+  2301→                    <SelectTrigger><SelectValue /></SelectTrigger>
+  2302→                    <SelectContent>
+  2303→                      {Object.entries(BUSINESS_TYPES).map(([k, v]) => (
+  2304→                        <SelectItem key={k} value={k}>{v}</SelectItem>
+  2305→                      ))}
+  2306→                    </SelectContent>
+  2307→                  </Select>
+  2308→                </div>
+  2309→                <div className="flex flex-col gap-1.5 sm:col-span-2">
+  2310→                  <Label>Description</Label>
+  2311→                  <Textarea rows={2} value={form.description} onChange={(e) => setField('description', e.target.value)} />
+  2312→                </div>
+  2313→                <div className="flex flex-col gap-1.5">
+  2314→                  <Label>Adresse</Label>
+  2315→                  <Input value={form.address} onChange={(e) => setField('address', e.target.value)} />
+  2316→                </div>
+  2317→                <div className="flex flex-col gap-1.5">
+  2318→                  <Label>Ville</Label>
+  2319→                  <Input value={form.city} onChange={(e) => setField('city', e.target.value)} />
+  2320→                </div>
+  2321→                <div className="flex flex-col gap-1.5">
+  2322→                  <Label>Quartier</Label>
+  2323→                  <Input value={form.quartier} onChange={(e) => setField('quartier', e.target.value)} />
+  2324→                </div>
+  2325→                <div className="flex flex-col gap-1.5">
+  2326→                  <Label>Téléphone</Label>
+  2327→                  <Input value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
+  2328→                </div>
+  2329→                <div className="flex flex-col gap-1.5">
+  2330→                  <Label>Email</Label>
+  2331→                  <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
+  2332→                </div>
+  2333→                <div className="flex flex-col gap-1.5">
+  2334→                  <Label>Site web</Label>
+  2335→                  <Input value={form.website} onChange={(e) => setField('website', e.target.value)} placeholder="https://..." />
+  2336→                </div>
+  2337→                <div className="flex flex-col gap-1.5">
+  2338→                  <Label>Horaires d&apos;ouverture</Label>
+  2339→                  <Input value={form.operatingHours} onChange={(e) => setField('operatingHours', e.target.value)} placeholder="08:00-22:00" />
+  2340→                </div>
+  2341→              </div>
+  2342→              <div className="flex gap-3">
+  2343→                <Button variant="outline" onClick={() => setEditMode(false)}>Annuler</Button>
+  2344→                <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+  2345→                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  2346→                  Sauvegarder
+  2347→                </Button>
+  2348→              </div>
+  2349→            </div>
+  2350→          )}
+  2351→
+  2352→          {!editMode && (
+  2353→            <Button variant="outline" className="mt-4 w-full" onClick={() => setEditMode(true)}>
+  2354→              <Edit className="h-4 w-4 mr-2" /> Modifier mes informations
+  2355→            </Button>
+  2356→          )}
+  2357→        </CardContent>
+  2358→      </Card>
+  2359→
+  2360→      {/* Support contact */}
+  2361→      <Card>
+  2362→        <CardHeader className="pb-3"><CardTitle className="text-lg">Assistance & Contact</CardTitle></CardHeader>
+  2363→        <CardContent>
+  2364→          <SupportContact variant="compact" />
+  2365→        </CardContent>
+  2366→      </Card>
+  2367→
+  2368→      <Button variant="destructive" className="w-full" onClick={handleLogout}>
+  2369→        <LogOut className="h-4 w-4 mr-2" /> Se déconnecter
+  2370→      </Button>
+  2371→    </div>
+  2372→  );
+  2373→}
+  2374→
+  2375→// ═══════════════════════════════════════════════════════════════════════════
+  2376→// 13. SUPPORT
+  2377→// ═══════════════════════════════════════════════════════════════════════════
+  2378→
+  2379→function SupportView() {
+  2380→  const [subject, setSubject] = useState('');
+  2381→  const [description, setDescription] = useState('');
+  2382→  const [sending, setSending] = useState(false);
+  2383→  const [sent, setSent] = useState(false);
+  2384→
+  2385→  const handleSubmit = async () => {
+  2386→    if (!subject.trim() || !description.trim()) {
+  2387→      toast.error('Sujet et description requis');
+  2388→      return;
+  2389→    }
+  2390→    setSending(true);
+  2391→    const { error } = await apiFetch('/api/support', {
+  2392→      method: 'POST',
+  2393→      body: JSON.stringify({ subject, description }),
+  2394→    });
+  2395→    if (error) { toast.error(error); }
+  2396→    else {
+  2397→      toast.success('Ticket envoyé avec succès');
+  2398→      setSent(true);
+  2399→      setSubject('');
+  2400→      setDescription('');
+  2401→    }
+  2402→    setSending(false);
+  2403→  };
+  2404→
+  2405→  if (sent) {
+  2406→    return (
+  2407→      <div className="max-w-lg mx-auto text-center py-16">
+  2408→        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>
+  2409→          <CheckCircle2 className="h-16 w-16 text-emerald-600 mx-auto mb-4" />
+  2410→        </motion.div>
+  2411→        <h2 className="text-xl font-bold">Ticket envoyé</h2>
+  2412→        <p className="text-muted-foreground mt-2">Notre équipe vous répondra dans les plus brefs délais.</p>
+  2413→        <Button onClick={() => setSent(false)} className="mt-6 bg-emerald-600 hover:bg-emerald-700">
+  2414→          Envoyer un autre ticket
+  2415→        </Button>
+  2416→      </div>
+  2417→    );
+  2418→  }
+  2419→
+  2420→  return (
+  2421→    <div className="max-w-lg mx-auto space-y-6">
+  2422→      <div>
+  2423→        <h2 className="text-xl font-bold">Support</h2>
+  2424→        <p className="text-sm text-muted-foreground">Besoin d&apos;aide ? Envoyez-nous un ticket.</p>
+  2425→      </div>
+  2426→
+  2427→      <Card>
+  2428→        <CardContent className="p-6 space-y-4">
+  2429→          <div className="flex flex-col gap-1.5">
+  2430→            <Label>Sujet *</Label>
+  2431→            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Décrivez brièvement votre problème" />
+  2432→          </div>
+  2433→          <div className="flex flex-col gap-1.5">
+  2434→            <Label>Description *</Label>
+  2435→            <Textarea
+  2436→              rows={5}
+  2437→              value={description}
+  2438→              onChange={(e) => setDescription(e.target.value)}
+  2439→              placeholder="Donnez-nous tous les détails nécessaires..."
+  2440→            />
+  2441→          </div>
+  2442→          <Button onClick={handleSubmit} disabled={sending} className="w-full bg-emerald-600 hover:bg-emerald-700">
+  2443→            {sending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  2444→            <Send className="h-4 w-4 mr-2" /> Envoyer le ticket
+  2445→          </Button>
+  2446→        </CardContent>
+  2447→      </Card>
+  2448→
+  2449→      <Card>
+  2450→        <CardContent className="p-4">
+  2451→          <SupportContact variant="full" />
+  2452→        </CardContent>
+  2453→      </Card>
+  2454→    </div>
+  2455→  );
+  2456→}
+  2457→
+  2458→// ═══════════════════════════════════════════════════════════════════════════
+  2459→// 14. NOTIFICATIONS
+  2460→// ═══════════════════════════════════════════════════════════════════════════
+  2461→
+  2462→function NotificationsView() {
+  2463→  const [notifications, setNotifications] = useState<Notification[]>([]);
+  2464→  const [unreadCount, setUnreadCount] = useState(0);
+  2465→  const [loading, setLoading] = useState(true);
+  2466→
+  2467→  const reloadRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  2468→
+  2469→  useEffect(() => {
+  2470→    const load = async () => {
+  2471→      setLoading(true);
+  2472→      const { data } = await apiFetch<{ notifications: Notification[]; unreadCount: number }>('/api/notifications');
+  2473→      if (data) {
+  2474→        setNotifications(data.notifications || []);
+  2475→        setUnreadCount(data.unreadCount || 0);
+  2476→      }
+  2477→      setLoading(false);
+  2478→    };
+  2479→    reloadRef.current = load;
+  2480→    void load();
+  2481→  }, []);
+  2482→
+  2483→  const markAllRead = async () => {
+  2484→    const { error } = await apiFetch('/api/notifications', { method: 'PUT' });
+  2485→    if (error) { toast.error(error); return; }
+  2486→    toast.success('Toutes les notifications marquées comme lues');
+  2487→    reloadRef.current();
+  2488→  };
+  2489→
+  2490→  const markOneRead = async (id: string) => {
+  2491→    await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+  2492→    reloadRef.current();
+  2493→  };
+  2494→
+  2495→  const typeColors: Record<string, string> = {
+  2496→    ORDER: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  2497→    PAYMENT: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  2498→    DELIVERY: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+  2499→    PROMO: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+  2500→    INFO: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+  2501→    SYSTEM: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  2502→  };
+  2503→
+  2504→  const typeLabels: Record<string, string> = {
+  2505→    ORDER: 'Commande',
+  2506→    PAYMENT: 'Paiement',
+  2507→    DELIVERY: 'Livraison',
+  2508→    PROMO: 'Promo',
+  2509→    INFO: 'Info',
+  2510→    SYSTEM: 'Système',
+  2511→  };
+  2512→
+  2513→  return (
+  2514→    <div className="space-y-4">
+  2515→      <div className="flex items-center justify-between">
+  2516→        <div>
+  2517→          <h2 className="text-xl font-bold">Notifications</h2>
+  2518→          {unreadCount > 0 && <p className="text-sm text-muted-foreground">{unreadCount} non lue(s)</p>}
+  2519→        </div>
+  2520→        {unreadCount > 0 && (
+  2521→          <Button variant="outline" size="sm" onClick={markAllRead}>
+  2522→            <CheckCircle2 className="h-4 w-4 mr-1" /> Tout marquer comme lu
+  2523→          </Button>
+  2524→        )}
+  2525→      </div>
+  2526→
+  2527→      {loading ? (
+  2528→        <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+  2529→      ) : !notifications.length ? (
+  2530→        <Card>
+  2531→          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+  2532→            <Bell className="h-12 w-12 text-muted-foreground mb-3" />
+  2533→            <p className="text-lg font-medium">Aucune notification</p>
+  2534→            <p className="text-muted-foreground text-sm mt-1">Vos notifications apparaîtront ici</p>
+  2535→          </CardContent>
+  2536→        </Card>
+  2537→      ) : (
+  2538→        <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+  2539→          {notifications.map((n) => (
+  2540→            <Card
+  2541→              key={n.id}
+  2542→              className={`cursor-pointer transition-colors ${!n.isRead ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-900/5' : ''}`}
+  2543→              onClick={() => { if (!n.isRead) markOneRead(n.id); }}
+  2544→            >
+  2545→              <CardContent className="p-4">
+  2546→                <div className="flex items-start gap-3">
+  2547→                  <Badge variant="secondary" className={typeColors[n.type] || typeColors.INFO}>
+  2548→                    {typeLabels[n.type] || n.type}
+  2549→                  </Badge>
+  2550→                  <div className="flex-1 min-w-0">
+  2551→                    <p className={`text-sm ${!n.isRead ? 'font-semibold' : 'font-medium'}`}>{n.title}</p>
+  2552→                    <p className="text-sm text-muted-foreground mt-0.5">{n.message}</p>
+  2553→                    <p className="text-xs text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
+  2554→                  </div>
+  2555→                  {!n.isRead && <div className="w-2 h-2 rounded-full bg-emerald-600 mt-1.5 shrink-0" />}
+  2556→                </div>
+  2557→              </CardContent>
+  2558→            </Card>
+  2559→          ))}
+  2560→        </div>
+  2561→      )}
+  2562→    </div>
+  2563→  );
+  2564→}
+  2565→
+  2566→// ═══════════════════════════════════════════════════════════════════════════
+  2567→// MAIN COMPONENT
+  2568→// ═══════════════════════════════════════════════════════════════════════════
+  2569→
+  2570→const PAGE_TITLES: Record<string, string> = {
+  2571→  dashboard: 'Tableau de bord',
+  2572→  products: 'Produits',
+  2573→  'add-product': 'Ajouter un produit',
+  2574→  orders: 'Commandes',
+  2575→  'order-detail': 'Détails de la commande',
+  2576→  stats: 'Statistiques',
+  2577→  coupons: 'Coupons',
+  2578→  'payment-config': 'Configuration des paiements',
+  2579→  'delivery-zones': 'Zones de livraison',
+  2580→  subscription: 'Abonnement',
+  2581→  settings: 'Paramètres',
+  2582→  notifications: 'Notifications',
+  2583→  profile: 'Mon profil',
+  2584→  support: 'Support',
+  2585→};
+  2586→
+  2587→export default function MerchantApp() {
+  2588→  const { view, navigate } = useMerchantNav();
+  2589→  const { user } = useAuthStore();
+  2590→  const [merchant, setMerchant] = useState<MerchantProfile | null>(null);
+  2591→  const [loading, setLoading] = useState(true);
+  2592→  const [sidebarOpen, setSidebarOpen] = useState(false);
+  2593→  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  2594→  const [notifs, setNotifs] = useState<{ unreadCount: number } | null>(null);
+  2595→
+  2596→  // Fetch merchant profile
+  2597→  useEffect(() => {
+  2598→    (async () => {
+  2599→      const { data, error } = await apiFetch<MerchantProfile>('/api/merchants/me');
+  2600→      if (data) setMerchant(data);
+  2601→      if (error) toast.error(error);
+  2602→      setLoading(false);
+  2603→    })();
+  2604→  }, []);
+  2605→
+  2606→  // Fetch unread notifications count
+  2607→  useEffect(() => {
+  2608→    (async () => {
+  2609→      const { data } = await apiFetch<{ unreadCount: number }>('/api/notifications?limit=1');
+  2610→      if (data) setNotifs(data);
+  2611→    })();
+  2612→  }, [view]);
+  2613→
+  2614→  // ─── Loading ───
+  2615→  if (loading) {
+  2616→    return (
+  2617→      <div className="min-h-screen flex items-center justify-center bg-background">
+  2618→        <div className="flex flex-col items-center gap-4">
+  2619→          <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+  2620→          <p className="text-muted-foreground">Chargement...</p>
+  2621→        </div>
+  2622→      </div>
+  2623→    );
+  2624→  }
+  2625→
+  2626→  // ─── Not found ───
+  2627→  if (!merchant) {
+  2628→    return (
+  2629→      <div className="min-h-screen flex items-center justify-center bg-background">
+  2630→        <Card className="max-w-md mx-4">
+  2631→          <CardContent className="flex flex-col items-center py-12 text-center">
+  2632→            <AlertCircle className="h-16 w-16 text-destructive mb-4" />
+  2633→            <h2 className="text-xl font-bold">Profil marchand non trouvé</h2>
+  2634→            <p className="text-muted-foreground mt-2">Votre profil marchand n&apos;a pas été trouvé. Veuillez contacter le support.</p>
+  2635→          </CardContent>
+  2636→        </Card>
+  2637→      </div>
+  2638→    );
+  2639→  }
+  2640→
+  2641→  // ─── Waiting for approval ───
+  2642→  if (!merchant.isApproved) {
+  2643→    return (
+  2644→      <WaitingScreen
+  2645→        merchant={merchant}
+  2646→        onLogout={() => {
+  2647→          useAuthStore.getState().logout();
+  2648→          useSpaceStore.getState().setSpace('landing');
+  2649→        }}
+  2650→      />
+  2651→    );
+  2652→  }
+  2653→
+  2654→  // ─── Render view ───
+  2655→  const renderView = () => {
+  2656→    switch (view) {
+  2657→      case 'dashboard': return <DashboardView merchant={merchant} />;
+  2658→      case 'products': return <ProductsView merchant={merchant} />;
+  2659→      case 'add-product': return <AddProductView />;
+  2660→      case 'orders': return <OrdersView />;
+  2661→      case 'order-detail': return <OrderDetailView />;
+  2662→      case 'stats': return <StatsView />;
+  2663→      case 'coupons': return <CouponsView />;
+  2664→      case 'payment-config': return <PaymentConfigView merchant={merchant} />;
+  2665→      case 'delivery-zones': return <DeliveryZonesView merchant={merchant} />;
+  2666→      case 'subscription': return <SubscriptionView merchant={merchant} />;
+  2667→      case 'settings': return <ProfileView merchant={merchant} />;
+  2668→      case 'notifications': return <NotificationsView />;
+  2669→      case 'profile': return <ProfileView merchant={merchant} />;
+  2670→      case 'support': return <SupportView />;
+  2671→      default: return <DashboardView merchant={merchant} />;
+  2672→    }
+  2673→  };
+  2674→
+  2675→  return (
+  2676→    <div className="min-h-screen bg-background flex">
+  2677→      {/* ─── Desktop Sidebar ─── */}
+  2678→      <aside className={`hidden lg:flex flex-col border-r bg-card transition-all duration-200 ${sidebarCollapsed ? 'w-16' : 'w-64'} sticky top-0 h-screen`}>
+  2679→        <div className="flex items-center gap-3 p-4 border-b">
+  2680→          {merchant.logo ? (
+  2681→            <img src={merchant.logo} alt="" className="h-8 w-8 rounded-lg object-cover shrink-0" />
+  2682→          ) : (
+  2683→            <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shrink-0">
+  2684→              <Store className="h-4 w-4 text-white" />
+  2685→            </div>
+  2686→          )}
+  2687→          {!sidebarCollapsed && (
+  2688→            <span className="font-bold text-sm truncate">{merchant.businessName}</span>
+  2689→          )}
+  2690→          <Button
+  2691→            variant="ghost" size="icon" className="ml-auto h-7 w-7 shrink-0"
+  2692→            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+  2693→          >
+  2694→            <ChevronRight className={`h-4 w-4 transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`} />
+  2695→          </Button>
+  2696→        </div>
+  2697→        <ScrollArea className="flex-1 py-2">
+  2698→          <nav className="space-y-1 px-2">
+  2699→            {SIDEBAR_ITEMS.map((item) => {
+  2700→              const active = view === item.view || (item.view === 'payment-config' && view === 'payment-config');
+  2701→              return (
+  2702→                <button
+  2703→                  key={item.view}
+  2704→                  onClick={() => navigate(item.view)}
+  2705→                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+  2706→                    active
+  2707→                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+  2708→                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+  2709→                  }`}
+  2710→                  title={sidebarCollapsed ? item.label : undefined}
+  2711→                >
+  2712→                  <item.icon className="h-4 w-4 shrink-0" />
+  2713→                  {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+  2714→                </button>
+  2715→              );
+  2716→            })}
+  2717→          </nav>
+  2718→        </ScrollArea>
+  2719→      </aside>
+  2720→
+  2721→      {/* ─── Mobile Sidebar Overlay ─── */}
+  2722→      {sidebarOpen && (
+  2723→        <div className="lg:hidden fixed inset-0 z-50">
+  2724→          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+  2725→          <motion.aside
+  2726→            initial={{ x: -288 }}
+  2727→            animate={{ x: 0 }}
+  2728→            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+  2729→            className="absolute left-0 top-0 bottom-0 w-72 bg-card border-r flex flex-col shadow-xl"
+  2730→          >
+  2731→            <div className="flex items-center gap-3 p-4 border-b">
+  2732→              {merchant.logo ? (
+  2733→                <img src={merchant.logo} alt="" className="h-8 w-8 rounded-lg object-cover" />
+  2734→              ) : (
+  2735→                <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+  2736→                  <Store className="h-4 w-4 text-white" />
+  2737→                </div>
+  2738→              )}
+  2739→              <span className="font-bold text-sm truncate">{merchant.businessName}</span>
+  2740→              <Button variant="ghost" size="icon" className="ml-auto h-7 w-7" onClick={() => setSidebarOpen(false)}>
+  2741→                <X className="h-4 w-4" />
+  2742→              </Button>
+  2743→            </div>
+  2744→            <ScrollArea className="flex-1 py-2">
+  2745→              <nav className="space-y-1 px-2">
+  2746→                {SIDEBAR_ITEMS.map((item) => {
+  2747→                  const active = view === item.view;
+  2748→                  return (
+  2749→                    <button
+  2750→                      key={item.view}
+  2751→                      onClick={() => { navigate(item.view); setSidebarOpen(false); }}
+  2752→                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+  2753→                        active
+  2754→                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+  2755→                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+  2756→                      }`}
+  2757→                    >
+  2758→                      <item.icon className="h-4 w-4 shrink-0" />
+  2759→                      <span className="truncate">{item.label}</span>
+  2760→                    </button>
+  2761→                  );
+  2762→                })}
+  2763→              </nav>
+  2764→            </ScrollArea>
+  2765→          </motion.aside>
+  2766→        </div>
+  2767→      )}
+  2768→
+  2769→      {/* ─── Main Content ─── */}
+  2770→      <div className="flex-1 flex flex-col min-w-0">
+  2771→        {/* Top Bar */}
+  2772→        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+  2773→          <div className="flex items-center gap-3 h-14 px-4">
+  2774→            <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9" onClick={() => setSidebarOpen(true)}>
+  2775→              <Menu className="h-5 w-5" />
+  2776→            </Button>
+  2777→            <h1 className="font-semibold text-lg hidden sm:block">{PAGE_TITLES[view] || 'Tableau de bord'}</h1>
+  2778→
+  2779→            <div className="ml-auto flex items-center gap-2">
+  2780→              {/* Notifications */}
+  2781→              <Button
+  2782→                variant="ghost" size="icon" className="relative h-9 w-9"
+  2783→                onClick={() => navigate('notifications')}
+  2784→              >
+  2785→                <Bell className="h-4 w-4" />
+  2786→                {(notifs?.unreadCount ?? 0) > 0 && (
+  2787→                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center font-bold">
+  2788→                    {notifs!.unreadCount > 9 ? '9+' : notifs!.unreadCount}
+  2789→                  </span>
+  2790→                )}
+  2791→              </Button>
+  2792→
+  2793→              {/* Profile dropdown */}
+  2794→              <DropdownMenu>
+  2795→                <DropdownMenuTrigger asChild>
+  2796→                  <Button variant="ghost" className="flex items-center gap-2 h-9 px-2">
+  2797→                    <Avatar className="h-7 w-7">
+  2798→                      <AvatarImage src={user?.avatar || undefined} />
+  2799→                      <AvatarFallback className="text-xs bg-emerald-100 text-emerald-700">
+  2800→                        {user?.firstName?.[0]}{user?.lastName?.[0]}
+  2801→                      </AvatarFallback>
+  2802→                    </Avatar>
+  2803→                    <span className="hidden sm:inline text-sm font-medium max-w-32 truncate">
+  2804→                      {merchant.businessName}
+  2805→                    </span>
+  2806→                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+  2807→                  </Button>
+  2808→                </DropdownMenuTrigger>
+  2809→                <DropdownMenuContent align="end" className="w-48">
+  2810→                  <DropdownMenuLabel>
+  2811→                    <p className="text-sm font-medium">{user?.firstName} {user?.lastName}</p>
+  2812→                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+  2813→                  </DropdownMenuLabel>
+  2814→                  <DropdownMenuSeparator />
+  2815→                  <DropdownMenuItem onClick={() => navigate('profile')}>
+  2816→                    <User className="h-4 w-4 mr-2" /> Mon profil
+  2817→                  </DropdownMenuItem>
+  2818→                  <DropdownMenuItem onClick={() => navigate('notifications')}>
+  2819→                    <Bell className="h-4 w-4 mr-2" /> Notifications
+  2820→                  </DropdownMenuItem>
+  2821→                  <DropdownMenuItem onClick={() => navigate('support')}>
+  2822→                    <MessageSquare className="h-4 w-4 mr-2" /> Support
+  2823→                  </DropdownMenuItem>
+  2824→                  <DropdownMenuSeparator />
+  2825→                  <DropdownMenuItem
+  2826→                    className="text-destructive focus:text-destructive"
+  2827→                    onClick={() => { useAuthStore.getState().logout(); useSpaceStore.getState().setSpace('landing'); }}
+  2828→                  >
+  2829→                    <LogOut className="h-4 w-4 mr-2" /> Se déconnecter
+  2830→                  </DropdownMenuItem>
+  2831→                </DropdownMenuContent>
+  2832→              </DropdownMenu>
+  2833→            </div>
+  2834→          </div>
+  2835→        </header>
+  2836→
+  2837→        {/* Page Content */}
+  2838→        <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6">
+  2839→          <PageTransition keyVal={view}>
+  2840→            {renderView()}
+  2841→          </PageTransition>
+  2842→        </main>
+  2843→
+  2844→        {/* ─── Mobile Bottom Nav ─── */}
+  2845→        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t z-30 safe-area-inset-bottom">
+  2846→          <div className="flex items-center justify-around h-16">
+  2847→            {MOBILE_NAV_ITEMS.map((item) => {
+  2848→              const active = view === item.view;
+  2849→              return (
+  2850→                <button
+  2851→                  key={item.view}
+  2852→                  onClick={() => navigate(item.view)}
+  2853→                  className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors relative ${
+  2854→                    active ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'
+  2855→                  }`}
+  2856→                >
+  2857→                  {item.view === 'notifications' && (notifs?.unreadCount ?? 0) > 0 && (
+  2858→                    <span className="absolute -top-0.5 right-1 h-3.5 w-3.5 rounded-full bg-red-500 text-[8px] text-white flex items-center justify-center font-bold">
+  2859→                      {notifs!.unreadCount > 9 ? '9' : notifs!.unreadCount}
+  2860→                    </span>
+  2861→                  )}
+  2862→                  <item.icon className={`h-5 w-5 ${active ? 'text-emerald-600' : ''}`} />
+  2863→                  <span className="text-[10px] font-medium">{item.label}</span>
+  2864→                </button>
+  2865→              );
+  2866→            })}
+  2867→          </div>
+  2868→        </nav>
+  2869→      </div>
+  2870→    </div>
+  2871→  );
+  2872→}

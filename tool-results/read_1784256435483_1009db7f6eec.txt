@@ -1,0 +1,2002 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback, useRef } from 'react';
+     4→     4→import {
+     5→     5→  Radio, Navigation, Clock, Wallet, User, Bell, LogOut, Phone,
+     6→     6→  MapPin, Package, Star, ChevronRight, ChevronLeft, Upload, Check,
+     7→     7→  X, AlertCircle, Loader2, Plus, MessageSquare, FileText, Camera,
+     8→     8→  Send, Shield, TrendingUp, CreditCard, CircleDot, ArrowRight,
+     9→     9→  Store, UserCircle, CheckCircle2, XCircle, Eye, RefreshCw,
+    10→    10→  Home, FileUp, Image as ImageIcon, Mail
+    11→    11→} from 'lucide-react';
+    12→    12→import { Button } from '@/components/ui/button';
+    13→    13→import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+    14→    14→import { Input } from '@/components/ui/input';
+    15→    15→import { Badge } from '@/components/ui/badge';
+    16→    16→import { Separator } from '@/components/ui/separator';
+    17→    17→import { Label } from '@/components/ui/label';
+    18→    18→import { Switch } from '@/components/ui/switch';
+    19→    19→import { Textarea } from '@/components/ui/textarea';
+    20→    20→import { Skeleton } from '@/components/ui/skeleton';
+    21→    21→import { ScrollArea } from '@/components/ui/scroll-area';
+    22→    22→import {
+    23→    23→  Select,
+    24→    24→  SelectContent,
+    25→    25→  SelectItem,
+    26→    26→  SelectTrigger,
+    27→    27→  SelectValue,
+    28→    28→} from '@/components/ui/select';
+    29→    29→import {
+    30→    30→  useDriverNav, useAuthStore, apiFetch, formatPrice,
+    31→    31→  ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type DriverView
+    32→    32→} from '@/lib/store';
+    33→    33→import { toast } from 'sonner';
+    34→    34→import { SupportContactCard } from '@/components/support-contact';
+    35→    35→
+    36→    36→// ─── Types ───────────────────────────────────────────────────────────────────
+    37→    37→
+    38→    38→interface DriverProfile {
+    39→    39→  id: string;
+    40→    40→  userId: string;
+    41→    41→  vehicleType: string;
+    42→    42→  vehiclePlate: string | null;
+    43→    43→  vehicleBrand: string | null;
+    44→    44→  vehicleColor: string | null;
+    45→    45→  idCardNumber: string | null;
+    46→    46→  licenseNumber: string | null;
+    47→    47→  idCardImage: string | null;
+    48→    48→  licenseImage: string | null;
+    49→    49→  vehicleImage: string | null;
+    50→    50→  selfieImage: string | null;
+    51→    51→  isApproved: boolean;
+    52→    52→  isAvailable: boolean;
+    53→    53→  rating: number | null;
+    54→    54→  totalDeliveries: number;
+    55→    55→  totalEarnings: number;
+    56→    56→  user: {
+    57→    57→    firstName: string;
+    58→    58→    lastName: string;
+    59→    59→    avatar: string | null;
+    60→    60→    phone: string;
+    61→    61→    email: string;
+    62→    62→    isActive: boolean;
+    63→    63→  };
+    64→    64→}
+    65→    65→
+    66→    66→interface OrderItem {
+    67→    67→  id: string;
+    68→    68→  productName: string;
+    69→    69→  productImage: string | null;
+    70→    70→  quantity: number;
+    71→    71→  unitPrice: number;
+    72→    72→  totalPrice: number;
+    73→    73→  variants: string | null;
+    74→    74→  supplements: string | null;
+    75→    75→  notes: string | null;
+    76→    76→}
+    77→    77→
+    78→    78→interface Order {
+    79→    79→  id: string;
+    80→    80→  orderNumber: string;
+    81→    81→  status: string;
+    82→    82→  subtotal: number;
+    83→    83→  deliveryFee: number;
+    84→    84→  serviceFee: number;
+    85→    85→  discount: number;
+    86→    86→  total: number;
+    87→    87→  paymentMethod: string;
+    88→    88→  deliveryAddress: string;
+    89→    89→  deliveryCity: string;
+    90→    90→  deliveryQuartier: string | null;
+    91→    91→  notes: string | null;
+    92→    92→  createdAt: string;
+    93→    93→  deliveredAt: string | null;
+    94→    94→  cancelledAt: string | null;
+    95→    95→  cancelReason: string | null;
+    96→    96→  clientId: string;
+    97→    97→  merchantId: string;
+    98→    98→  driverId: string | null;
+    99→    99→  items: OrderItem[];
+   100→   100→  client?: {
+   101→   101→    id: string;
+   102→   102→    userId: string;
+   103→   103→    user: {
+   104→   104→      firstName: string;
+   105→   105→      lastName: string;
+   106→   106→      phone: string;
+   107→   107→      avatar: string | null;
+   108→   108→    };
+   109→   109→  };
+   110→   110→  merchant?: {
+   111→   111→    id: string;
+   112→   112→    businessName: string;
+   113→   113→    logo: string | null;
+   114→   114→    address: string;
+   115→   115→    phone?: string;
+   116→   116→    user?: {
+   117→   117→      firstName: string;
+   118→   118→      lastName: string;
+   119→   119→      phone: string;
+   120→   120→    };
+   121→   121→  };
+   122→   122→  driver?: {
+   123→   123→    id: string;
+   124→   124→    userId: string;
+   125→   125→    user: {
+   126→   126→      firstName: string;
+   127→   127→      lastName: string;
+   128→   128→      phone: string;
+   129→   129→      avatar: string | null;
+   130→   130→    };
+   131→   131→  };
+   132→   132→  delivery?: {
+   133→   133→    id: string;
+   134→   134→    status: string;
+   135→   135→    pickupAddress: string;
+   136→   136→    dropoffAddress: string;
+   137→   137→  };
+   138→   138→  ratings?: Array<{
+   139→   139→    id: string;
+   140→   140→    rating: number;
+   141→   141→    comment: string | null;
+   142→   142→    createdAt: string;
+   143→   143→    client?: {
+   144→   144→      user: { firstName: string; lastName: string; };
+   145→   145→    };
+   146→   146→  }>;
+   147→   147→}
+   148→   148→
+   149→   149→interface WalletData {
+   150→   150→  id: string;
+   151→   151→  userId: string;
+   152→   152→  balance: number;
+   153→   153→  transactions: Transaction[];
+   154→   154→}
+   155→   155→
+   156→   156→interface Transaction {
+   157→   157→  id: string;
+   158→   158→  walletId: string;
+   159→   159→  type: string;
+   160→   160→  amount: number;
+   161→   161→  description: string | null;
+   162→   162→  reference: string | null;
+   163→   163→  createdAt: string;
+   164→   164→}
+   165→   165→
+   166→   166→interface Notification {
+   167→   167→  id: string;
+   168→   168→  userId: string;
+   169→   169→  title: string;
+   170→   170→  message: string;
+   171→   171→  type: string;
+   172→   172→  isRead: boolean;
+   173→   173→  data: string | null;
+   174→   174→  createdAt: string;
+   175→   175→}
+   176→   176→
+   177→   177→// ─── Helpers ─────────────────────────────────────────────────────────────────
+   178→   178→
+   179→   179→function formatDate(dateStr: string): string {
+   180→   180→  return new Date(dateStr).toLocaleDateString('fr-FR', {
+   181→   181→    day: '2-digit',
+   182→   182→    month: 'short',
+   183→   183→    year: 'numeric',
+   184→   184→    hour: '2-digit',
+   185→   185→    minute: '2-digit',
+   186→   186→  });
+   187→   187→}
+   188→   188→
+   189→   189→function formatDateShort(dateStr: string): string {
+   190→   190→  return new Date(dateStr).toLocaleDateString('fr-FR', {
+   191→   191→    day: '2-digit',
+   192→   192→    month: 'short',
+   193→   193→    hour: '2-digit',
+   194→   194→    minute: '2-digit',
+   195→   195→  });
+   196→   196→}
+   197→   197→
+   198→   198→function timeAgo(dateStr: string): string {
+   199→   199→  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+   200→   200→  if (seconds < 60) return 'À l\'instant';
+   201→   201→  if (seconds < 3600) return `Il y a ${Math.floor(seconds / 60)} min`;
+   202→   202→  if (seconds < 86400) return `Il y a ${Math.floor(seconds / 3600)} h`;
+   203→   203→  return `Il y a ${Math.floor(seconds / 86400)} j`;
+   204→   204→}
+   205→   205→
+   206→   206→function StarDisplay({ rating, size = 16 }: { rating: number; size?: number }) {
+   207→   207→  return (
+   208→   208→    <div className="flex items-center gap-0.5">
+   209→   209→      {[1, 2, 3, 4, 5].map((i) => (
+   210→   210→        <Star
+   211→   211→          key={i}
+   212→   212→          size={size}
+   213→   213→          className={i <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}
+   214→   214→        />
+   215→   215→      ))}
+   216→   216→      <span className="ml-1 text-sm font-medium">{rating.toFixed(1)}</span>
+   217→   217→    </div>
+   218→   218→  );
+   219→   219→}
+   220→   220→
+   221→   221→// ─── Approval Screen ─────────────────────────────────────────────────────────
+   222→   222→
+   223→   223→function ApprovalScreen() {
+   224→   224→  const logout = useAuthStore((s) => s.logout);
+   225→   225→  const handleLogout = () => {
+   226→   226→    logout();
+   227→   227→    toast.success('Déconnexion réussie');
+   228→   228→  };
+   229→   229→
+   230→   230→  return (
+   231→   231→    <div className="flex flex-col min-h-screen bg-background">
+   232→   232→      {/* Header bar */}
+   233→   233→      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+   234→   234→        <span className="text-lg font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+   235→   235→          Rapigo Mali
+   236→   236→        </span>
+   237→   237→        <Button variant="ghost" size="sm" onClick={handleLogout} className="text-destructive hover:text-destructive">
+   238→   238→          <LogOut className="h-4 w-4 mr-1" />
+   239→   239→          Déconnexion
+   240→   240→        </Button>
+   241→   241→      </header>
+   242→   242→
+   243→   243→      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+   244→   244→        <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6">
+   245→   245→          <Clock className="w-10 h-10 text-emerald-500" />
+   246→   246→        </div>
+   247→   247→        <h2 className="text-xl font-bold mb-2">En attente d&apos;approbation</h2>
+   248→   248→        <p className="text-muted-foreground max-w-sm">
+   249→   249→          Votre profil de livreur est en cours de vérification par notre équipe. 
+   250→   250→          Vous recevrez une notification dès que votre compte sera approuvé.
+   251→   251→        </p>
+   252→   252→        <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+   253→   253→          <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+   254→   254→          Vérification en cours...
+   255→   255→        </div>
+   256→   256→
+   257→   257→        {/* Informations de support */}
+   258→   258→        <div className="w-full max-w-sm mt-8 bg-muted/50 rounded-lg p-4">
+   259→   259→          <SupportContactCard />
+   260→   260→        </div>
+   261→   261→      </div>
+   262→   262→    </div>
+   263→   263→  );
+   264→   264→}
+   265→   265→
+   266→   266→// ─── Top Bar ─────────────────────────────────────────────────────────────────
+   267→   267→
+   268→   268→function TopBar({ unreadCount }: { unreadCount: number }) {
+   269→   269→  const { view, goBack, navigate } = useDriverNav();
+   270→   270→  const isHome = view === 'home';
+   271→   271→  const user = useAuthStore((s) => s.user);
+   272→   272→  const logout = useAuthStore((s) => s.logout);
+   273→   273→
+   274→   274→  const handleLogout = () => {
+   275→   275→    logout();
+   276→   276→    toast.success('Déconnexion réussie');
+   277→   277→  };
+   278→   278→
+   279→   279→  return (
+   280→   280→    <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b">
+   281→   281→      <div className="flex items-center justify-between h-14 px-4">
+   282→   282→        <div className="flex items-center gap-3">
+   283→   283→          {!isHome && (
+   284→   284→            <Button variant="ghost" size="icon" onClick={goBack} className="h-9 w-9">
+   285→   285→              <ChevronLeft className="w-5 h-5" />
+   286→   286→            </Button>
+   287→   287→          )}
+   288→   288→          <div className="flex items-center gap-2">
+   289→   289→            <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+   290→   290→              <Navigation className="w-4 h-4 text-white" />
+   291→   291→            </div>
+   292→   292→            <span className="font-bold text-base">Rapigo Livreur</span>
+   293→   293→          </div>
+   294→   294→        </div>
+   295→   295→        <div className="flex items-center gap-1">
+   296→   296→          <Button
+   297→   297→            variant="ghost"
+   298→   298→            size="icon"
+   299→   299→            className="h-9 w-9 relative"
+   300→   300→            onClick={() => navigate('notifications')}
+   301→   301→          >
+   302→   302→            <Bell className="w-4 h-4" />
+   303→   303→            {unreadCount > 0 && (
+   304→   304→              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold">
+   305→   305→                {unreadCount > 9 ? '9+' : unreadCount}
+   306→   306→              </span>
+   307→   307→            )}
+   308→   308→          </Button>
+   309→   309→          {user && (
+   310→   310→            <Button
+   311→   311→              variant="ghost"
+   312→   312→              size="icon"
+   313→   313→              className="h-9 w-9"
+   314→   314→              onClick={handleLogout}
+   315→   315→            >
+   316→   316→              <LogOut className="w-4 h-4" />
+   317→   317→            </Button>
+   318→   318→          )}
+   319→   319→        </div>
+   320→   320→      </div>
+   321→   321→    </header>
+   322→   322→  );
+   323→   323→}
+   324→   324→
+   325→   325→// ─── Bottom Navigation ───────────────────────────────────────────────────────
+   326→   326→
+   327→   327→const bottomTabs: { view: DriverView; label: string; icon: typeof Home }[] = [
+   328→   328→  { view: 'home', label: 'Accueil', icon: Home },
+   329→   329→  { view: 'history', label: 'Historique', icon: Clock },
+   330→   330→  { view: 'earnings', label: 'Revenus', icon: Wallet },
+   331→   331→  { view: 'profile', label: 'Profil', icon: User },
+   332→   332→];
+   333→   333→
+   334→   334→function BottomNav() {
+   335→   335→  const { view, navigate } = useDriverNav();
+   336→   336→
+   337→   337→  return (
+   338→   338→    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-md border-t">
+   339→   339→      <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
+   340→   340→        {bottomTabs.map((tab) => {
+   341→   341→          const isActive = view === tab.view || (view === 'ride' && tab.view === 'home');
+   342→   342→          const Icon = tab.icon;
+   343→   343→          return (
+   344→   344→            <button
+   345→   345→              key={tab.view}
+   346→   346→              onClick={() => navigate(tab.view)}
+   347→   347→              className={`flex flex-col items-center justify-center gap-0.5 px-4 py-1 rounded-lg transition-colors ${
+   348→   348→                isActive
+   349→   349→                  ? 'text-emerald-500'
+   350→   350→                  : 'text-muted-foreground hover:text-foreground'
+   351→   351→              }`}
+   352→   352→            >
+   353→   353→              <Icon className="w-5 h-5" />
+   354→   354→              <span className="text-[10px] font-medium">{tab.label}</span>
+   355→   355→            </button>
+   356→   356→          );
+   357→   357→        })}
+   358→   358→      </div>
+   359→   359→    </nav>
+   360→   360→  );
+   361→   361→}
+   362→   362→
+   363→   363→// ─── Home View ───────────────────────────────────────────────────────────────
+   364→   364→
+   365→   365→function HomeView() {
+   366→   366→  const [isOnline, setIsOnline] = useState(false);
+   367→   367→  const [availableOrders, setAvailableOrders] = useState<Order[]>([]);
+   368→   368→  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+   369→   369→  const [loading, setLoading] = useState(true);
+   370→   370→  const [accepting, setAccepting] = useState<string | null>(null);
+   371→   371→  const [stats, setStats] = useState({ today: 0, revenue: 0, avgRating: 0 });
+   372→   372→  const { navigate } = useDriverNav();
+   373→   373→  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+   374→   374→
+   375→   375→  const fetchActiveOrder = useCallback(async () => {
+   376→   376→    const res = await apiFetch<Order[]>('/api/orders?limit=50');
+   377→   377→    if (res.data) {
+   378→   378→      const active = (Array.isArray(res.data) ? res.data : (res.data as unknown as { orders: Order[] }).orders || [])
+   379→   379→        .find((o: Order) => ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status));
+   380→   380→      setActiveOrder(active || null);
+   381→   381→    }
+   382→   382→  }, []);
+   383→   383→
+   384→   384→  const fetchAvailable = useCallback(async () => {
+   385→   385→    const res = await apiFetch<Order[]>('/api/drivers/available-orders');
+   386→   386→    if (res.data) {
+   387→   387→      setAvailableOrders(Array.isArray(res.data) ? res.data : []);
+   388→   388→    }
+   389→   389→  }, []);
+   390→   390→
+   391→   391→  const fetchStats = useCallback(async () => {
+   392→   392→    const res = await apiFetch<Order[]>('/api/orders?limit=200');
+   393→   393→    if (res.data) {
+   394→   394→      const orders = Array.isArray(res.data) ? res.data : (res.data as unknown as { orders: Order[] }).orders || [];
+   395→   395→      const today = new Date();
+   396→   396→      today.setHours(0, 0, 0, 0);
+   397→   397→      const todayOrders = orders.filter(
+   398→   398→        (o: Order) => o.status === 'DELIVERED' && new Date(o.deliveredAt || o.createdAt) >= today
+   399→   399→      );
+   400→   400→      const deliveredOrders = orders.filter((o: Order) => o.status === 'DELIVERED');
+   401→   401→      const totalRevenue = deliveredOrders.reduce((sum: number, o: Order) => sum + o.deliveryFee, 0);
+   402→   402→      const ratings = orders
+   403→   403→        .filter((o: Order) => o.ratings && o.ratings.length > 0)
+   404→   404→        .flatMap((o: Order) => o.ratings || [])
+   405→   405→        .map((r: { rating: number }) => r.rating);
+   406→   406→      const avgRating = ratings.length > 0 ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length : 0;
+   407→   407→      setStats({ today: todayOrders.length, revenue: totalRevenue, avgRating });
+   408→   408→    }
+   409→   409→  }, []);
+   410→   410→
+   411→   411→  useEffect(() => {
+   412→   412→    let mounted = true;
+   413→   413→    const init = async () => {
+   414→   414→      const [ordersRes, availableRes, statsRes] = await Promise.all([
+   415→   415→        apiFetch<Order[]>('/api/orders?limit=50'),
+   416→   416→        apiFetch<Order[]>('/api/drivers/available-orders'),
+   417→   417→        apiFetch<Order[]>('/api/orders?limit=200'),
+   418→   418→      ]);
+   419→   419→      if (!mounted) return;
+   420→   420→      if (ordersRes.data) {
+   421→   421→        const list = Array.isArray(ordersRes.data) ? ordersRes.data : (ordersRes.data as unknown as { orders: Order[] }).orders || [];
+   422→   422→        setActiveOrder(list.find((o: Order) => ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(o.status)) || null);
+   423→   423→      }
+   424→   424→      if (availableRes.data) {
+   425→   425→        setAvailableOrders(Array.isArray(availableRes.data) ? availableRes.data : []);
+   426→   426→      }
+   427→   427→      if (statsRes.data) {
+   428→   428→        const orders = Array.isArray(statsRes.data) ? statsRes.data : (statsRes.data as unknown as { orders: Order[] }).orders || [];
+   429→   429→        const today = new Date();
+   430→   430→        today.setHours(0, 0, 0, 0);
+   431→   431→        const todayOrders = orders.filter(
+   432→   432→          (o: Order) => o.status === 'DELIVERED' && new Date(o.deliveredAt || o.createdAt) >= today
+   433→   433→        );
+   434→   434→        const deliveredOrders = orders.filter((o: Order) => o.status === 'DELIVERED');
+   435→   435→        const totalRevenue = deliveredOrders.reduce((sum: number, o: Order) => sum + o.deliveryFee, 0);
+   436→   436→        const ratings = orders
+   437→   437→          .filter((o: Order) => o.ratings && o.ratings.length > 0)
+   438→   438→          .flatMap((o: Order) => o.ratings || [])
+   439→   439→          .map((r: { rating: number }) => r.rating);
+   440→   440→        const avgRating = ratings.length > 0 ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length : 0;
+   441→   441→        setStats({ today: todayOrders.length, revenue: totalRevenue, avgRating });
+   442→   442→      }
+   443→   443→      setLoading(false);
+   444→   444→    };
+   445→   445→    init();
+   446→   446→    return () => { mounted = false; };
+   447→   447→  }, []);
+   448→   448→
+   449→   449→  useEffect(() => {
+   450→   450→    if (isOnline && !activeOrder) {
+   451→   451→      timerRef.current = setInterval(() => {
+   452→   452→        fetchAvailable();
+   453→   453→        fetchActiveOrder();
+   454→   454→      }, 15000);
+   455→   455→    }
+   456→   456→    return () => {
+   457→   457→      if (timerRef.current) clearInterval(timerRef.current);
+   458→   458→    };
+   459→   459→  }, [isOnline, activeOrder, fetchAvailable, fetchActiveOrder]);
+   460→   460→
+   461→   461→  const handleToggle = () => {
+   462→   462→    const next = !isOnline;
+   463→   463→    setIsOnline(next);
+   464→   464→    toast.success(next ? 'Vous êtes en ligne' : 'Vous êtes hors ligne');
+   465→   465→    if (next) {
+   466→   466→      fetchAvailable();
+   467→   467→    } else {
+   468→   468→      setAvailableOrders([]);
+   469→   469→    }
+   470→   470→  };
+   471→   471→
+   472→   472→  const handleAccept = async (orderId: string) => {
+   473→   473→    setAccepting(orderId);
+   474→   474→    const res = await apiFetch<Order>(`/api/drivers/${orderId}/accept`, { method: 'POST' });
+   475→   475→    if (res.error) {
+   476→   476→      toast.error(res.error);
+   477→   477→    } else {
+   478→   478→      toast.success('Commande acceptée !');
+   479→   479→      setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId));
+   480→   480→      navigate('ride', { id: orderId });
+   481→   481→    }
+   482→   482→    setAccepting(null);
+   483→   483→  };
+   484→   484→
+   485→   485→  const handleStatusUpdate = async (order: Order, newStatus: string) => {
+   486→   486→    const res = await apiFetch<Order>(`/api/orders/${order.id}`, {
+   487→   487→      method: 'PUT',
+   488→   488→      body: JSON.stringify({ status: newStatus }),
+   489→   489→    });
+   490→   490→    if (res.error) {
+   491→   491→      toast.error(res.error);
+   492→   492→    } else {
+   493→   493→      toast.success('Statut mis à jour');
+   494→   494→      fetchActiveOrder();
+   495→   495→      if (newStatus === 'DELIVERED') {
+   496→   496→        navigate('home');
+   497→   497→        fetchStats();
+   498→   498→      } else {
+   499→   499→        fetchActiveOrder();
+   500→   500→      }
+   501→   501→    }
+   502→   502→  };
+   503→   503→
+   504→   504→  if (loading) {
+   505→   505→    return (
+   506→   506→      <div className="p-4 space-y-4">
+   507→   507→        <Skeleton className="h-12 w-full rounded-lg" />
+   508→   508→        <div className="grid grid-cols-3 gap-3">
+   509→   509→          {[1, 2, 3].map((i) => (
+   510→   510→            <Skeleton key={i} className="h-24 rounded-lg" />
+   511→   511→          ))}
+   512→   512→        </div>
+   513→   513→        <Skeleton className="h-40 w-full rounded-lg" />
+   514→   514→      </div>
+   515→   515→    );
+   516→   516→  }
+   517→   517→
+   518→   518→  return (
+   519→   519→    <div className="p-4 space-y-4 pb-20">
+   520→   520→      {/* Online/Offline Toggle */}
+   521→   521→      <Card className="border-emerald-500/20">
+   522→   522→        <CardContent className="p-4">
+   523→   523→          <div className="flex items-center justify-between">
+   524→   524→            <div className="flex items-center gap-3">
+   525→   525→              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+   526→   526→                isOnline ? 'bg-emerald-500' : 'bg-muted'
+   527→   527→              }`}>
+   528→   528→                <Radio className={`w-5 h-5 ${isOnline ? 'text-white' : 'text-muted-foreground'}`} />
+   529→   529→              </div>
+   530→   530→              <div>
+   531→   531→                <p className="font-semibold text-sm">{isOnline ? 'En ligne' : 'Hors ligne'}</p>
+   532→   532→                <p className="text-xs text-muted-foreground">
+   533→   533→                  {isOnline ? 'Vous recevez des commandes' : 'Passez en ligne pour recevoir des commandes'}
+   534→   534→                </p>
+   535→   535→              </div>
+   536→   536→            </div>
+   537→   537→            <Switch checked={isOnline} onCheckedChange={handleToggle} />
+   538→   538→          </div>
+   539→   539→        </CardContent>
+   540→   540→      </Card>
+   541→   541→
+   542→   542→      {/* Stats Cards */}
+   543→   543→      <div className="grid grid-cols-3 gap-3">
+   544→   544→        <Card className="p-3 text-center">
+   545→   545→          <Package className="w-5 h-5 mx-auto text-emerald-500 mb-1" />
+   546→   546→          <p className="text-lg font-bold">{stats.today}</p>
+   547→   547→          <p className="text-[10px] text-muted-foreground leading-tight">Livraisons aujourd&apos;hui</p>
+   548→   548→        </Card>
+   549→   549→        <Card className="p-3 text-center">
+   550→   550→          <TrendingUp className="w-5 h-5 mx-auto text-emerald-500 mb-1" />
+   551→   551→          <p className="text-lg font-bold">{formatPrice(stats.revenue)}</p>
+   552→   552→          <p className="text-[10px] text-muted-foreground leading-tight">Revenus</p>
+   553→   553→        </Card>
+   554→   554→        <Card className="p-3 text-center">
+   555→   555→          <Star className="w-5 h-5 mx-auto text-amber-400 mb-1" />
+   556→   556→          <p className="text-lg font-bold">{stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '—'}</p>
+   557→   557→          <p className="text-[10px] text-muted-foreground leading-tight">Note moyenne</p>
+   558→   558→        </Card>
+   559→   559→      </div>
+   560→   560→
+   561→   561→      {/* Active Delivery */}
+   562→   562→      {activeOrder && (
+   563→   563→        <Card className="border-emerald-500/30 bg-emerald-500/5">
+   564→   564→          <CardHeader className="pb-2 pt-4 px-4">
+   565→   565→            <div className="flex items-center justify-between">
+   566→   566→              <CardTitle className="text-sm font-semibold">Livraison en cours</CardTitle>
+   567→   567→              <Badge className={ORDER_STATUS_COLORS[activeOrder.status] || ''}>
+   568→   568→                {ORDER_STATUS_LABELS[activeOrder.status] || activeOrder.status}
+   569→   569→              </Badge>
+   570→   570→            </div>
+   571→   571→          </CardHeader>
+   572→   572→          <CardContent className="px-4 pb-4 space-y-3">
+   573→   573→            <button
+   574→   574→              className="w-full text-left"
+   575→   575→              onClick={() => navigate('ride', { id: activeOrder.id })}
+   576→   576→            >
+   577→   577→              <div className="flex items-center justify-between">
+   578→   578→                <div>
+   579→   579→                  <p className="font-medium text-sm">{activeOrder.orderNumber}</p>
+   580→   580→                  <p className="text-xs text-muted-foreground">{activeOrder.merchant?.businessName}</p>
+   581→   581→                </div>
+   582→   582→                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+   583→   583→              </div>
+   584→   584→              <div className="flex items-start gap-2 mt-2">
+   585→   585→                <MapPin className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+   586→   586→                <p className="text-xs text-muted-foreground line-clamp-1">{activeOrder.deliveryAddress}</p>
+   587→   587→              </div>
+   588→   588→            </button>
+   589→   589→            {activeOrder.status === 'ASSIGNED' && (
+   590→   590→              <Button
+   591→   591→                size="sm"
+   592→   592→                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   593→   593→                onClick={() => handleStatusUpdate(activeOrder, 'PICKED_UP')}
+   594→   594→              >
+   595→   595→                <Package className="w-4 h-4 mr-2" />
+   596→   596→                Récupérer au marchand
+   597→   597→              </Button>
+   598→   598→            )}
+   599→   599→            {activeOrder.status === 'PICKED_UP' && (
+   600→   600→              <Button
+   601→   601→                size="sm"
+   602→   602→                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   603→   603→                onClick={() => handleStatusUpdate(activeOrder, 'IN_TRANSIT')}
+   604→   604→              >
+   605→   605→                <Navigation className="w-4 h-4 mr-2" />
+   606→   606→                En route vers le client
+   607→   607→              </Button>
+   608→   608→            )}
+   609→   609→            {activeOrder.status === 'IN_TRANSIT' && (
+   610→   610→              <Button
+   611→   611→                size="sm"
+   612→   612→                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   613→   613→                onClick={() => handleStatusUpdate(activeOrder, 'DELIVERED')}
+   614→   614→              >
+   615→   615→                <CheckCircle2 className="w-4 h-4 mr-2" />
+   616→   616→                Confirmer la livraison
+   617→   617→              </Button>
+   618→   618→            )}
+   619→   619→          </CardContent>
+   620→   620→        </Card>
+   621→   621→      )}
+   622→   622→
+   623→   623→      {/* Available Orders */}
+   624→   624→      {isOnline && !activeOrder && (
+   625→   625→        <div className="space-y-3">
+   626→   626→          <div className="flex items-center justify-between">
+   627→   627→            <h3 className="font-semibold text-sm">Commandes disponibles</h3>
+   628→   628→            <Button variant="ghost" size="sm" onClick={fetchAvailable} className="h-7 text-xs">
+   629→   629→              <RefreshCw className="w-3 h-3 mr-1" />
+   630→   630→              Actualiser
+   631→   631→            </Button>
+   632→   632→          </div>
+   633→   633→          {availableOrders.length === 0 ? (
+   634→   634→            <Card className="p-6 text-center">
+   635→   635→              <Package className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+   636→   636→              <p className="text-sm text-muted-foreground">Aucune commande disponible</p>
+   637→   637→              <p className="text-xs text-muted-foreground mt-1">Les nouvelles commandes apparaîtront ici</p>
+   638→   638→            </Card>
+   639→   639→          ) : (
+   640→   640→            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+   641→   641→              {availableOrders.map((order) => (
+   642→   642→                <Card key={order.id} className="overflow-hidden">
+   643→   643→                  <CardContent className="p-4 space-y-3">
+   644→   644→                    <div className="flex items-center justify-between">
+   645→   645→                      <span className="font-mono text-sm font-semibold text-emerald-600">{order.orderNumber}</span>
+   646→   646→                      <span className="text-sm font-bold">{formatPrice(order.total)}</span>
+   647→   647→                    </div>
+   648→   648→                    <div className="flex items-start gap-2">
+   649→   649→                      <Store className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+   650→   650→                      <p className="text-xs text-muted-foreground">{order.merchant?.businessName}</p>
+   651→   651→                    </div>
+   652→   652→                    <div className="flex items-start gap-2">
+   653→   653→                      <MapPin className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+   654→   654→                      <p className="text-xs text-muted-foreground line-clamp-2">{order.deliveryAddress}</p>
+   655→   655→                    </div>
+   656→   656→                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   657→   657→                      <Clock className="w-3 h-3" />
+   658→   658→                      {timeAgo(order.createdAt)}
+   659→   659→                    </div>
+   660→   660→                    <Button
+   661→   661→                      size="sm"
+   662→   662→                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   663→   663→                      disabled={accepting === order.id}
+   664→   664→                      onClick={() => handleAccept(order.id)}
+   665→   665→                    >
+   666→   666→                      {accepting === order.id ? (
+   667→   667→                        <Loader2 className="w-4 h-4 animate-spin" />
+   668→   668→                      ) : (
+   669→   669→                        <Check className="w-4 h-4 mr-2" />
+   670→   670→                      )}
+   671→   671→                      Accepter
+   672→   672→                    </Button>
+   673→   673→                  </CardContent>
+   674→   674→                </Card>
+   675→   675→              ))}
+   676→   676→            </div>
+   677→   677→          )}
+   678→   678→        </div>
+   679→   679→      )}
+   680→   680→
+   681→   681→      {/* Offline Message */}
+   682→   682→      {!isOnline && !activeOrder && (
+   683→   683→        <Card className="p-8 text-center">
+   684→   684→          <Radio className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+   685→   685→          <p className="font-semibold">Vous êtes hors ligne</p>
+   686→   686→          <p className="text-sm text-muted-foreground mt-1">
+   687→   687→            Passez en ligne pour voir les commandes disponibles
+   688→   688→          </p>
+   689→   689→        </Card>
+   690→   690→      )}
+   691→   691→
+   692→   692→      {/* Quick Links */}
+   693→   693→      <div className="grid grid-cols-2 gap-3">
+   694→   694→        <Card
+   695→   695→          className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+   696→   696→          onClick={() => navigate('wallet')}
+   697→   697→        >
+   698→   698→          <div className="flex items-center gap-3">
+   699→   699→            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+   700→   700→              <Wallet className="w-4 h-4 text-emerald-500" />
+   701→   701→            </div>
+   702→   702→            <span className="text-sm font-medium">Portefeuille</span>
+   703→   703→          </div>
+   704→   704→        </Card>
+   705→   705→        <Card
+   706→   706→          className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+   707→   707→          onClick={() => navigate('support')}
+   708→   708→        >
+   709→   709→          <div className="flex items-center gap-3">
+   710→   710→            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+   711→   711→              <MessageSquare className="w-4 h-4 text-emerald-500" />
+   712→   712→            </div>
+   713→   713→            <span className="text-sm font-medium">Support</span>
+   714→   714→          </div>
+   715→   715→        </Card>
+   716→   716→      </div>
+   717→   717→    </div>
+   718→   718→  );
+   719→   719→}
+   720→   720→
+   721→   721→// ─── Ride View ───────────────────────────────────────────────────────────────
+   722→   722→
+   723→   723→function RideView() {
+   724→   724→  const { data } = useDriverNav();
+   725→   725→  const orderId = data?.id;
+   726→   726→  const [order, setOrder] = useState<Order | null>(null);
+   727→   727→  const [loading, setLoading] = useState(true);
+   728→   728→  const [updating, setUpdating] = useState(false);
+   729→   729→
+   730→   730→  useEffect(() => {
+   731→   731→    if (!orderId) return;
+   732→   732→    const fetchOrder = async () => {
+   733→   733→      setLoading(true);
+   734→   734→      const res = await apiFetch<Order>(`/api/orders/${orderId}`);
+   735→   735→      if (res.data) setOrder(res.data);
+   736→   736→      setLoading(false);
+   737→   737→    };
+   738→   738→    fetchOrder();
+   739→   739→  }, [orderId]);
+   740→   740→
+   741→   741→  const handleStatusUpdate = async (newStatus: string) => {
+   742→   742→    if (!order) return;
+   743→   743→    setUpdating(true);
+   744→   744→    const res = await apiFetch<Order>(`/api/orders/${order.id}`, {
+   745→   745→      method: 'PUT',
+   746→   746→      body: JSON.stringify({ status: newStatus }),
+   747→   747→    });
+   748→   748→    if (res.error) {
+   749→   749→      toast.error(res.error);
+   750→   750→    } else {
+   751→   751→      toast.success('Statut mis à jour');
+   752→   752→      if (res.data) setOrder(res.data);
+   753→   753→    }
+   754→   754→    setUpdating(false);
+   755→   755→  };
+   756→   756→
+   757→   757→  const handleCall = (phone: string | undefined, name: string) => {
+   758→   758→    if (phone) {
+   759→   759→      toast.info(`Appeler ${name}: ${phone}`);
+   760→   760→    } else {
+   761→   761→      toast.error('Numéro de téléphone non disponible');
+   762→   762→    }
+   763→   763→  };
+   764→   764→
+   765→   765→  if (loading) {
+   766→   766→    return (
+   767→   767→      <div className="p-4 space-y-4">
+   768→   768→        <Skeleton className="h-20 w-full rounded-lg" />
+   769→   769→        <Skeleton className="h-40 w-full rounded-lg" />
+   770→   770→        <Skeleton className="h-12 w-full rounded-lg" />
+   771→   771→      </div>
+   772→   772→    );
+   773→   773→  }
+   774→   774→
+   775→   775→  if (!order) {
+   776→   776→    return (
+   777→   777→      <div className="p-4 text-center py-20">
+   778→   778→        <AlertCircle className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+   779→   779→        <p className="text-muted-foreground">Commande non trouvée</p>
+   780→   780→      </div>
+   781→   781→    );
+   782→   782→  }
+   783→   783→
+   784→   784→  const clientPhone = order.client?.user?.phone;
+   785→   785→  const merchantPhone = order.merchant?.user?.phone || order.merchant?.phone;
+   786→   786→
+   787→   787→  return (
+   788→   788→    <div className="p-4 space-y-4 pb-20">
+   789→   789→      {/* Status Badge */}
+   790→   790→      <Card className="overflow-hidden border-emerald-500/20">
+   791→   791→        <div className="bg-emerald-500/10 px-4 py-3">
+   792→   792→          <div className="flex items-center justify-between">
+   793→   793→            <span className="font-mono font-bold text-sm">{order.orderNumber}</span>
+   794→   794→            <Badge className={ORDER_STATUS_COLORS[order.status] || ''}>
+   795→   795→              {ORDER_STATUS_LABELS[order.status] || order.status}
+   796→   796→            </Badge>
+   797→   797→          </div>
+   798→   798→        </div>
+   799→   799→        <CardContent className="p-4 space-y-4">
+   800→   800→          {/* Progress Steps */}
+   801→   801→          <div className="flex items-center gap-1">
+   802→   802→            {['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'].map((s, i) => {
+   803→   803→              const steps = ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'];
+   804→   804→              const currentIdx = steps.indexOf(order.status);
+   805→   805→              const stepIdx = i;
+   806→   806→              const isActive = stepIdx <= currentIdx;
+   807→   807→              const isCurrent = stepIdx === currentIdx;
+   808→   808→              return (
+   809→   809→                <div key={s} className="flex-1 flex items-center">
+   810→   810→                  <div className={`w-full h-1.5 rounded-full transition-colors ${
+   811→   811→                    isActive ? 'bg-emerald-500' : 'bg-muted'
+   812→   812→                  } ${isCurrent ? 'ring-2 ring-emerald-500/30' : ''}`} />
+   813→   813→                  {i < 3 && <div className="w-1" />}
+   814→   814→                </div>
+   815→   815→              );
+   816→   816→            })}
+   817→   817→          </div>
+   818→   818→          <div className="flex justify-between text-[9px] text-muted-foreground px-0.5">
+   819→   819→            <span>Assigné</span>
+   820→   820→            <span>Récupéré</span>
+   821→   821→            <span>En route</span>
+   822→   822→            <span>Livré</span>
+   823→   823→          </div>
+   824→   824→        </CardContent>
+   825→   825→      </Card>
+   826→   826→
+   827→   827→      {/* Pickup Info */}
+   828→   828→      <Card className="p-4">
+   829→   829→        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+   830→   830→          Point de récupération
+   831→   831→        </p>
+   832→   832→        <div className="flex items-start gap-3">
+   833→   833→          <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+   834→   834→            <Store className="w-4 h-4 text-amber-500" />
+   835→   835→          </div>
+   836→   836→          <div className="flex-1 min-w-0">
+   837→   837→            <p className="text-sm font-medium">{order.merchant?.businessName}</p>
+   838→   838→            <p className="text-xs text-muted-foreground">{order.merchant?.address || order.delivery?.pickupAddress}</p>
+   839→   839→          </div>
+   840→   840→        </div>
+   841→   841→      </Card>
+   842→   842→
+   843→   843→      {/* Delivery Info */}
+   844→   844→      <Card className="p-4">
+   845→   845→        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+   846→   846→          Adresse de livraison
+   847→   847→        </p>
+   848→   848→        <div className="flex items-start gap-3">
+   849→   849→          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+   850→   850→            <MapPin className="w-4 h-4 text-emerald-500" />
+   851→   851→          </div>
+   852→   852→          <div className="flex-1 min-w-0">
+   853→   853→            <p className="text-sm font-medium">
+   854→   854→              {order.client?.user?.firstName} {order.client?.user?.lastName}
+   855→   855→            </p>
+   856→   856→            <p className="text-xs text-muted-foreground">{order.deliveryAddress}</p>
+   857→   857→            {order.deliveryCity && (
+   858→   858→              <p className="text-xs text-muted-foreground">{order.deliveryCity}{order.deliveryQuartier ? ` — ${order.deliveryQuartier}` : ''}</p>
+   859→   859→            )}
+   860→   860→          </div>
+   861→   861→        </div>
+   862→   862→      </Card>
+   863→   863→
+   864→   864→      {/* Client & Merchant Contact */}
+   865→   865→      <Card className="p-4">
+   866→   866→        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+   867→   867→          Contact
+   868→   868→        </p>
+   869→   869→        <div className="space-y-3">
+   870→   870→          <Button
+   871→   871→            variant="outline"
+   872→   872→            className="w-full justify-start"
+   873→   873→            onClick={() => handleCall(clientPhone, 'le client')}
+   874→   874→          >
+   875→   875→            <Phone className="w-4 h-4 mr-3 text-emerald-500" />
+   876→   876→            <div className="text-left">
+   877→   877→              <p className="text-sm font-medium">Appeler le client</p>
+   878→   878→              <p className="text-xs text-muted-foreground">{clientPhone || 'Non disponible'}</p>
+   879→   879→            </div>
+   880→   880→          </Button>
+   881→   881→          <Button
+   882→   882→            variant="outline"
+   883→   883→            className="w-full justify-start"
+   884→   884→            onClick={() => handleCall(merchantPhone, 'le marchand')}
+   885→   885→          >
+   886→   886→            <Phone className="w-4 h-4 mr-3 text-amber-500" />
+   887→   887→            <div className="text-left">
+   888→   888→              <p className="text-sm font-medium">Appeler le marchand</p>
+   889→   889→              <p className="text-xs text-muted-foreground">{merchantPhone || 'Non disponible'}</p>
+   890→   890→            </div>
+   891→   891→          </Button>
+   892→   892→        </div>
+   893→   893→      </Card>
+   894→   894→
+   895→   895→      {/* Items */}
+   896→   896→      {order.items && order.items.length > 0 && (
+   897→   897→        <Card className="p-4">
+   898→   898→          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+   899→   899→            Articles ({order.items.length})
+   900→   900→          </p>
+   901→   901→          <div className="space-y-2.5 max-h-48 overflow-y-auto">
+   902→   902→            {order.items.map((item) => (
+   903→   903→              <div key={item.id} className="flex items-center gap-3">
+   904→   904→                {item.productImage && (
+   905→   905→                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+   906→   906→                    <img src={item.productImage} alt="" className="w-full h-full object-cover" />
+   907→   907→                  </div>
+   908→   908→                )}
+   909→   909→                <div className="flex-1 min-w-0">
+   910→   910→                  <p className="text-sm font-medium truncate">{item.productName}</p>
+   911→   911→                  <p className="text-xs text-muted-foreground">
+   912→   912→                    {item.quantity} × {formatPrice(item.unitPrice)}
+   913→   913→                  </p>
+   914→   914→                </div>
+   915→   915→                <span className="text-sm font-medium shrink-0">{formatPrice(item.totalPrice)}</span>
+   916→   916→              </div>
+   917→   917→            ))}
+   918→   918→          </div>
+   919→   919→          <Separator className="my-3" />
+   920→   920→          <div className="flex justify-between text-sm">
+   921→   921→            <span className="text-muted-foreground">Sous-total</span>
+   922→   922→            <span>{formatPrice(order.subtotal)}</span>
+   923→   923→          </div>
+   924→   924→          <div className="flex justify-between text-sm mt-1">
+   925→   925→            <span className="text-muted-foreground">Livraison</span>
+   926→   926→            <span>{formatPrice(order.deliveryFee)}</span>
+   927→   927→          </div>
+   928→   928→          {order.serviceFee > 0 && (
+   929→   929→            <div className="flex justify-between text-sm mt-1">
+   930→   930→              <span className="text-muted-foreground">Frais de service</span>
+   931→   931→              <span>{formatPrice(order.serviceFee)}</span>
+   932→   932→            </div>
+   933→   933→          )}
+   934→   934→          <Separator className="my-2" />
+   935→   935→          <div className="flex justify-between font-bold">
+   936→   936→            <span>Total</span>
+   937→   937→            <span className="text-emerald-600">{formatPrice(order.total)}</span>
+   938→   938→          </div>
+   939→   939→          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+   940→   940→            <span>Paiement</span>
+   941→   941→            <span>{order.paymentMethod}</span>
+   942→   942→          </div>
+   943→   943→        </Card>
+   944→   944→      )}
+   945→   945→
+   946→   946→      {/* Notes */}
+   947→   947→      {order.notes && (
+   948→   948→        <Card className="p-4">
+   949→   949→          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+   950→   950→            Notes
+   951→   951→          </p>
+   952→   952→          <p className="text-sm text-muted-foreground">{order.notes}</p>
+   953→   953→        </Card>
+   954→   954→      )}
+   955→   955→
+   956→   956→      {/* Action Buttons */}
+   957→   957→      <div className="space-y-3">
+   958→   958→        {order.status === 'ASSIGNED' && (
+   959→   959→          <Button
+   960→   960→            size="lg"
+   961→   961→            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   962→   962→            disabled={updating}
+   963→   963→            onClick={() => handleStatusUpdate('PICKED_UP')}
+   964→   964→          >
+   965→   965→            {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Package className="w-5 h-5 mr-2" />}
+   966→   966→            Récupérer au marchand
+   967→   967→          </Button>
+   968→   968→        )}
+   969→   969→        {order.status === 'PICKED_UP' && (
+   970→   970→          <Button
+   971→   971→            size="lg"
+   972→   972→            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   973→   973→            disabled={updating}
+   974→   974→            onClick={() => handleStatusUpdate('IN_TRANSIT')}
+   975→   975→          >
+   976→   976→            {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Navigation className="w-5 h-5 mr-2" />}
+   977→   977→            En route vers le client
+   978→   978→          </Button>
+   979→   979→        )}
+   980→   980→        {order.status === 'IN_TRANSIT' && (
+   981→   981→          <Button
+   982→   982→            size="lg"
+   983→   983→            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   984→   984→            disabled={updating}
+   985→   985→            onClick={() => handleStatusUpdate('DELIVERED')}
+   986→   986→          >
+   987→   987→            {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5 mr-2" />}
+   988→   988→            Confirmer la livraison
+   989→   989→          </Button>
+   990→   990→        )}
+   991→   991→      </div>
+   992→   992→    </div>
+   993→   993→  );
+   994→   994→}
+   995→   995→
+   996→   996→// ─── History View ────────────────────────────────────────────────────────────
+   997→   997→
+   998→   998→function HistoryView() {
+   999→   999→  const [orders, setOrders] = useState<Order[]>([]);
+  1000→  1000→  const [loading, setLoading] = useState(true);
+  1001→  1001→  const [filter, setFilter] = useState<string>('ALL');
+  1002→  1002→  const { navigate } = useDriverNav();
+  1003→  1003→
+  1004→  1004→  useEffect(() => {
+  1005→  1005→    const fetchOrders = async () => {
+  1006→  1006→      setLoading(true);
+  1007→  1007→      const res = await apiFetch<{ orders: Order[]; total: number }>('/api/orders?limit=100');
+  1008→  1008→      if (res.data) {
+  1009→  1009→        const list = res.data.orders || (Array.isArray(res.data) ? res.data : []);
+  1010→  1010→        setOrders(list);
+  1011→  1011→      }
+  1012→  1012→      setLoading(false);
+  1013→  1013→    };
+  1014→  1014→    fetchOrders();
+  1015→  1015→  }, []);
+  1016→  1016→
+  1017→  1017→  const filtered = orders.filter((o) => {
+  1018→  1018→    if (filter === 'ALL') return ['DELIVERED', 'CANCELLED'].includes(o.status);
+  1019→  1019→    return o.status === filter;
+  1020→  1020→  });
+  1021→  1021→
+  1022→  1022→  if (loading) {
+  1023→  1023→    return (
+  1024→  1024→      <div className="p-4 space-y-3">
+  1025→  1025→        {[1, 2, 3, 4].map((i) => (
+  1026→  1026→          <Skeleton key={i} className="h-28 w-full rounded-lg" />
+  1027→  1027→        ))}
+  1028→  1028→      </div>
+  1029→  1029→    );
+  1030→  1030→  }
+  1031→  1031→
+  1032→  1032→  return (
+  1033→  1033→    <div className="p-4 space-y-4 pb-20">
+  1034→  1034→      <h2 className="text-lg font-bold">Historique des livraisons</h2>
+  1035→  1035→
+  1036→  1036→      {/* Filter Tabs */}
+  1037→  1037→      <div className="flex gap-2 overflow-x-auto pb-1">
+  1038→  1038→        {[
+  1039→  1039→          { value: 'ALL', label: 'Tout' },
+  1040→  1040→          { value: 'DELIVERED', label: 'Livrées' },
+  1041→  1041→          { value: 'CANCELLED', label: 'Annulées' },
+  1042→  1042→        ].map((tab) => (
+  1043→  1043→          <Button
+  1044→  1044→            key={tab.value}
+  1045→  1045→            variant={filter === tab.value ? 'default' : 'outline'}
+  1046→  1046→            size="sm"
+  1047→  1047→            className="shrink-0 text-xs"
+  1048→  1048→            onClick={() => setFilter(tab.value)}
+  1049→  1049→          >
+  1050→  1050→            {tab.label}
+  1051→  1051→          </Button>
+  1052→  1052→        ))}
+  1053→  1053→      </div>
+  1054→  1054→
+  1055→  1055→      {filtered.length === 0 ? (
+  1056→  1056→        <Card className="p-8 text-center">
+  1057→  1057→          <Clock className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+  1058→  1058→          <p className="text-sm text-muted-foreground">Aucune livraison trouvée</p>
+  1059→  1059→        </Card>
+  1060→  1060→      ) : (
+  1061→  1061→        <div className="space-y-3">
+  1062→  1062→          {filtered.map((order) => (
+  1063→  1063→            <Card
+  1064→  1064→              key={order.id}
+  1065→  1065→              className="overflow-hidden cursor-pointer hover:bg-accent/30 transition-colors"
+  1066→  1066→              onClick={() => navigate('ride', { id: order.id })}
+  1067→  1067→            >
+  1068→  1068→              <CardContent className="p-4">
+  1069→  1069→                <div className="flex items-center justify-between mb-2">
+  1070→  1070→                  <span className="font-mono text-sm font-semibold">{order.orderNumber}</span>
+  1071→  1071→                  <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[order.status] || ''}`}>
+  1072→  1072→                    {ORDER_STATUS_LABELS[order.status] || order.status}
+  1073→  1073→                  </Badge>
+  1074→  1074→                </div>
+  1075→  1075→                <div className="flex items-start gap-2 mb-1.5">
+  1076→  1076→                  <Store className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+  1077→  1077→                  <p className="text-xs text-muted-foreground">{order.merchant?.businessName}</p>
+  1078→  1078→                </div>
+  1079→  1079→                <div className="flex items-start gap-2 mb-2">
+  1080→  1080→                  <User className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+  1081→  1081→                  <p className="text-xs text-muted-foreground">
+  1082→  1082→                    {order.client?.user?.firstName} {order.client?.user?.lastName}
+  1083→  1083→                  </p>
+  1084→  1084→                </div>
+  1085→  1085→                <Separator className="my-2" />
+  1086→  1086→                <div className="flex items-center justify-between">
+  1087→  1087→                  <span className="text-xs text-muted-foreground">{formatDateShort(order.createdAt)}</span>
+  1088→  1088→                  <span className="text-sm font-bold text-emerald-600">{formatPrice(order.total)}</span>
+  1089→  1089→                </div>
+  1090→  1090→              </CardContent>
+  1091→  1091→            </Card>
+  1092→  1092→          ))}
+  1093→  1093→        </div>
+  1094→  1094→      )}
+  1095→  1095→    </div>
+  1096→  1096→  );
+  1097→  1097→}
+  1098→  1098→
+  1099→  1099→// ─── Earnings View ───────────────────────────────────────────────────────────
+  1100→  1100→
+  1101→  1101→function EarningsView() {
+  1102→  1102→  const [wallet, setWallet] = useState<WalletData | null>(null);
+  1103→  1103→  const [orders, setOrders] = useState<Order[]>([]);
+  1104→  1104→  const [loading, setLoading] = useState(true);
+  1105→  1105→  const { navigate } = useDriverNav();
+  1106→  1106→
+  1107→  1107→  useEffect(() => {
+  1108→  1108→    const fetchData = async () => {
+  1109→  1109→      setLoading(true);
+  1110→  1110→      const [walletRes, ordersRes] = await Promise.all([
+  1111→  1111→        apiFetch<WalletData>('/api/wallet'),
+  1112→  1112→        apiFetch<{ orders: Order[] }>('/api/orders?limit=200'),
+  1113→  1113→      ]);
+  1114→  1114→      if (walletRes.data) setWallet(walletRes.data);
+  1115→  1115→      if (ordersRes.data) {
+  1116→  1116→        const list = ordersRes.data.orders || (Array.isArray(ordersRes.data) ? ordersRes.data : []);
+  1117→  1117→        setOrders(list);
+  1118→  1118→      }
+  1119→  1119→      setLoading(false);
+  1120→  1120→    };
+  1121→  1121→    fetchData();
+  1122→  1122→  }, []);
+  1123→  1123→
+  1124→  1124→  const deliveredOrders = orders.filter((o) => o.status === 'DELIVERED');
+  1125→  1125→  const totalEarnings = deliveredOrders.reduce((sum, o) => sum + o.deliveryFee, 0);
+  1126→  1126→  const todayEarnings = deliveredOrders
+  1127→  1127→    .filter((o) => {
+  1128→  1128→      const d = new Date(o.deliveredAt || o.createdAt);
+  1129→  1129→      const today = new Date();
+  1130→  1130→      return d.toDateString() === today.toDateString();
+  1131→  1131→    })
+  1132→  1132→    .reduce((sum, o) => sum + o.deliveryFee, 0);
+  1133→  1133→
+  1134→  1134→  if (loading) {
+  1135→  1135→    return (
+  1136→  1136→      <div className="p-4 space-y-4">
+  1137→  1137→        <Skeleton className="h-36 w-full rounded-lg" />
+  1138→  1138→        <div className="grid grid-cols-2 gap-3">
+  1139→  1139→          <Skeleton className="h-20 rounded-lg" />
+  1140→  1140→          <Skeleton className="h-20 rounded-lg" />
+  1141→  1141→        </div>
+  1142→  1142→      </div>
+  1143→  1143→    );
+  1144→  1144→  }
+  1145→  1145→
+  1146→  1146→  return (
+  1147→  1147→    <div className="p-4 space-y-4 pb-20">
+  1148→  1148→      <h2 className="text-lg font-bold">Revenus</h2>
+  1149→  1149→
+  1150→  1150→      {/* Balance Card */}
+  1151→  1151→      <Card className="overflow-hidden border-emerald-500/20">
+  1152→  1152→        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 p-5 text-white">
+  1153→  1153→          <p className="text-sm opacity-80">Solde du portefeuille</p>
+  1154→  1154→          <p className="text-3xl font-bold mt-1">
+  1155→  1155→            {wallet ? formatPrice(wallet.balance) : '0 FCFA'}
+  1156→  1156→          </p>
+  1157→  1157→        </div>
+  1158→  1158→        <CardContent className="p-4">
+  1159→  1159→          <div className="flex gap-3">
+  1160→  1160→            <Button
+  1161→  1161→              variant="outline"
+  1162→  1162→              size="sm"
+  1163→  1163→              className="flex-1 text-xs"
+  1164→  1164→              onClick={() => toast.info('Fonctionnalité de retrait bientôt disponible')}
+  1165→  1165→            >
+  1166→  1166→              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+  1167→  1167→              Retirer
+  1168→  1168→            </Button>
+  1169→  1169→            <Button
+  1170→  1170→              variant="outline"
+  1171→  1171→              size="sm"
+  1172→  1172→              className="flex-1 text-xs"
+  1173→  1173→              onClick={() => navigate('wallet')}
+  1174→  1174→            >
+  1175→  1175→              <Wallet className="w-3.5 h-3.5 mr-1.5" />
+  1176→  1176→              Détails
+  1177→  1177→            </Button>
+  1178→  1178→          </div>
+  1179→  1179→        </CardContent>
+  1180→  1180→      </Card>
+  1181→  1181→
+  1182→  1182→      {/* Earnings Summary */}
+  1183→  1183→      <div className="grid grid-cols-2 gap-3">
+  1184→  1184→        <Card className="p-4">
+  1185→  1185→          <p className="text-xs text-muted-foreground mb-1">Aujourd&apos;hui</p>
+  1186→  1186→          <p className="text-lg font-bold text-emerald-600">{formatPrice(todayEarnings)}</p>
+  1187→  1187→        </Card>
+  1188→  1188→        <Card className="p-4">
+  1189→  1189→          <p className="text-xs text-muted-foreground mb-1">Total gagné</p>
+  1190→  1190→          <p className="text-lg font-bold">{formatPrice(totalEarnings)}</p>
+  1191→  1191→        </Card>
+  1192→  1192→      </div>
+  1193→  1193→
+  1194→  1194→      {/* Recent Transactions */}
+  1195→  1195→      <Card>
+  1196→  1196→        <CardHeader className="pb-2">
+  1197→  1197→          <CardTitle className="text-sm">Transactions récentes</CardTitle>
+  1198→  1198→        </CardHeader>
+  1199→  1199→        <CardContent className="p-4 pt-0">
+  1200→  1200→          {wallet && wallet.transactions.length > 0 ? (
+  1201→  1201→            <div className="space-y-3 max-h-64 overflow-y-auto">
+  1202→  1202→              {wallet.transactions.map((tx) => (
+  1203→  1203→                <div key={tx.id} className="flex items-center justify-between">
+  1204→  1204→                  <div className="flex items-center gap-3">
+  1205→  1205→                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+  1206→  1206→                      tx.type === 'CREDIT' ? 'bg-emerald-500/10' : 'bg-red-500/10'
+  1207→  1207→                    }`}>
+  1208→  1208→                      {tx.type === 'CREDIT' ? (
+  1209→  1209→                        <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+  1210→  1210→                      ) : (
+  1211→  1211→                        <TrendingUp className="w-3.5 h-3.5 text-red-500 rotate-180" />
+  1212→  1212→                      )}
+  1213→  1213→                    </div>
+  1214→  1214→                    <div>
+  1215→  1215→                      <p className="text-sm font-medium">{tx.description || 'Transaction'}</p>
+  1216→  1216→                      <p className="text-[10px] text-muted-foreground">{formatDateShort(tx.createdAt)}</p>
+  1217→  1217→                    </div>
+  1218→  1218→                  </div>
+  1219→  1219→                  <span className={`text-sm font-semibold ${
+  1220→  1220→                    tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-500'
+  1221→  1221→                  }`}>
+  1222→  1222→                    {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
+  1223→  1223→                  </span>
+  1224→  1224→                </div>
+  1225→  1225→              ))}
+  1226→  1226→            </div>
+  1227→  1227→          ) : (
+  1228→  1228→            <p className="text-sm text-muted-foreground text-center py-4">Aucune transaction</p>
+  1229→  1229→          )}
+  1230→  1230→        </CardContent>
+  1231→  1231→      </Card>
+  1232→  1232→    </div>
+  1233→  1233→  );
+  1234→  1234→}
+  1235→  1235→
+  1236→  1236→// ─── Ratings View ────────────────────────────────────────────────────────────
+  1237→  1237→
+  1238→  1238→function RatingsView() {
+  1239→  1239→  const [orders, setOrders] = useState<Order[]>([]);
+  1240→  1240→  const [loading, setLoading] = useState(true);
+  1241→  1241→
+  1242→  1242→  useEffect(() => {
+  1243→  1243→    const fetchOrders = async () => {
+  1244→  1244→      setLoading(true);
+  1245→  1245→      const res = await apiFetch<{ orders: Order[] }>('/api/orders?limit=200');
+  1246→  1246→      if (res.data) {
+  1247→  1247→        const list = res.data.orders || (Array.isArray(res.data) ? res.data : []);
+  1248→  1248→        setOrders(list);
+  1249→  1249→      }
+  1250→  1250→      setLoading(false);
+  1251→  1251→    };
+  1252→  1252→    fetchOrders();
+  1253→  1253→  }, []);
+  1254→  1254→
+  1255→  1255→  const ratedOrders = orders.filter((o) => o.ratings && o.ratings.length > 0);
+  1256→  1256→  const allRatings = ratedOrders.flatMap((o) => o.ratings || []);
+  1257→  1257→  const avgRating = allRatings.length > 0
+  1258→  1258→    ? allRatings.reduce((s, r) => s + r.rating, 0) / allRatings.length
+  1259→  1259→    : 0;
+  1260→  1260→
+  1261→  1261→  const distribution = [5, 4, 3, 2, 1].map((star) => ({
+  1262→  1262→    star,
+  1263→  1263→    count: allRatings.filter((r) => r.rating === star).length,
+  1264→  1264→  }));
+  1265→  1265→  const maxCount = Math.max(...distribution.map((d) => d.count), 1);
+  1266→  1266→
+  1267→  1267→  if (loading) {
+  1268→  1268→    return (
+  1269→  1269→      <div className="p-4 space-y-4">
+  1270→  1270→        <Skeleton className="h-32 w-full rounded-lg" />
+  1271→  1271→        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+  1272→  1272→      </div>
+  1273→  1273→    );
+  1274→  1274→  }
+  1275→  1275→
+  1276→  1276→  return (
+  1277→  1277→    <div className="p-4 space-y-4 pb-20">
+  1278→  1278→      <h2 className="text-lg font-bold">Évaluations</h2>
+  1279→  1279→
+  1280→  1280→      {/* Average Rating */}
+  1281→  1281→      <Card className="p-5 text-center">
+  1282→  1282→        <p className="text-4xl font-bold text-emerald-600">{avgRating > 0 ? avgRating.toFixed(1) : '—'}</p>
+  1283→  1283→        {avgRating > 0 && <StarDisplay rating={avgRating} size={20} />}
+  1284→  1284→        <p className="text-sm text-muted-foreground mt-1">
+  1285→  1285→          {allRatings.length} évaluation{allRatings.length > 1 ? 's' : ''}
+  1286→  1286→        </p>
+  1287→  1287→      </Card>
+  1288→  1288→
+  1289→  1289→      {/* Distribution */}
+  1290→  1290→      <Card className="p-4">
+  1291→  1291→        <p className="text-sm font-semibold mb-3">Répartition des notes</p>
+  1292→  1292→        <div className="space-y-2">
+  1293→  1293→          {distribution.map((d) => (
+  1294→  1294→            <div key={d.star} className="flex items-center gap-2">
+  1295→  1295→              <span className="text-xs w-3 text-right">{d.star}</span>
+  1296→  1296→              <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+  1297→  1297→              <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
+  1298→  1298→                <div
+  1299→  1299→                  className="h-full bg-amber-400 rounded-full transition-all"
+  1300→  1300→                  style={{ width: `${(d.count / maxCount) * 100}%` }}
+  1301→  1301→                />
+  1302→  1302→              </div>
+  1303→  1303→              <span className="text-xs text-muted-foreground w-6 text-right">{d.count}</span>
+  1304→  1304→            </div>
+  1305→  1305→          ))}
+  1306→  1306→        </div>
+  1307→  1307→      </Card>
+  1308→  1308→
+  1309→  1309→      {/* Rating List */}
+  1310→  1310→      {ratedOrders.length > 0 ? (
+  1311→  1311→        <div className="space-y-3">
+  1312→  1312→          {ratedOrders.map((order) =>
+  1313→  1313→            (order.ratings || []).map((rating) => (
+  1314→  1314→              <Card key={rating.id} className="p-4">
+  1315→  1315→                <div className="flex items-center justify-between mb-2">
+  1316→  1316→                  <div className="flex items-center gap-2">
+  1317→  1317→                    <StarDisplay rating={rating.rating} size={14} />
+  1318→  1318→                    <span className="text-xs text-muted-foreground">
+  1319→  1319→                      {rating.client?.user
+  1320→  1320→                        ? `${rating.client.user.firstName} ${rating.client.user.lastName}`
+  1321→  1321→                        : 'Client'}
+  1322→  1322→                    </span>
+  1323→  1323→                  </div>
+  1324→  1324→                  <span className="text-[10px] text-muted-foreground">{formatDateShort(rating.createdAt)}</span>
+  1325→  1325→                </div>
+  1326→  1326→                {rating.comment && (
+  1327→  1327→                  <p className="text-sm text-muted-foreground">{rating.comment}</p>
+  1328→  1328→                )}
+  1329→  1329→                <p className="text-[10px] text-muted-foreground mt-1.5">{order.orderNumber}</p>
+  1330→  1330→              </Card>
+  1331→  1331→            ))
+  1332→  1332→          )}
+  1333→  1333→        </div>
+  1334→  1334→      ) : (
+  1335→  1335→        <Card className="p-8 text-center">
+  1336→  1336→          <Star className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+  1337→  1337→          <p className="text-sm text-muted-foreground">Aucune évaluation pour le moment</p>
+  1338→  1338→        </Card>
+  1339→  1339→      )}
+  1340→  1340→    </div>
+  1341→  1341→  );
+  1342→  1342→}
+  1343→  1343→
+  1344→  1344→// ─── Wallet View ─────────────────────────────────────────────────────────────
+  1345→  1345→
+  1346→  1346→function WalletView() {
+  1347→  1347→  const [wallet, setWallet] = useState<WalletData | null>(null);
+  1348→  1348→  const [loading, setLoading] = useState(true);
+  1349→  1349→
+  1350→  1350→  useEffect(() => {
+  1351→  1351→    let mounted = true;
+  1352→  1352→    const load = async () => {
+  1353→  1353→      const res = await apiFetch<WalletData>('/api/wallet');
+  1354→  1354→      if (mounted) {
+  1355→  1355→        if (res.data) setWallet(res.data);
+  1356→  1356→        setLoading(false);
+  1357→  1357→      }
+  1358→  1358→    };
+  1359→  1359→    load();
+  1360→  1360→    return () => { mounted = false; };
+  1361→  1361→  }, []);
+  1362→  1362→
+  1363→  1363→  if (loading) {
+  1364→  1364→    return (
+  1365→  1365→      <div className="p-4 space-y-4">
+  1366→  1366→        <Skeleton className="h-36 w-full rounded-lg" />
+  1367→  1367→        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
+  1368→  1368→      </div>
+  1369→  1369→    );
+  1370→  1370→  }
+  1371→  1371→
+  1372→  1372→  return (
+  1373→  1373→    <div className="p-4 space-y-4 pb-20">
+  1374→  1374→      <h2 className="text-lg font-bold">Portefeuille</h2>
+  1375→  1375→
+  1376→  1376→      {/* Balance */}
+  1377→  1377→      <Card className="overflow-hidden border-emerald-500/20">
+  1378→  1378→        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 p-6 text-white text-center">
+  1379→  1379→          <p className="text-sm opacity-80 mb-1">Solde disponible</p>
+  1380→  1380→          <p className="text-3xl font-bold">
+  1381→  1381→            {wallet ? formatPrice(wallet.balance) : '0 FCFA'}
+  1382→  1382→          </p>
+  1383→  1383→        </div>
+  1384→  1384→        <CardContent className="p-4">
+  1385→  1385→          <div className="flex gap-3">
+  1386→  1386→            <Button
+  1387→  1387→              variant="outline"
+  1388→  1388→              size="sm"
+  1389→  1389→              className="flex-1 text-xs"
+  1390→  1390→              onClick={() => toast.info('Le dépôt sera bientôt disponible')}
+  1391→  1391→            >
+  1392→  1392→              <Plus className="w-3.5 h-3.5 mr-1.5" />
+  1393→  1393→              Dépôt
+  1394→  1394→            </Button>
+  1395→  1395→            <Button
+  1396→  1396→              variant="outline"
+  1397→  1397→              size="sm"
+  1398→  1398→              className="flex-1 text-xs"
+  1399→  1399→              onClick={() => toast.info('Fonctionnalité de retrait bientôt disponible')}
+  1400→  1400→            >
+  1401→  1401→              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+  1402→  1402→              Retrait
+  1403→  1403→            </Button>
+  1404→  1404→          </div>
+  1405→  1405→        </CardContent>
+  1406→  1406→      </Card>
+  1407→  1407→
+  1408→  1408→      {/* Transactions */}
+  1409→  1409→      <Card>
+  1410→  1410→        <CardHeader className="pb-2">
+  1411→  1411→          <CardTitle className="text-sm">Historique des transactions</CardTitle>
+  1412→  1412→        </CardHeader>
+  1413→  1413→        <CardContent className="p-4 pt-0">
+  1414→  1414→          {wallet && wallet.transactions.length > 0 ? (
+  1415→  1415→            <div className="space-y-1 max-h-96 overflow-y-auto">
+  1416→  1416→              {wallet.transactions.map((tx) => (
+  1417→  1417→                <div key={tx.id} className="flex items-center justify-between py-2.5 border-b last:border-b-0">
+  1418→  1418→                  <div className="flex items-center gap-3 min-w-0">
+  1419→  1419→                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+  1420→  1420→                      tx.type === 'CREDIT' ? 'bg-emerald-500/10' : 'bg-red-500/10'
+  1421→  1421→                    }`}>
+  1422→  1422→                      {tx.type === 'CREDIT' ? (
+  1423→  1423→                        <ArrowRight className="w-4 h-4 text-emerald-500" />
+  1424→  1424→                      ) : (
+  1425→  1425→                        <ArrowRight className="w-4 h-4 text-red-500 rotate-180" />
+  1426→  1426→                      )}
+  1427→  1427→                    </div>
+  1428→  1428→                    <div className="min-w-0">
+  1429→  1429→                      <p className="text-sm font-medium truncate">{tx.description || 'Transaction'}</p>
+  1430→  1430→                      <p className="text-[10px] text-muted-foreground">{formatDate(tx.createdAt)}</p>
+  1431→  1431→                      {tx.reference && (
+  1432→  1432→                        <p className="text-[10px] text-muted-foreground">Réf: {tx.reference}</p>
+  1433→  1433→                      )}
+  1434→  1434→                    </div>
+  1435→  1435→                  </div>
+  1436→  1436→                  <span className={`text-sm font-semibold shrink-0 ml-2 ${
+  1437→  1437→                    tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-500'
+  1438→  1438→                  }`}>
+  1439→  1439→                    {tx.type === 'CREDIT' ? '+' : '-'}{formatPrice(tx.amount)}
+  1440→  1440→                  </span>
+  1441→  1441→                </div>
+  1442→  1442→              ))}
+  1443→  1443→            </div>
+  1444→  1444→          ) : (
+  1445→  1445→            <p className="text-sm text-muted-foreground text-center py-6">Aucune transaction</p>
+  1446→  1446→          )}
+  1447→  1447→        </CardContent>
+  1448→  1448→      </Card>
+  1449→  1449→    </div>
+  1450→  1450→  );
+  1451→  1451→}
+  1452→  1452→
+  1453→  1453→// ─── Profile View ────────────────────────────────────────────────────────────
+  1454→  1454→
+  1455→  1455→function ProfileView() {
+  1456→  1456→  const [profile, setProfile] = useState<DriverProfile | null>(null);
+  1457→  1457→  const [loading, setLoading] = useState(true);
+  1458→  1458→  const [saving, setSaving] = useState(false);
+  1459→  1459→  const user = useAuthStore((s) => s.user);
+  1460→  1460→  const { navigate } = useDriverNav();
+  1461→  1461→
+  1462→  1462→  const [form, setForm] = useState({
+  1463→  1463→    vehicleType: 'MOTO',
+  1464→  1464→    vehiclePlate: '',
+  1465→  1465→    vehicleBrand: '',
+  1466→  1466→    vehicleColor: '',
+  1467→  1467→  });
+  1468→  1468→
+  1469→  1469→  useEffect(() => {
+  1470→  1470→    const fetchProfile = async () => {
+  1471→  1471→      setLoading(true);
+  1472→  1472→      const res = await apiFetch<DriverProfile[]>('/api/drivers');
+  1473→  1473→      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+  1474→  1474→        const p = res.data[0];
+  1475→  1475→        setProfile(p);
+  1476→  1476→        setForm({
+  1477→  1477→          vehicleType: p.vehicleType || 'MOTO',
+  1478→  1478→          vehiclePlate: p.vehiclePlate || '',
+  1479→  1479→          vehicleBrand: p.vehicleBrand || '',
+  1480→  1480→          vehicleColor: p.vehicleColor || '',
+  1481→  1481→        });
+  1482→  1482→      }
+  1483→  1483→      setLoading(false);
+  1484→  1484→    };
+  1485→  1485→    fetchProfile();
+  1486→  1486→  }, []);
+  1487→  1487→
+  1488→  1488→  const handleSave = async () => {
+  1489→  1489→    setSaving(true);
+  1490→  1490→    const res = await apiFetch<DriverProfile>('/api/drivers', {
+  1491→  1491→      method: 'POST',
+  1492→  1492→      body: JSON.stringify(form),
+  1493→  1493→    });
+  1494→  1494→    if (res.error) {
+  1495→  1495→      toast.error(res.error);
+  1496→  1496→    } else {
+  1497→  1497→      toast.success('Profil mis à jour');
+  1498→  1498→      if (res.data) setProfile(res.data);
+  1499→  1499→    }
+  1500→  1500→    setSaving(false);
+  1501→  1501→  };
+  1502→  1502→
+  1503→  1503→  if (loading) {
+  1504→  1504→    return (
+  1505→  1505→      <div className="p-4 space-y-4">
+  1506→  1506→        <Skeleton className="h-24 w-full rounded-lg" />
+  1507→  1507→        <Skeleton className="h-48 w-full rounded-lg" />
+  1508→  1508→      </div>
+  1509→  1509→    );
+  1510→  1510→  }
+  1511→  1511→
+  1512→  1512→  return (
+  1513→  1513→    <div className="p-4 space-y-4 pb-20">
+  1514→  1514→      <h2 className="text-lg font-bold">Profil</h2>
+  1515→  1515→
+  1516→  1516→      {/* User Info */}
+  1517→  1517→      <Card className="p-4">
+  1518→  1518→        <div className="flex items-center gap-4">
+  1519→  1519→          <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center">
+  1520→  1520→            {user?.avatar ? (
+  1521→  1521→              <img src={user.avatar} alt="" className="w-14 h-14 rounded-full object-cover" />
+  1522→  1522→            ) : (
+  1523→  1523→              <User className="w-7 h-7 text-emerald-500" />
+  1524→  1524→            )}
+  1525→  1525→          </div>
+  1526→  1526→          <div>
+  1527→  1527→            <p className="font-semibold">{user?.firstName} {user?.lastName}</p>
+  1528→  1528→            <p className="text-sm text-muted-foreground">{user?.phone}</p>
+  1529→  1529→            <p className="text-xs text-muted-foreground">{user?.email}</p>
+  1530→  1530→          </div>
+  1531→  1531→        </div>
+  1532→  1532→        {profile && (
+  1533→  1533→          <div className="mt-4 grid grid-cols-2 gap-3">
+  1534→  1534→            <div className="bg-muted/50 rounded-lg p-3 text-center">
+  1535→  1535→              <p className="text-lg font-bold">{profile.totalDeliveries}</p>
+  1536→  1536→              <p className="text-[10px] text-muted-foreground">Livraisons</p>
+  1537→  1537→            </div>
+  1538→  1538→            <div className="bg-muted/50 rounded-lg p-3 text-center">
+  1539→  1539→              <p className="text-lg font-bold">{profile.rating?.toFixed(1) || '—'}</p>
+  1540→  1540→              <p className="text-[10px] text-muted-foreground">Note</p>
+  1541→  1541→            </div>
+  1542→  1542→          </div>
+  1543→  1543→        )}
+  1544→  1544→      </Card>
+  1545→  1545→
+  1546→  1546→      {/* Vehicle Info */}
+  1547→  1547→      <Card>
+  1548→  1548→        <CardHeader className="pb-2">
+  1549→  1549→          <CardTitle className="text-sm">Informations du véhicule</CardTitle>
+  1550→  1550→        </CardHeader>
+  1551→  1551→        <CardContent className="p-4 pt-0 space-y-4">
+  1552→  1552→          <div>
+  1553→  1553→            <Label className="text-xs">Type de véhicule</Label>
+  1554→  1554→            <Select
+  1555→  1555→              value={form.vehicleType}
+  1556→  1556→              onValueChange={(val) => setForm({ ...form, vehicleType: val })}
+  1557→  1557→            >
+  1558→  1558→              <SelectTrigger className="mt-1">
+  1559→  1559→                <SelectValue />
+  1560→  1560→              </SelectTrigger>
+  1561→  1561→              <SelectContent>
+  1562→  1562→                <SelectItem value="MOTO">Moto</SelectItem>
+  1563→  1563→                <SelectItem value="VELO">Vélo</SelectItem>
+  1564→  1564→                <SelectItem value="VOITURE">Voiture</SelectItem>
+  1565→  1565→              </SelectContent>
+  1566→  1566→            </Select>
+  1567→  1567→          </div>
+  1568→  1568→          <div>
+  1569→  1569→            <Label className="text-xs">Immatriculation</Label>
+  1570→  1570→            <Input
+  1571→  1571→              className="mt-1"
+  1572→  1572→              placeholder="Ex: AK-1234-BJ"
+  1573→  1573→              value={form.vehiclePlate}
+  1574→  1574→              onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
+  1575→  1575→            />
+  1576→  1576→          </div>
+  1577→  1577→          <div>
+  1578→  1578→            <Label className="text-xs">Marque</Label>
+  1579→  1579→            <Input
+  1580→  1580→              className="mt-1"
+  1581→  1581→              placeholder="Ex: Yamaha, Honda..."
+  1582→  1582→              value={form.vehicleBrand}
+  1583→  1583→              onChange={(e) => setForm({ ...form, vehicleBrand: e.target.value })}
+  1584→  1584→            />
+  1585→  1585→          </div>
+  1586→  1586→          <div>
+  1587→  1587→            <Label className="text-xs">Couleur</Label>
+  1588→  1588→            <Input
+  1589→  1589→              className="mt-1"
+  1590→  1590→              placeholder="Ex: Rouge, Noir..."
+  1591→  1591→              value={form.vehicleColor}
+  1592→  1592→              onChange={(e) => setForm({ ...form, vehicleColor: e.target.value })}
+  1593→  1593→            />
+  1594→  1594→          </div>
+  1595→  1595→          <Button
+  1596→  1596→            size="sm"
+  1597→  1597→            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+  1598→  1598→            disabled={saving}
+  1599→  1599→            onClick={handleSave}
+  1600→  1600→          >
+  1601→  1601→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
+  1602→  1602→            Enregistrer
+  1603→  1603→          </Button>
+  1604→  1604→        </CardContent>
+  1605→  1605→      </Card>
+  1606→  1606→
+  1607→  1607→      {/* Quick Links */}
+  1608→  1608→      <Card>
+  1609→  1609→        <CardContent className="p-0">
+  1610→  1610→          <button
+  1611→  1611→            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors border-b"
+  1612→  1612→            onClick={() => navigate('documents')}
+  1613→  1613→          >
+  1614→  1614→            <div className="flex items-center gap-3">
+  1615→  1615→              <FileText className="w-4 h-4 text-emerald-500" />
+  1616→  1616→              <span className="text-sm font-medium">Mes documents</span>
+  1617→  1617→            </div>
+  1618→  1618→            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  1619→  1619→          </button>
+  1620→  1620→          <button
+  1621→  1621→            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors border-b"
+  1622→  1622→            onClick={() => navigate('ratings')}
+  1623→  1623→          >
+  1624→  1624→            <div className="flex items-center gap-3">
+  1625→  1625→              <Star className="w-4 h-4 text-amber-400" />
+  1626→  1626→              <span className="text-sm font-medium">Mes évaluations</span>
+  1627→  1627→            </div>
+  1628→  1628→            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  1629→  1629→          </button>
+  1630→  1630→          <button
+  1631→  1631→            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors border-b"
+  1632→  1632→            onClick={() => navigate('wallet')}
+  1633→  1633→          >
+  1634→  1634→            <div className="flex items-center gap-3">
+  1635→  1635→              <Wallet className="w-4 h-4 text-emerald-500" />
+  1636→  1636→              <span className="text-sm font-medium">Portefeuille</span>
+  1637→  1637→            </div>
+  1638→  1638→            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  1639→  1639→          </button>
+  1640→  1640→          <button
+  1641→  1641→            className="w-full flex items-center justify-between p-4 hover:bg-accent/50 transition-colors"
+  1642→  1642→            onClick={() => navigate('support')}
+  1643→  1643→          >
+  1644→  1644→            <div className="flex items-center gap-3">
+  1645→  1645→              <MessageSquare className="w-4 h-4 text-emerald-500" />
+  1646→  1646→              <span className="text-sm font-medium">Support</span>
+  1647→  1647→            </div>
+  1648→  1648→            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  1649→  1649→          </button>
+  1650→  1650→        </CardContent>
+  1651→  1651→      </Card>
+  1652→  1652→    </div>
+  1653→  1653→  );
+  1654→  1654→}
+  1655→  1655→
+  1656→  1656→// ─── Notifications View ──────────────────────────────────────────────────────
+  1657→  1657→
+  1658→  1658→function NotificationsView() {
+  1659→  1659→  const [notifications, setNotifications] = useState<Notification[]>([]);
+  1660→  1660→  const [loading, setLoading] = useState(true);
+  1661→  1661→  const [total, setTotal] = useState(0);
+  1662→  1662→
+  1663→  1663→  useEffect(() => {
+  1664→  1664→    let mounted = true;
+  1665→  1665→    const load = async () => {
+  1666→  1666→      const res = await apiFetch<{ notifications: Notification[]; total: number; unreadCount: number }>(
+  1667→  1667→        '/api/notifications?limit=50'
+  1668→  1668→      );
+  1669→  1669→      if (mounted) {
+  1670→  1670→        if (res.data) {
+  1671→  1671→          setNotifications(res.data.notifications || []);
+  1672→  1672→          setTotal(res.data.total || 0);
+  1673→  1673→        }
+  1674→  1674→        setLoading(false);
+  1675→  1675→      }
+  1676→  1676→    };
+  1677→  1677→    load();
+  1678→  1678→    return () => { mounted = false; };
+  1679→  1679→  }, []);
+  1680→  1680→
+  1681→  1681→  const markAllRead = async () => {
+  1682→  1682→    const res = await apiFetch('/api/notifications', { method: 'PUT' });
+  1683→  1683→    if (!res.error) {
+  1684→  1684→      toast.success('Toutes les notifications marquées comme lues');
+  1685→  1685→      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  1686→  1686→    }
+  1687→  1687→  };
+  1688→  1688→
+  1689→  1689→  const markOneRead = async (id: string) => {
+  1690→  1690→    const res = await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+  1691→  1691→    if (!res.error) {
+  1692→  1692→      setNotifications((prev) =>
+  1693→  1693→        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+  1694→  1694→      );
+  1695→  1695→    }
+  1696→  1696→  };
+  1697→  1697→
+  1698→  1698→  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  1699→  1699→
+  1700→  1700→  if (loading) {
+  1701→  1701→    return (
+  1702→  1702→      <div className="p-4 space-y-3">
+  1703→  1703→        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+  1704→  1704→      </div>
+  1705→  1705→    );
+  1706→  1706→  }
+  1707→  1707→
+  1708→  1708→  return (
+  1709→  1709→    <div className="p-4 space-y-4 pb-20">
+  1710→  1710→      <div className="flex items-center justify-between">
+  1711→  1711→        <h2 className="text-lg font-bold">Notifications</h2>
+  1712→  1712→        {unreadCount > 0 && (
+  1713→  1713→          <Button variant="ghost" size="sm" className="text-xs text-emerald-600" onClick={markAllRead}>
+  1714→  1714→            Tout marquer comme lu
+  1715→  1715→          </Button>
+  1716→  1716→        )}
+  1717→  1717→      </div>
+  1718→  1718→
+  1719→  1719→      {notifications.length === 0 ? (
+  1720→  1720→        <Card className="p-8 text-center">
+  1721→  1721→          <Bell className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+  1722→  1722→          <p className="text-sm text-muted-foreground">Aucune notification</p>
+  1723→  1723→        </Card>
+  1724→  1724→      ) : (
+  1725→  1725→        <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+  1726→  1726→          {notifications.map((notif) => (
+  1727→  1727→            <Card
+  1728→  1728→              key={notif.id}
+  1729→  1729→              className={`p-4 cursor-pointer transition-colors ${
+  1730→  1730→                notif.isRead ? 'opacity-60' : 'border-emerald-500/20 bg-emerald-500/5'
+  1731→  1731→              }`}
+  1732→  1732→              onClick={() => {
+  1733→  1733→                if (!notif.isRead) markOneRead(notif.id);
+  1734→  1734→              }}
+  1735→  1735→            >
+  1736→  1736→              <div className="flex items-start gap-3">
+  1737→  1737→                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+  1738→  1738→                  notif.isRead ? 'bg-muted' : 'bg-emerald-500/10'
+  1739→  1739→                }`}>
+  1740→  1740→                  <Bell className={`w-3.5 h-3.5 ${notif.isRead ? 'text-muted-foreground' : 'text-emerald-500'}`} />
+  1741→  1741→                </div>
+  1742→  1742→                <div className="flex-1 min-w-0">
+  1743→  1743→                  <div className="flex items-center justify-between gap-2">
+  1744→  1744→                    <p className={`text-sm ${notif.isRead ? 'font-medium' : 'font-semibold'}`}>
+  1745→  1745→                      {notif.title}
+  1746→  1746→                    </p>
+  1747→  1747→                    {!notif.isRead && <CircleDot className="w-2 h-2 text-emerald-500 shrink-0" />}
+  1748→  1748→                  </div>
+  1749→  1749→                  <p className="text-xs text-muted-foreground mt-0.5">{notif.message}</p>
+  1750→  1750→                  <p className="text-[10px] text-muted-foreground mt-1">{timeAgo(notif.createdAt)}</p>
+  1751→  1751→                </div>
+  1752→  1752→              </div>
+  1753→  1753→            </Card>
+  1754→  1754→          ))}
+  1755→  1755→        </div>
+  1756→  1756→      )}
+  1757→  1757→    </div>
+  1758→  1758→  );
+  1759→  1759→}
+  1760→  1760→
+  1761→  1761→// ─── Support View ────────────────────────────────────────────────────────────
+  1762→  1762→
+  1763→  1763→function SupportView() {
+  1764→  1764→  const [subject, setSubject] = useState('');
+  1765→  1765→  const [description, setDescription] = useState('');
+  1766→  1766→  const [sending, setSending] = useState(false);
+  1767→  1767→  const [sent, setSent] = useState(false);
+  1768→  1768→
+  1769→  1769→  const handleSubmit = async () => {
+  1770→  1770→    if (!subject.trim() || !description.trim()) {
+  1771→  1771→      toast.error('Veuillez remplir tous les champs');
+  1772→  1772→      return;
+  1773→  1773→    }
+  1774→  1774→    setSending(true);
+  1775→  1775→    const res = await apiFetch('/api/support', {
+  1776→  1776→      method: 'POST',
+  1777→  1777→      body: JSON.stringify({ subject: subject.trim(), description: description.trim() }),
+  1778→  1778→    });
+  1779→  1779→    if (res.error) {
+  1780→  1780→      toast.error(res.error);
+  1781→  1781→    } else {
+  1782→  1782→      toast.success('Ticket envoyé avec succès !');
+  1783→  1783→      setSubject('');
+  1784→  1784→      setDescription('');
+  1785→  1785→      setSent(true);
+  1786→  1786→    }
+  1787→  1787→    setSending(false);
+  1788→  1788→  };
+  1789→  1789→
+  1790→  1790→  return (
+  1791→  1791→    <div className="p-4 space-y-4 pb-20">
+  1792→  1792→      <h2 className="text-lg font-bold">Support</h2>
+  1793→  1793→
+  1794→  1794→      <Card className="p-6 text-center">
+  1795→  1795→        <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-3">
+  1796→  1796→          <MessageSquare className="w-7 h-7 text-emerald-500" />
+  1797→  1797→        </div>
+  1798→  1798→        <p className="text-sm text-muted-foreground">
+  1799→  1799→          Notre équipe est là pour vous aider. Décrivez votre problème et nous vous répondrons rapidement.
+  1800→  1800→        </p>
+  1801→  1801→      </Card>
+  1802→  1802→
+  1803→  1803→      {sent ? (
+  1804→  1804→        <Card className="p-6 text-center">
+  1805→  1805→          <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
+  1806→  1806→          <p className="font-semibold">Ticket envoyé !</p>
+  1807→  1807→          <p className="text-sm text-muted-foreground mt-1">Nous vous répondrons dans les plus brefs délais.</p>
+  1808→  1808→          <Button
+  1809→  1809→            variant="outline"
+  1810→  1810→            size="sm"
+  1811→  1811→            className="mt-4"
+  1812→  1812→            onClick={() => setSent(false)}
+  1813→  1813→          >
+  1814→  1814→            Envoyer un autre ticket
+  1815→  1815→          </Button>
+  1816→  1816→        </Card>
+  1817→  1817→      ) : (
+  1818→  1818→        <Card>
+  1819→  1819→          <CardContent className="p-4 space-y-4">
+  1820→  1820→            <div>
+  1821→  1821→              <Label>Sujet</Label>
+  1822→  1822→              <Input
+  1823→  1823→                className="mt-1.5"
+  1824→  1824→                placeholder="Sujet de votre demande"
+  1825→  1825→                value={subject}
+  1826→  1826→                onChange={(e) => setSubject(e.target.value)}
+  1827→  1827→              />
+  1828→  1828→            </div>
+  1829→  1829→            <div>
+  1830→  1830→              <Label>Description</Label>
+  1831→  1831→              <Textarea
+  1832→  1832→                className="mt-1.5"
+  1833→  1833→                placeholder="Décrivez votre problème en détail..."
+  1834→  1834→                rows={5}
+  1835→  1835→                value={description}
+  1836→  1836→                onChange={(e) => setDescription(e.target.value)}
+  1837→  1837→              />
+  1838→  1838→            </div>
+  1839→  1839→            <Button
+  1840→  1840→              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+  1841→  1841→              disabled={sending}
+  1842→  1842→              onClick={handleSubmit}
+  1843→  1843→            >
+  1844→  1844→              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+  1845→  1845→              Envoyer
+  1846→  1846→            </Button>
+  1847→  1847→          </CardContent>
+  1848→  1848→        </Card>
+  1849→  1849→      )}
+  1850→  1850→
+  1851→  1851→      {/* Informations de contact développeur */}
+  1852→  1852→      <Card>
+  1853→  1853→        <CardContent className="p-4">
+  1854→  1854→          <SupportContactCard />
+  1855→  1855→        </CardContent>
+  1856→  1856→      </Card>
+  1857→  1857→    </div>
+  1858→  1858→  );
+  1859→  1859→}
+  1860→  1860→
+  1861→  1861→// ─── Documents View ──────────────────────────────────────────────────────────
+  1862→  1862→
+  1863→  1863→const DOC_FIELDS = [
+  1864→  1864→  { key: 'idCardImage' as const, label: "Carte d'identité", icon: FileText },
+  1865→  1865→  { key: 'licenseImage' as const, label: 'Permis de conduire', icon: Shield },
+  1866→  1866→  { key: 'vehicleImage' as const, label: "Carte grise du véhicule", icon: FileUp },
+  1867→  1867→  { key: 'selfieImage' as const, label: 'Selfie', icon: UserCircle },
+  1868→  1868→];
+  1869→  1869→
+  1870→  1870→function DocumentsView() {
+  1871→  1871→  const [profile, setProfile] = useState<DriverProfile | null>(null);
+  1872→  1872→  const [loading, setLoading] = useState(true);
+  1873→  1873→  const [uploading, setUploading] = useState<string | null>(null);
+  1874→  1874→  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  1875→  1875→
+  1876→  1876→  useEffect(() => {
+  1877→  1877→    const fetchProfile = async () => {
+  1878→  1878→      setLoading(true);
+  1879→  1879→      const res = await apiFetch<DriverProfile[]>('/api/drivers');
+  1880→  1880→      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+  1881→  1881→        setProfile(res.data[0]);
+  1882→  1882→      }
+  1883→  1883→      setLoading(false);
+  1884→  1884→    };
+  1885→  1885→    fetchProfile();
+  1886→  1886→  }, []);
+  1887→  1887→
+  1888→  1888→  const handleUpload = async (field: string) => {
+  1889→  1889→    const input = fileRefs.current[field];
+  1890→  1890→    if (!input || !input.files || input.files.length === 0) return;
+  1891→  1891→
+  1892→  1892→    const file = input.files[0];
+  1893→  1893→    if (file.size > 5 * 1024 * 1024) {
+  1894→  1894→      toast.error('Fichier trop volumineux (max 5 Mo)');
+  1895→  1895→      return;
+  1896→  1896→    }
+  1897→  1897→
+  1898→  1898→    setUploading(field);
+  1899→  1899→    const formData = new FormData();
+  1900→  1900→    formData.append('file', file);
+  1901→  1901→
+  1902→  1902→    try {
+  1903→  1903→      const token = useAuthStore.getState().token;
+  1904→  1904→      const uploadRes = await fetch('/api/upload', {
+  1905→  1905→        method: 'POST',
+  1906→  1906→        headers: token ? { Authorization: `Bearer ${token}` } : {},
+  1907→  1907→        body: formData,
+  1908→  1908→      });
+  1909→  1909→      const uploadData = await uploadRes.json();
+  1910→  1910→
+  1911→  1911→      if (!uploadRes.ok || !uploadData.url) {
+  1912→  1912→        toast.error(uploadData.error || 'Erreur lors du téléchargement');
+  1913→  1913→        setUploading(null);
+  1914→  1914→        return;
+  1915→  1915→      }
+  1916→  1916→
+  1917→  1917→      const updateRes = await apiFetch<DriverProfile>('/api/drivers', {
+  1918→  1918→        method: 'POST',
+  1919→  1919→        body: JSON.stringify({ [field]: uploadData.url }),
+  1920→  1920→      });
+  1921→  1921→
+  1922→  1922→      if (updateRes.error) {
+  1923→  1923→        toast.error(updateRes.error);
+  1924→  1924→      } else {
+  1925→  1925→        toast.success('Document téléchargé avec succès');
+  1926→  1926→        if (updateRes.data) setProfile(updateRes.data);
+  1927→  1927→      }
+  1928→  1928→    } catch {
+  1929→  1929→      toast.error('Erreur lors du téléchargement');
+  1930→  1930→    }
+  1931→  1931→    setUploading(null);
+  1932→  1932→    input.value = '';
+  1933→  1933→  };
+  1934→  1934→
+  1935→  1935→  if (loading) {
+  1936→  1936→    return (
+  1937→  1937→      <div className="p-4 space-y-4">
+  1938→  1938→        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+  1939→  1939→      </div>
+  1940→  1940→    );
+  1941→  1941→  }
+  1942→  1942→
+  1943→  1943→  return (
+  1944→  1944→    <div className="p-4 space-y-4 pb-20">
+  1945→  1945→      <h2 className="text-lg font-bold">Documents</h2>
+  1946→  1946→
+  1947→  1947→      <p className="text-sm text-muted-foreground">
+  1948→  1948→        Veuillez télécharger les documents requis pour vérifier votre compte.
+  1949→  1949→      </p>
+  1950→  1950→
+  1951→  1951→      <div className="space-y-3">
+  1952→  1952→        {DOC_FIELDS.map((doc) => {
+  1953→  1953→          const hasImage = !!(profile as Record<string, unknown> | null)?.[doc.key];
+  1954→  1954→          const Icon = doc.icon;
+  1955→  1955→          return (
+  1956→  1956→            <Card key={doc.key} className="overflow-hidden">
+  1957→  1957→              <CardContent className="p-4">
+  1958→  1958→                <div className="flex items-center gap-3 mb-3">
+  1959→  1959→                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+  1960→  1960→                    hasImage ? 'bg-emerald-500/10' : 'bg-muted'
+  1961→  1961→                  }`}>
+  1962→  1962→                    <Icon className={`w-4 h-4 ${hasImage ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+  1963→  1963→                  </div>
+  1964→  1964→                  <div className="flex-1">
+  1965→  1965→                    <p className="text-sm font-medium">{doc.label}</p>
+  1966→  1966→                    <div className="flex items-center gap-1.5 mt-0.5">
+  1967→  1967→                      {hasImage ? (
+  1968→  1968→                        <>
+  1969→  1969→                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+  1970→  1970→                          <span className="text-[10px] text-emerald-600">Téléchargé</span>
+  1971→  1971→                        </>
+  1972→  1972→                      ) : (
+  1973→  1973→                        <>
+  1974→  1974→                          <XCircle className="w-3 h-3 text-red-400" />
+  1975→  1975→                          <span className="text-[10px] text-muted-foreground">Manquant</span>
+  1976→  1976→                        </>
+  1977→  1977→                      )}
+  1978→  1978→                    </div>
+  1979→  1979→                  </div>
+  1980→  1980→                </div>
+  1981→  1981→
+  1982→  1982→                {/* Preview */}
+  1983→  1983→                {hasImage && (
+  1984→  1984→                  <div className="mb-3 rounded-lg overflow-hidden bg-muted/50 border max-h-48">
+  1985→  1985→                    <img
+  1986→  1986→                      src={(profile as Record<string, unknown> | null)?.[doc.key] as string}
+  1987→  1987→                      alt={doc.label}
+  1988→  1988→                      className="w-full h-full object-contain max-h-48"
+  1989→  1989→                    />
+  1990→  1990→                  </div>
+  1991→  1991→                )}
+  1992→  1992→
+  1993→  1993→                <input
+  1994→  1994→                  ref={(el) => { fileRefs.current[doc.key] = el; }}
+  1995→  1995→                  type="file"
+  1996→  1996→                  accept="image/*,.pdf"
+  1997→  1997→                  className="hidden"
+  1998→  1998→                  onChange={() => handleUpload(doc.key)}
+  1999→  1999→                />
+  2000→  2000→
+
+[showing lines 1-2000 of 2002; use offset=2001 with limit to continue reading]
