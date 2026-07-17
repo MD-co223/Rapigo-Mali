@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seed Rapigo Mali V2.4 Enterprise...');
+  console.log('🌱 Seed Rapigo Mali V2.5 Enterprise...');
 
   // ============================================
   // NETTOYAGE COMPLET
@@ -18,7 +18,7 @@ async function main() {
   ];
 
   for (const table of tableNames) {
-    await (prisma as Record<string, { deleteMany: () => Promise<unknown> }>)[table].deleteMany();
+    await (prisma as unknown as Record<string, { deleteMany: () => Promise<unknown> }>)[table].deleteMany();
   }
   console.log('✅ Données nettoyées');
 
@@ -79,21 +79,21 @@ async function main() {
   // CATÉGORIES
   // ============================================
   const categories = [
-    { name: 'Restaurants', slug: 'restaurants', icon: 'UtensilsCrossed', sortOrder: 1 },
-    { name: 'Fast Food', slug: 'fast-food', icon: 'Burger', sortOrder: 2 },
-    { name: 'Plats locaux', slug: 'plats-locaux', icon: 'Soup', sortOrder: 3 },
-    { name: 'Pâtisserie', slug: 'patisserie', icon: 'Cake', sortOrder: 4 },
-    { name: 'Boissons', slug: 'boissons', icon: 'Wine', sortOrder: 5 },
-    { name: 'Supermarchés', slug: 'supermarches', icon: 'ShoppingCart', sortOrder: 6 },
-    { name: 'Épicerie', slug: 'epicerie', icon: 'Store', sortOrder: 7 },
-    { name: 'Fruits & Légumes', slug: 'fruits-legumes', icon: 'Apple', sortOrder: 8 },
-    { name: 'Pharmacies', slug: 'pharmacies', icon: 'Pill', sortOrder: 9 },
-    { name: 'Boutiques', slug: 'boutiques', icon: 'ShoppingBag', sortOrder: 10 },
-    { name: 'Électronique', slug: 'electronique', icon: 'Smartphone', sortOrder: 11 },
-    { name: 'Mode & Vêtements', slug: 'mode-vetements', icon: 'Shirt', sortOrder: 12 },
-    { name: 'Beauté & Santé', slug: 'beaute-sante', icon: 'Sparkles', sortOrder: 13 },
-    { name: 'Colis & Envois', slug: 'colis-envois', icon: 'Package', sortOrder: 14 },
-    { name: 'Services', slug: 'services', icon: 'Wrench', sortOrder: 15 },
+    { name: 'Restaurants', slug: 'restaurants', icon: '🍽️', sortOrder: 1 },
+    { name: 'Fast Food', slug: 'fast-food', icon: '🍔', sortOrder: 2 },
+    { name: 'Plats locaux', slug: 'plats-locaux', icon: '🍲', sortOrder: 3 },
+    { name: 'Pâtisserie', slug: 'patisserie', icon: '🧁', sortOrder: 4 },
+    { name: 'Boissons', slug: 'boissons', icon: '🥤', sortOrder: 5 },
+    { name: 'Supermarchés', slug: 'supermarches', icon: '🛒', sortOrder: 6 },
+    { name: 'Épicerie', slug: 'epicerie', icon: '🏪', sortOrder: 7 },
+    { name: 'Fruits & Légumes', slug: 'fruits-legumes', icon: '🍎', sortOrder: 8 },
+    { name: 'Pharmacies', slug: 'pharmacies', icon: '💊', sortOrder: 9 },
+    { name: 'Boutiques', slug: 'boutiques', icon: '🛍️', sortOrder: 10 },
+    { name: 'Électronique', slug: 'electronique', icon: '📱', sortOrder: 11 },
+    { name: 'Mode & Vêtements', slug: 'mode-vetements', icon: '👕', sortOrder: 12 },
+    { name: 'Beauté & Santé', slug: 'beaute-sante', icon: '✨', sortOrder: 13 },
+    { name: 'Colis & Envois', slug: 'colis-envois', icon: '📦', sortOrder: 14 },
+    { name: 'Services', slug: 'services', icon: '🔧', sortOrder: 15 },
   ];
 
   for (const cat of categories) {
@@ -115,7 +115,7 @@ async function main() {
     { key: 'support_phone', value: '+223 77 16 38 62', type: 'STRING', group: 'GENERAL' },
     { key: 'support_whatsapp', value: '+22377163862', type: 'STRING', group: 'GENERAL' },
     { key: 'support_developer', value: 'Mr. Diarra Moussa', type: 'STRING', group: 'GENERAL' },
-    { key: 'version', value: '2.4.0', type: 'STRING', group: 'GENERAL' },
+    { key: 'version', value: '2.5.0', type: 'STRING', group: 'GENERAL' },
 
     // Commission
     { key: 'default_commission_rate', value: '10', type: 'NUMBER', group: 'COMMISSION' },
@@ -181,7 +181,7 @@ async function main() {
   }
   console.log(`✅ ${cities.length} villes configurées`);
 
-  console.log('\n🎉 Rapigo Mali V2.4 Enterprise — Seed terminé !');
+  console.log('\n🎉 Rapigo Mali V2.5 Enterprise — Seed terminé !');
   console.log('📧 Super Admin : diarramoussaka7@gmail.com');
   console.log('📱 Téléphone : +223 77 16 38 62');
   console.log('🔑 Mot de passe : pispa2026');

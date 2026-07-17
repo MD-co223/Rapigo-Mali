@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Rapigo Mali - Livraison rapide à Bamako",
+  title: "Rapigo Mali — Rapide, Fiable, Partout au Mali",
   description: "Votre plateforme de livraison N°1 au Mali. Restaurants, supermarchés, pharmacies, boutiques - tout livré chez vous en quelques minutes.",
   keywords: ["Rapigo", "Mali", "Bamako", "livraison", "restaurant", "commande", "delivery", "Uber Eats Mali", "Glovo Mali"],
-  authors: [{ name: "Rapigo Mali" }],
+  authors: [{ name: "Mr. Diarra Moussa" }],
   icons: {
     icon: "/logo.svg",
   },
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Rapigo",
+    title: "Rapigo Mali",
   },
 };
 

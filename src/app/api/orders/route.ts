@@ -135,54 +135,77 @@ export async function POST(request: NextRequest) {
     const orderNumber = generateOrderNumber();
     const status = paymentMethod === 'CASH' ? 'PENDING' : 'PAYMENT_PENDING';
 
-    // Decrease stock
-    for (const item of items) {
-      await db.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantity } },
-      });
-    }
+    // Create order and decrease stock in a transaction
+    const order = await db.$transaction(async (tx) => {
+      // Verify stock availability
+      for (const item of items) {
+        const product = await tx.product.findUnique({ where: { id: item.productId } });
+        if (!product) {
+          throw new Error(`Produit ${item.productId} non trouvé`);
+        }
+        if ((product.stock ?? 0) < item.quantity) {
+          throw new Error(`Stock insuffisant pour ${product.name} (disponible: ${product.stock ?? 0})`);
+        }
+      }
 
-    const order = await db.order.create({
-      data: {
-        orderNumber,
-        clientId: client.id,
-        merchantId,
-        status,
-        subtotal,
-        deliveryFee,
-        serviceFee,
-        discount: 0,
-        total,
-        paymentMethod: paymentMethod || 'CASH',
-        deliveryAddress,
-        deliveryCity: deliveryCityVal,
-        deliveryQuartier: deliveryQuartier || null,
-        notes: notes || null,
-        items: {
-          create: items.map((item: {
-            productId: string; name: string; price: number; quantity: number;
-            image?: string; supplements?: unknown; variants?: unknown; notes?: string;
-          }) => ({
-            productId: item.productId,
-            productName: item.name,
-            productImage: item.image || null,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            totalPrice: item.price * item.quantity,
-            variants: item.variants ? JSON.stringify(item.variants) : null,
-            supplements: item.supplements ? JSON.stringify(item.supplements) : null,
-            notes: item.notes || null,
-          })),
+      // Decrease stock
+      for (const item of items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: item.quantity }, totalSold: { increment: item.quantity } },
+        });
+      }
+
+      // Create order with items
+      const created = await tx.order.create({
+        data: {
+          orderNumber,
+          clientId: client.id,
+          merchantId,
+          status,
+          subtotal,
+          deliveryFee,
+          serviceFee,
+          discount: 0,
+          total,
+          paymentMethod: paymentMethod || 'CASH',
+          deliveryAddress,
+          deliveryCity: deliveryCityVal,
+          deliveryQuartier: deliveryQuartier || null,
+          notes: notes || null,
+          items: {
+            create: items.map((item: {
+              productId: string; name: string; price: number; quantity: number;
+              image?: string; supplements?: unknown; variants?: unknown; notes?: string;
+            }) => ({
+              productId: item.productId,
+              productName: item.name,
+              productImage: item.image || null,
+              quantity: item.quantity,
+              unitPrice: item.price,
+              totalPrice: item.price * item.quantity,
+              variants: item.variants ? JSON.stringify(item.variants) : null,
+              supplements: item.supplements ? JSON.stringify(item.supplements) : null,
+              notes: item.notes || null,
+            })),
+          },
         },
-      },
-      include: {
-        items: true,
-        merchant: { select: { id: true, businessName: true, userId: true } },
-      },
+        include: {
+          items: true,
+          merchant: { select: { id: true, businessName: true, userId: true } },
+        },
+      });
+
+      // Update client stats
+      await tx.client.update({
+        where: { id: client.id },
+        data: { totalOrders: { increment: 1 } },
+      });
+
+      return created;
     });
 
-    // Notify merchant
+    // Notify merchant (outside transaction)
     await db.notification.create({
       data: {
         userId: merchant.userId,
@@ -193,15 +216,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update client stats
-    await db.client.update({
-      where: { id: client.id },
-      data: { totalOrders: { increment: 1 } },
-    });
-
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
     console.error('Create order error:', error);
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+    const message = error instanceof Error && !error.message.includes('Prisma')
+      ? error.message
+      : 'Erreur serveur';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

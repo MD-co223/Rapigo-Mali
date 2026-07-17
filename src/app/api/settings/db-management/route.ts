@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireSuperAdmin } from '@/lib/auth';
-import * as bcrypt from 'bcryptjs';
 
 // Ordered deletion list respecting FK constraints
 const DELETE_ORDER = [
@@ -421,8 +420,7 @@ async function handleImport(body: Record<string, unknown>) {
           // Clean auto-generated fields that might conflict
           const cleanRow = { ...row };
           delete (cleanRow as Record<string, unknown>).__typename;
-          // @ts-expect-error dynamic model access
-          await db[model].create({ data: cleanRow });
+          await (db as unknown as Record<string, { create: (args: { data: unknown }) => Promise<unknown> }>)[model].create({ data: cleanRow });
           restoredCount++;
         }
       } catch (err) {

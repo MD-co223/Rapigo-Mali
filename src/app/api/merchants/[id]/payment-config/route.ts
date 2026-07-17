@@ -16,6 +16,17 @@ export async function GET(
 
     const { id } = await params;
 
+    // Verify ownership or admin access
+    const merchant = await db.merchant.findUnique({ where: { id } });
+    if (!merchant) {
+      return NextResponse.json({ error: 'Marchand non trouvé' }, { status: 404 });
+    }
+
+    const isAdmin = auth.role === 'ADMIN' || auth.isSuperAdmin;
+    if (merchant.userId !== auth.userId && !isAdmin) {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    }
+
     const configs = await db.merchantPaymentConfig.findMany({
       where: { merchantId: id },
       orderBy: { createdAt: 'desc' },

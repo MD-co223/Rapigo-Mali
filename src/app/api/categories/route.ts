@@ -5,10 +5,17 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const parent = searchParams.get('parent');
+    const search = searchParams.get('search') || '';
 
     const where: Record<string, unknown> = { isActive: true };
     if (parent !== null) {
       where.parentId = parent || null;
+    }
+    if (search) {
+      where.OR = [
+        { name: { contains: search } },
+        { slug: { contains: search } },
+      ];
     }
 
     const categories = await db.category.findMany({

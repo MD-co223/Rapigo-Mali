@@ -1,556 +1,310 @@
 'use client';
-
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  LayoutDashboard, Package, PlusCircle, ShoppingBag, MapPin,
-  CreditCard, Crown, User, Bell, LogOut, Menu, X, ChevronLeft,
-  Search, Edit, Trash2, Star, Clock, DollarSign, TrendingUp,
-  Loader2, AlertCircle, Send, MessageSquare, Phone,
-  Mail, Store, Ticket,
-  CheckCircle2, XCircle, ChevronDown, ChevronRight,
-  Eye, ShieldCheck, Zap,
+  LayoutDashboard, Package, ShoppingCart, MapPin, CreditCard, Crown, Tag,
+  Headphones, User, Plus, Pencil, Trash2, Star, Upload, ChevronLeft,
+  Menu, LogOut, Bell, Loader2, CheckCircle2, Clock, Send, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip } from 'recharts';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-  DialogDescription, DialogFooter,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { SupportContact } from '@/components/support-contact';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import {
-  ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
-} from '@/components/ui/chart';
-import {
-  useMerchantNav, useAuthStore, useSpaceStore,
-  apiFetch, formatPrice,
-  ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
-  PAYMENT_STATUS_LABELS, PAYMENT_METHODS,
-  BUSINESS_TYPES,
+  useMerchantNav, useAuthStore, useSpaceStore, apiFetch, formatPrice,
+  ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, BUSINESS_TYPES, PAYMENT_METHODS
 } from '@/lib/store';
 import type { MerchantView } from '@/lib/store';
-import { toast } from 'sonner';
-import { SupportContact } from '@/components/support-contact';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-interface MerchantProfile {
-  id: string;
-  businessName: string;
-  businessType: string;
-  description: string | null;
-  shortDescription: string | null;
-  logo: string | null;
-  coverImage: string | null;
-  address: string;
-  city: string;
-  quartier: string | null;
-  phone: string;
-  email: string | null;
-  website: string | null;
-  operatingHours: string;
-  isApproved: boolean;
-  isFeatured: boolean;
-  rating: number;
-  totalRatings: number;
-  commissionRate: number;
-  minOrderAmount: number;
-  user: { id: string; email: string; phone: string; firstName: string; lastName: string; isActive: boolean; avatar?: string | null };
-  deliveryZones: DeliveryZone[];
-  paymentConfigs: PaymentConfig[];
-  subscriptions: (Subscription & { plan: Plan })[];
-  _count: { products: number; orders: number };
-}
-
-interface Product {
-  id: string;
-  merchantId: string;
-  categoryId: string | null;
-  name: string;
-  slug: string;
-  shortDescription: string | null;
-  longDescription: string | null;
-  price: number;
-  comparePrice: number | null;
-  image: string | null;
-  images: string | null;
-  video: string | null;
-  sku: string | null;
-  barcode: string | null;
-  weight: string | null;
-  tags: string | null;
-  brand: string | null;
-  origin: string | null;
-  stock: number;
-  isAvailable: boolean;
-  isFeatured: boolean;
-  preparationTime: number | null;
-  rating: number;
-  totalSold: number;
-  createdAt: string;
-  category: { id: string; name: string; slug: string } | null;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  icon: string | null;
-  image: string | null;
-  parentId: string | null;
-  sortOrder: number;
-  isActive: boolean;
-  _count: { products: number; children: number };
-}
-
-interface Order {
-  id: string;
-  orderNumber: string;
-  clientId: string;
-  merchantId: string;
-  driverId: string | null;
-  status: string;
-  subtotal: number;
-  deliveryFee: number;
-  serviceFee: number;
-  discount: number;
-  total: number;
-  paymentMethod: string;
-  paymentStatus: string;
-  paymentProof: string | null;
-  paymentNote: string | null;
-  deliveryAddress: string;
-  deliveryCity: string;
-  deliveryQuartier: string | null;
-  notes: string | null;
-  estimatedTime: number | null;
-  cancelReason: string | null;
-  createdAt: string;
-  items: OrderItem[];
-  client: { id: string; user: { firstName: string; lastName: string; phone: string; avatar: string | null } } | null;
-  merchant: { id: string; businessName: string; logo: string | null; address: string } | null;
-  driver: { id: string; user: { firstName: string; lastName: string; phone: string; avatar: string | null } } | null;
-  ratings: unknown[];
-}
-
-interface OrderItem {
-  id: string;
-  orderId: string;
-  productId: string;
-  productName: string;
-  productImage: string | null;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  variants: string | null;
-  supplements: string | null;
-  notes: string | null;
-}
-
-interface DeliveryZone {
-  id: string;
-  merchantId: string;
-  city: string;
-  quartier: string | null;
-  fee: number;
-  currency: string;
-  isActive: boolean;
-}
-
-interface PaymentConfig {
-  id: string;
-  merchantId: string;
-  method: string;
-  isEnabled: boolean;
-  phoneNumber: string | null;
-  accountName: string | null;
-  accountNumber: string | null;
-  qrCode: string | null;
-  instructions: string | null;
-}
-
-interface Plan {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  currency: string;
-  duration: number;
-  features: string | null;
-  maxProducts: number | null;
-  maxOrders: number | null;
-  maxCoupons: number | null;
-  priority: number;
-  isActive: boolean;
-}
-
-interface Subscription {
-  id: string;
-  merchantId: string;
-  planId: string;
-  status: string;
-  startDate: string;
-  endDate: string;
-  autoRenew: boolean;
-  plan: Plan;
-}
-
-interface Coupon {
-  id: string;
-  code: string;
-  merchantId: string | null;
-  type: string;
-  value: number;
-  minOrder: number;
-  maxUses: number | null;
-  usedCount: number;
-  startDate: string;
-  endDate: string;
-  isActive: boolean;
-  merchant: { id: string; businessName: string } | null;
-}
-
-interface Notification {
-  id: string;
-  userId: string;
-  title: string;
-  message: string;
-  type: string;
-  data: string | null;
-  isRead: boolean;
-  createdAt: string;
-}
-
-interface MerchantStats {
-  totalOrders: number;
-  todayOrders: number;
-  totalProducts: number;
-  totalRevenue: number;
-  todayRevenue: number;
-  pendingOrders: number;
-  rating: number;
-  totalRatings: number;
-  recentOrders: Order[];
-  ordersByStatus: { status: string; _count: number }[];
-  dailyRevenue?: { date: string; revenue: number; orders: number }[];
-}
-
-// ─── Navigation config ──────────────────────────────────────────────────────
-
-const SIDEBAR_ITEMS: { label: string; view: MerchantView; icon: React.ElementType }[] = [
-  { label: 'Tableau de bord', view: 'dashboard', icon: LayoutDashboard },
-  { label: 'Produits', view: 'products', icon: Package },
-  { label: 'Commandes', view: 'orders', icon: ShoppingBag },
-  { label: 'Statistiques', view: 'stats', icon: TrendingUp },
-  { label: 'Abonnement', view: 'subscription', icon: Crown },
-  { label: 'Zones livraison', view: 'delivery-zones', icon: MapPin },
-  { label: 'Paiement', view: 'payment-config', icon: CreditCard },
-  { label: 'Coupons', view: 'coupons', icon: Ticket },
-  { label: 'Support', view: 'support', icon: MessageSquare },
-  { label: 'Profil', view: 'profile', icon: User },
+const EASE = [0, 0, 0.2, 1] as const;
+const TR = { duration: 0.3, ease: EASE };
+const M_STEPS = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'];
+const M_STEP_L = ['En attente', 'Confirmée', 'En préparation', 'Prête'];
+const SUB_METHODS = ['ORANGE_MONEY', 'MOOV_MONEY', 'WAVE', 'CASH'];
+const SUB_FEATURES = [
+  'Produits illimités', 'Commandes illimitées', 'Coupons illimités',
+  'Statistiques avancées', 'Support prioritaire', 'Badge vérifié',
+  'Zones multiples', 'Configuration paiement',
 ];
-
-const MOBILE_NAV_ITEMS: { label: string; view: MerchantView; icon: React.ElementType }[] = [
-  { label: 'Accueil', view: 'dashboard', icon: LayoutDashboard },
-  { label: 'Produits', view: 'products', icon: Package },
-  { label: 'Commandes', view: 'orders', icon: ShoppingBag },
-  { label: 'Notifications', view: 'notifications', icon: Bell },
-  { label: 'Profil', view: 'profile', icon: User },
-];
-
-// ─── Shared helpers ─────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge variant="secondary" className={ORDER_STATUS_COLORS[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'}>
-      {ORDER_STATUS_LABELS[status] || status}
-    </Badge>
-  );
-}
-
-function PaymentBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    PENDING: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-    UPLOADED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-    ACCEPTED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-    REJECTED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-    FAILED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-    REFUNDED: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
-  };
-  return (
-    <Badge variant="secondary" className={colors[status] || colors.PENDING}>
-      {PAYMENT_STATUS_LABELS[status] || status}
-    </Badge>
-  );
-}
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('fr-FR', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-}
-
-function formatDateShort(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('fr-FR', {
-    day: '2-digit', month: 'short',
-  });
-}
-
-function isToday(dateStr: string) {
-  const d = new Date(dateStr);
-  const now = new Date();
-  return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-}
-
-const fadeInUp = {
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -12 },
+const VL: Record<string, string> = {
+  dashboard: 'Tableau de bord', products: 'Produits', 'add-product': 'Produit',
+  orders: 'Commandes', 'order-detail': 'Commande', stats: 'Statistiques',
+  'payment-config': 'Moyens de paiement', 'delivery-zones': 'Zones de livraison',
+  subscription: 'Abonnement', support: 'Support', notifications: 'Notifications',
+  profile: 'Mon profil', coupons: 'Coupons', marketing: 'Marketing',
+  billing: 'Facturation', settings: 'Paramètres', chat: 'Discussion',
 };
 
-// ─── Page transition wrapper ────────────────────────────────────────────────
+function Sp() { return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>; }
+function Mt({ m }: { m: string }) { return <div className="text-center py-16 text-muted-foreground"><p>{m}</p></div>; }
 
-function PageTransition({ children, keyVal }: { children: React.ReactNode; keyVal: string }) {
-  return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={keyVal}
-        initial={fadeInUp.initial}
-        animate={fadeInUp.animate}
-        exit={fadeInUp.exit}
-        transition={{ duration: 0.2 }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
-  );
-}
+export default function MerchantApp() {
+  const { view, data, navigate, goBack } = useMerchantNav();
+  const { user, logout } = useAuthStore();
+  const { setSpace } = useSpaceStore();
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 1. WAITING SCREEN (when !merchant.isApproved)
-// ═══════════════════════════════════════════════════════════════════════════
-
-function WaitingScreen({ merchant, onLogout }: { merchant: MerchantProfile; onLogout: () => void }) {
-  return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <span className="text-lg font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
-          Rapigo Mali
-        </span>
-        <Button variant="ghost" size="sm" onClick={onLogout} className="text-destructive hover:text-destructive">
-          <LogOut className="h-4 w-4 mr-1" />
-          Déconnexion
-        </Button>
-      </header>
-
-      <div className="flex-1 flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4 }}
-          className="max-w-md w-full"
-        >
-          <Card>
-            <CardContent className="flex flex-col items-center py-12 text-center">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center mb-6"
-              >
-                <Clock className="h-10 w-10 text-amber-600" />
-              </motion.div>
-
-              <motion.h2
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="text-2xl font-bold"
-              >
-                Compte en attente de validation
-              </motion.h2>
-
-              <motion.p
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="text-muted-foreground mt-3 max-w-sm"
-              >
-                Votre compte marchand <strong>{merchant.businessName}</strong> est en cours de vérification par notre équipe.
-                Notre équipe vérifiera vos informations. Vous serez notifié par email.
-              </motion.p>
-
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="text-sm text-muted-foreground mt-4"
-              >
-                Le processus prend généralement 24 à 48 heures. Merci de votre patience.
-              </motion.p>
-
-              <Separator className="my-6 w-full" />
-
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="w-full bg-muted/50 rounded-lg p-4"
-              >
-                <SupportContact variant="full" />
-              </motion.div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 2. DASHBOARD
-// ═══════════════════════════════════════════════════════════════════════════
-
-function DashboardView() {
-  const { navigate } = useMerchantNav();
-  const [stats, setStats] = useState<MerchantStats | null>(null);
+  const [merchant, setMerchant] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [stats, setStats] = useState<Record<string, any>>({});
+  const [products, setProducts] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [orderDet, setOrderDet] = useState<Record<string, any>>({});
+  const [categories, setCategories] = useState<any[]>([]);
+  const [zones, setZones] = useState<any[]>([]);
+  const [payCfg, setPayCfg] = useState<any[]>([]);
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [notifs, setNotifs] = useState<any[]>([]);
+  const [pf, setPf] = useState<Record<string, any>>({});
+  const [supps, setSupps] = useState<{ name: string; price: string }[]>([]);
+  const [zf, setZf] = useState<Record<string, any>>({ city: '', neighborhood: '', fee: '' });
+  const [cf, setCf] = useState<Record<string, any>>({ code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', endDate: '' });
+  const [ticket, setTicket] = useState({ subject: '', message: '' });
+  const [prof, setProf] = useState<Record<string, any>>({});
+  const [dlg, setDlg] = useState('');
+  const [subMethod, setSubMethod] = useState('');
+  const [subProof, setSubProof] = useState('');
+  const [subDone, setSubDone] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const proofRef = useRef<HTMLInputElement>(null);
+  const logoRef = useRef<HTMLInputElement>(null);
 
+  const isPremium = merchant?.isPremium || merchant?.subscription?.status === 'ACTIVE';
+  const mid = merchant?.id;
+
+  // Fetch merchant
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await apiFetch<MerchantStats>('/api/stats/merchant');
-      if (!cancelled) {
-        if (data) setStats(data);
-        setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+    apiFetch<any>('/api/merchants/me').then(r => { if (r.data) setMerchant(r.data.merchant || r.data); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i}><CardContent className="p-4 lg:p-6"><Skeleton className="h-20 w-full" /></CardContent></Card>
-          ))}
-        </div>
-        <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>
-      </div>
-    );
-  }
+  // Fetch view data
+  useEffect(() => {
+    if (!mid) return;
+    if (view === 'dashboard') {
+      apiFetch<any>('/api/stats/merchant').then(r => r.data && setStats(r.data));
+      apiFetch<any>('/api/orders?merchantId=' + mid + '&limit=5').then(r => r.data && setOrders(r.data.orders || r.data || []));
+    }
+    if (view === 'products') {
+      apiFetch<any>('/api/products?merchantId=' + mid).then(r => r.data && setProducts(r.data.products || r.data || []));
+      apiFetch<any>('/api/categories').then(r => r.data && setCategories(r.data.categories || r.data || []));
+    }
+    if (view === 'orders') {
+      apiFetch<any>('/api/orders?merchantId=' + mid).then(r => r.data && setOrders(r.data.orders || r.data || []));
+    }
+    if (view === 'order-detail' && data?.id) {
+      apiFetch<any>('/api/orders/' + data.id).then(r => r.data && setOrderDet(r.data.order || r.data));
+    }
+    if (view === 'add-product') {
+      apiFetch<any>('/api/categories').then(r => r.data && setCategories(r.data.categories || r.data || []));
+      if (data?.id) {
+        apiFetch<any>('/api/products/' + data.id).then(r => {
+          if (r.data) {
+            const p = r.data.product || r.data;
+            setPf(p);
+            try { const s = typeof p.supplements === 'string' ? JSON.parse(p.supplements) : p.supplements; setSupps((s || []).map((x: any) => ({ name: x.name || '', price: String(x.price || '') }))); } catch { setSupps([]); }
+          }
+        });
+      } else { Promise.resolve().then(() => { setPf({ name: '', price: '', shortDescription: '', longDescription: '', categoryId: '', stock: '', isAvailable: true, isFeatured: false, image: '' }); setSupps([]); }); }
+    }
+    if (view === 'delivery-zones') {
+      apiFetch<any>('/api/merchants/' + mid + '/delivery-zones').then(r => r.data && setZones(r.data.zones || r.data || []));
+    }
+    if (view === 'payment-config') {
+      apiFetch<any>('/api/merchants/' + mid + '/payment-config').then(r => {
+        if (r.data) { const d = r.data.methods || r.data; setPayCfg(Array.isArray(d) ? d : []); }
+      });
+    }
+    if (view === 'coupons') {
+      apiFetch<any>('/api/coupons?merchantId=' + mid).then(r => r.data && setCoupons(r.data.coupons || r.data || []));
+    }
+    if (view === 'notifications') {
+      apiFetch<any>('/api/notifications').then(r => r.data && setNotifs(r.data.notifications || r.data || []));
+    }
+    if (view === 'profile') {
+      apiFetch<any>('/api/merchants/me').then(r => { if (r.data) { const m = r.data.merchant || r.data; setProf(m); } });
+    }
+    if (view === 'subscription') { Promise.resolve().then(() => { setSubMethod(''); setSubProof(''); setSubDone(false); }); }
+  }, [view, data, mid]);
 
-  // Compute today's orders/revenue from recentOrders
-  const todayOrders = stats?.recentOrders?.filter((o) => isToday(o.createdAt)) || [];
-  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
+  const handleLogout = () => { logout(); setSpace('landing'); };
 
-  const statCards = [
-    { label: 'Commandes aujourd\'hui', value: todayOrders.length, icon: ShoppingBag, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
-    { label: 'Revenus du jour', value: formatPrice(todayRevenue), icon: DollarSign, color: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
-    { label: 'Produits actifs', value: stats?.totalProducts ?? 0, icon: Package, color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20' },
-    { label: 'Note moyenne', value: stats?.rating ? `${stats.rating.toFixed(1)}/5` : 'N/A', icon: Star, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
+  const saveProduct = async () => {
+    setSaving(true);
+    const body = { ...pf, price: Number(pf.price) || 0, stock: Number(pf.stock) || 0, merchantId: mid, supplements: JSON.stringify(supps.filter(s => s.name)) };
+    const url = data?.id ? '/api/products/' + data.id : '/api/products';
+    const r = await apiFetch<any>(url, { method: data?.id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+    setSaving(false);
+    if (r.data) navigate('products');
+  };
+
+  const deleteProduct = async (id: string) => {
+    if (!confirm('Supprimer ce produit ?')) return;
+    await apiFetch('/api/products/' + id, { method: 'DELETE' });
+    setProducts(prev => prev.filter((p: any) => p.id !== id));
+  };
+
+  const updateOrderStatus = async (id: string, status: string) => {
+    const r = await apiFetch<any>('/api/orders/' + id, { method: 'PUT', body: JSON.stringify({ status }) });
+    if (r.data) {
+      if (view === 'orders') setOrders(prev => prev.map((o: any) => o.id === id ? { ...o, status } : o));
+      if (view === 'order-detail') setOrderDet(prev => ({ ...prev, status }));
+    }
+  };
+
+  const handleProof = async (orderId: string, status: string) => {
+    const r = await apiFetch<any>('/api/orders/' + orderId + '/payment-proof', { method: 'PUT', body: JSON.stringify({ status }) });
+    if (r.data) setOrderDet(prev => ({ ...prev, paymentStatus: status }));
+  };
+
+  const saveZone = async () => {
+    setSaving(true);
+    const r = await apiFetch<any>('/api/merchants/' + mid + '/delivery-zones', { method: 'POST', body: JSON.stringify({ ...zf, fee: Number(zf.fee) || 0 }) });
+    setSaving(false);
+    if (r.data) { setZones(prev => [...prev, r.data.zone || r.data]); setZf({ city: '', neighborhood: '', fee: '' }); setDlg(''); }
+  };
+
+  const toggleZone = async (z: any) => {
+    await apiFetch('/api/merchants/' + mid + '/delivery-zones/' + z.id, { method: 'PUT', body: JSON.stringify({ isActive: !z.isActive }) });
+    setZones(prev => prev.map((zz: any) => zz.id === z.id ? { ...zz, isActive: !z.isActive } : zz));
+  };
+
+  const savePayConfig = async () => {
+    setSaving(true);
+    await apiFetch('/api/merchants/' + mid + '/payment-config', { method: 'PUT', body: JSON.stringify({ methods: payCfg }) });
+    setSaving(false);
+  };
+
+  const submitSub = async () => {
+    if (!subProof) return;
+    setSaving(true);
+    const r = await apiFetch<any>('/api/subscriptions', { method: 'POST', body: JSON.stringify({ paymentMethod: subMethod, paymentProof: subProof }) });
+    setSaving(false);
+    if (r.data) setSubDone(true);
+  };
+
+  const saveCoupon = async () => {
+    setSaving(true);
+    const body = { ...cf, value: Number(cf.value) || 0, minOrder: Number(cf.minOrder) || 0, maxUses: Number(cf.maxUses) || 0, merchantId: mid };
+    const r = await apiFetch<any>('/api/coupons', { method: 'POST', body: JSON.stringify(body) });
+    setSaving(false);
+    if (r.data) { setCoupons(prev => [...prev, r.data.coupon || r.data]); setCf({ code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', endDate: '' }); setDlg(''); }
+  };
+
+  const deleteCoupon = async (id: string) => {
+    if (!confirm('Supprimer ce coupon ?')) return;
+    await apiFetch('/api/coupons/' + id, { method: 'DELETE' });
+    setCoupons(prev => prev.filter((c: any) => c.id !== id));
+  };
+
+  const sendTicket = async () => {
+    if (!ticket.subject || !ticket.message) return;
+    setSaving(true);
+    await apiFetch('/api/support', { method: 'POST', body: JSON.stringify({ subject: ticket.subject, message: ticket.message }) });
+    setSaving(false);
+    setTicket({ subject: '', message: '' });
+  };
+
+  const markRead = async (id: string) => {
+    await apiFetch('/api/notifications/' + id + '/read', { method: 'PUT' });
+    setNotifs(prev => prev.map((n: any) => n.id === id ? { ...n, isRead: true } : n));
+  };
+
+  const markAllRead = async () => {
+    await apiFetch('/api/notifications/read-all', { method: 'PUT' });
+    setNotifs(prev => prev.map((n: any) => ({ ...n, isRead: true })));
+  };
+
+  const saveProfile = async () => {
+    setSaving(true);
+    const r = await apiFetch<any>('/api/merchants/me', { method: 'PUT', body: JSON.stringify(prof) });
+    setSaving(false);
+    if (r.data) { const m = r.data.merchant || r.data; setMerchant(prev => ({ ...prev, ...m })); }
+  };
+
+  const readFile = (e: React.ChangeEvent<HTMLInputElement>, cb: (v: string) => void) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const rd = new FileReader(); rd.onload = () => cb(rd.result as string); rd.readAsDataURL(f);
+  };
+
+  // Nav items
+  const navItems = [
+    { v: 'dashboard' as MerchantView, icon: LayoutDashboard, l: 'Tableau de bord' },
+    { v: 'products' as MerchantView, icon: Package, l: 'Produits' },
+    { v: 'orders' as MerchantView, icon: ShoppingCart, l: 'Commandes' },
+    { v: 'delivery-zones' as MerchantView, icon: MapPin, l: 'Zones de livraison' },
+    { v: 'payment-config' as MerchantView, icon: CreditCard, l: 'Moyens de paiement' },
+    ...(!isPremium ? [{ v: 'subscription' as MerchantView, icon: Crown, l: 'Abonnement Premium' }] : []),
+    { v: 'coupons' as MerchantView, icon: Tag, l: 'Coupons' },
+    { v: 'support' as MerchantView, icon: Headphones, l: 'Support' },
+    { v: 'profile' as MerchantView, icon: User, l: 'Mon profil' },
   ];
 
-  return (
+  const bottomNav = [
+    { v: 'dashboard' as MerchantView, icon: LayoutDashboard, l: 'Accueil' },
+    { v: 'products' as MerchantView, icon: Package, l: 'Produits' },
+    { v: 'orders' as MerchantView, icon: ShoppingCart, l: 'Commandes' },
+    ...(!isPremium ? [{ v: 'subscription' as MerchantView, icon: Crown, l: 'Abonnement' }] : []),
+    { v: 'profile' as MerchantView, icon: User, l: 'Profil' },
+  ];
+
+  const renderNav = (onClose?: () => void) => (
+    <nav className="flex-1 py-2 overflow-y-auto">
+      {navItems.map(it => (
+        <button key={it.v} onClick={() => { navigate(it.v); onClose?.(); setMobileMenu(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${view === it.v ? 'bg-emerald-800 font-medium' : 'hover:bg-emerald-600/50'}`}>
+          <it.icon className="h-5 w-5 shrink-0" /> {it.l}
+        </button>
+      ))}
+    </nav>
+  );
+
+  // VIEWS
+  const renderDashboard = () => (
     <div className="space-y-6">
-      {/* Stats cards */}
+      <h2 className="text-xl font-bold">Bienvenue, {merchant.name || user?.firstName}</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((s, idx) => (
-          <motion.div
-            key={s.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.05 }}
-          >
-            <Card className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4 lg:p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs sm:text-sm text-muted-foreground">{s.label}</span>
-                  <div className={`p-2 rounded-lg ${s.color}`}>
-                    <s.icon className="h-4 w-4" />
-                  </div>
-                </div>
-                <p className="text-xl lg:text-2xl font-bold">{s.value}</p>
-              </CardContent>
-            </Card>
-          </motion.div>
+        {[
+          { l: 'Produits actifs', v: stats.totalProducts ?? stats.activeProducts ?? 0, i: Package, c: 'text-emerald-600 bg-emerald-50' },
+          { l: 'Commandes aujourd\'hui', v: stats.ordersToday ?? 0, i: ShoppingCart, c: 'text-orange-600 bg-orange-50' },
+          { l: 'Revenus du mois', v: formatPrice(stats.revenueThisMonth ?? 0), i: '💰', c: 'text-yellow-600 bg-yellow-50' },
+          { l: 'Note moyenne', v: (stats.averageRating ?? 0).toFixed(1), i: Star, c: 'text-pink-600 bg-pink-50' },
+        ].map((s, i) => (
+          <Card key={i}><CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-muted-foreground">{s.l}</span>
+              <div className={`p-2 rounded-lg ${s.c}`}>
+                {typeof s.i === 'string' ? <span className="text-lg">{s.i}</span> : <s.i className="h-4 w-4" />}
+              </div>
+            </div>
+            <p className="text-xl font-bold">{s.v}</p>
+          </CardContent></Card>
         ))}
       </div>
-
-      {/* Quick actions */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Actions rapides</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button onClick={() => navigate('add-product')} className="bg-emerald-600 hover:bg-emerald-700">
-            <PlusCircle className="h-4 w-4 mr-2" /> Ajouter produit
-          </Button>
-          <Button variant="outline" onClick={() => navigate('orders')}>
-            <ShoppingBag className="h-4 w-4 mr-2" /> Voir commandes
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Recent orders */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Commandes récentes</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate('orders')}>
-              Voir tout <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-        </CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Commandes récentes</CardTitle></CardHeader>
         <CardContent>
-          {!stats?.recentOrders?.length ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <ShoppingBag className="h-10 w-10 text-muted-foreground/40 mb-3" />
-              <p className="text-muted-foreground">Aucune commande récente</p>
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {stats.recentOrders.slice(0, 5).map((order) => (
-                <motion.div
-                  key={order.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors"
-                  onClick={() => navigate('order-detail', { id: order.id })}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm">{order.orderNumber}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {order.client?.user ? `${order.client.user.firstName} ${order.client.user.lastName}` : 'Client'}
-                      {' · '}{formatDate(order.createdAt)}
-                    </p>
+          {!orders.length ? <Mt m="Aucune commande" /> : (
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {orders.map((o: any) => (
+                <div key={o.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                  onClick={() => navigate('order-detail', { id: o.id })}>
+                  <div>
+                    <p className="text-sm font-medium">#{o.orderNumber || o.id.slice(0, 8)}</p>
+                    <p className="text-xs text-muted-foreground">{o.customerName || 'Client'} · {new Date(o.createdAt).toLocaleDateString('fr-FR')}</p>
                   </div>
-                  <div className="flex items-center gap-2 ml-3">
-                    <span className="font-semibold text-sm">{formatPrice(order.total)}</span>
-                    <StatusBadge status={order.status} />
+                  <div className="text-right">
+                    <p className="text-sm font-semibold">{formatPrice(o.total || 0)}</p>
+                    <Badge variant="secondary" className="text-[10px]">{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
           )}
@@ -558,2347 +312,471 @@ function DashboardView() {
       </Card>
     </div>
   );
-}
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 3. PRODUCTS (table view)
-// ═══════════════════════════════════════════════════════════════════════════
-
-function ProductsView({ merchantId }: { merchantId: string }) {
-  const { navigate } = useMerchantNav();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data } = await apiFetch<Product[]>(`/api/products?merchantId=${merchantId}&available=false`);
-      if (!cancelled) {
-        if (data) setProducts(data);
-        setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [merchantId, refreshKey]);
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Supprimer ce produit ?')) return;
-    const { error } = await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
-    if (error) { toast.error(error); return; }
-    toast.success('Produit supprimé');
-    setRefreshKey((k) => k + 1);
-  };
-
-  const handleToggleAvailable = async (p: Product) => {
-    setTogglingId(p.id);
-    const { error } = await apiFetch(`/api/products/${p.id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ isAvailable: !p.isAvailable }),
-    });
-    if (error) { toast.error(error); }
-    else { toast.success(p.isAvailable ? 'Produit désactivé' : 'Produit activé'); setRefreshKey((k) => k + 1); }
-    setTogglingId(null);
-  };
-
-  const filtered = products.filter((p) => {
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' ||
-      (statusFilter === 'available' && p.isAvailable) ||
-      (statusFilter === 'unavailable' && !p.isAvailable);
-    return matchSearch && matchStatus;
-  });
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-full max-w-sm" />
-        <Card><CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
-      </div>
-    );
-  }
-
-  return (
+  const renderProducts = () => (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 w-full sm:w-64" />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous</SelectItem>
-              <SelectItem value="available">Disponibles</SelectItem>
-              <SelectItem value="unavailable">Indisponibles</SelectItem>
-            </SelectContent>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Produits</h2>
+        <Button onClick={() => navigate('add-product')} className="gap-1"><Plus className="h-4 w-4" /> Ajouter</Button>
+      </div>
+      {!products.length ? <Mt m="Aucun produit" /> : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {products.map((p: any) => (
+            <Card key={p.id} className="overflow-hidden">
+              {p.image ? <img src={p.image} alt={p.name} className="h-32 w-full object-cover bg-gray-100" /> : <div className="h-32 bg-gray-100 flex items-center justify-center text-muted-foreground text-sm">Image</div>}
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-start justify-between">
+                  <h3 className="font-medium text-sm line-clamp-1">{p.name}</h3>
+                  <Switch checked={p.isAvailable} onCheckedChange={async (v) => {
+                    await apiFetch('/api/products/' + p.id, { method: 'PUT', body: JSON.stringify({ isAvailable: v }) });
+                    setProducts(prev => prev.map((pp: any) => pp.id === p.id ? { ...pp, isAvailable: v } : pp));
+                  }} />
+                </div>
+                <p className="text-emerald-700 font-bold text-sm">{formatPrice(p.price || 0)}</p>
+                <p className="text-xs text-muted-foreground">Stock : {p.stock ?? 0}</p>
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" size="sm" className="gap-1 flex-1" onClick={() => navigate('add-product', { id: p.id })}><Pencil className="h-3 w-3" /> Modifier</Button>
+                  <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700" onClick={() => deleteProduct(p.id)}><Trash2 className="h-3 w-3" /></Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderAddProduct = () => (
+    <div className="space-y-4 max-w-2xl">
+      <div className="flex items-center gap-3">
+        {data?.id && <Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft className="h-5 w-5" /></Button>}
+        <h2 className="text-xl font-bold">{data?.id ? 'Modifier le produit' : 'Ajouter un produit'}</h2>
+      </div>
+      <Card><CardContent className="p-4 space-y-4">
+        <div><Label>Nom</Label><Input value={pf.name || ''} onChange={e => setPf(p => ({ ...p, name: e.target.value }))} /></div>
+        <div className="grid grid-cols-2 gap-4">
+          <div><Label>Prix (FCFA)</Label><Input type="number" value={pf.price ?? ''} onChange={e => setPf(p => ({ ...p, price: e.target.value }))} /></div>
+          <div><Label>Stock</Label><Input type="number" value={pf.stock ?? ''} onChange={e => setPf(p => ({ ...p, stock: e.target.value }))} /></div>
+        </div>
+        <div><Label>Catégorie</Label>
+          <Select value={pf.categoryId || ''} onValueChange={v => setPf(p => ({ ...p, categoryId: v }))}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+            <SelectContent>{categories.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <Button onClick={() => navigate('add-product')} className="bg-emerald-600 hover:bg-emerald-700 shrink-0">
-          <PlusCircle className="h-4 w-4 mr-2" /> Ajouter un produit
-        </Button>
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          {!filtered.length ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Package className="h-12 w-12 text-muted-foreground mb-3" />
-              <p className="text-lg font-medium">Aucun produit</p>
-              <p className="text-muted-foreground text-sm mt-1">Commencez par ajouter votre premier produit</p>
-              <Button onClick={() => navigate('add-product')} className="mt-4 bg-emerald-600 hover:bg-emerald-700">
-                <PlusCircle className="h-4 w-4 mr-2" /> Ajouter un produit
-              </Button>
-            </div>
-          ) : (
-            <>
-              {/* Desktop table */}
-              <div className="hidden md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Image</TableHead>
-                      <TableHead>Nom</TableHead>
-                      <TableHead>Prix</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Catégorie</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell>
-                          <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden">
-                            {p.image ? (
-                              <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="h-full w-full flex items-center justify-center">
-                                <Package className="h-4 w-4 text-muted-foreground/40" />
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm truncate max-w-40">{p.name}</p>
-                            {p.brand && <p className="text-xs text-muted-foreground">{p.brand}</p>}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">{formatPrice(p.price)}</span>
-                            {p.comparePrice && p.comparePrice > p.price && (
-                              <p className="text-xs text-muted-foreground line-through">{formatPrice(p.comparePrice)}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`text-sm font-medium ${p.stock <= 0 ? 'text-destructive' : ''}`}>{p.stock}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-muted-foreground">{p.category?.name || '—'}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Switch
-                            checked={p.isAvailable}
-                            onCheckedChange={() => handleToggleAvailable(p)}
-                            disabled={togglingId === p.id}
-                            className="data-[state=checked]:bg-emerald-600"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('add-product', { id: p.id })}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+        <div><Label>Description courte</Label><Textarea value={pf.shortDescription || ''} onChange={e => setPf(p => ({ ...p, shortDescription: e.target.value }))} rows={2} /></div>
+        <div><Label>Description longue</Label><Textarea value={pf.longDescription || ''} onChange={e => setPf(p => ({ ...p, longDescription: e.target.value }))} rows={3} /></div>
+        <div><Label>URL de l&apos;image</Label><Input value={pf.image || ''} onChange={e => setPf(p => ({ ...p, image: e.target.value }))} placeholder="https://..." /></div>
+        <div className="flex items-center gap-6">
+          <label className="flex items-center gap-2 text-sm"><Switch checked={pf.isAvailable ?? true} onCheckedChange={v => setPf(p => ({ ...p, isAvailable: v }))} /> Disponible</label>
+          <label className="flex items-center gap-2 text-sm"><Switch checked={pf.isFeatured ?? false} onCheckedChange={v => setPf(p => ({ ...p, isFeatured: v }))} /> Mis en avant</label>
+        </div>
+        <div>
+          <Label>Suppléments</Label>
+          <div className="space-y-2 mt-2">
+            {supps.map((s, i) => (
+              <div key={i} className="flex gap-2">
+                <Input value={s.name} onChange={e => setSupps(prev => prev.map((ss, j) => j === i ? { ...ss, name: e.target.value } : ss))} placeholder="Nom" className="flex-1" />
+                <Input value={s.price} onChange={e => setSupps(prev => prev.map((ss, j) => j === i ? { ...ss, price: e.target.value } : ss))} placeholder="Prix" type="number" className="w-28" />
+                <Button variant="ghost" size="icon" onClick={() => setSupps(prev => prev.filter((_, j) => j !== i))}><X className="h-4 w-4" /></Button>
               </div>
+            ))}
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => setSupps(prev => [...prev, { name: '', price: '' }])}><Plus className="h-3 w-3" /> Ajouter un supplément</Button>
+          </div>
+        </div>
+        <Button className="w-full" onClick={saveProduct} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (data?.id ? 'Enregistrer' : 'Ajouter le produit')}</Button>
+      </CardContent></Card>
+    </div>
+  );
 
-              {/* Mobile cards */}
-              <div className="md:hidden divide-y">
-                {filtered.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 p-4">
-                    <div className="h-12 w-12 rounded-lg bg-muted overflow-hidden shrink-0">
-                      {p.image ? (
-                        <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center">
-                          <Package className="h-5 w-5 text-muted-foreground/40" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {p.category?.name || '—'} · Stock: {p.stock}
-                      </p>
-                      <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">{formatPrice(p.price)}</span>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <Switch
-                        checked={p.isAvailable}
-                        onCheckedChange={() => handleToggleAvailable(p)}
-                        disabled={togglingId === p.id}
-                        className="data-[state=checked]:bg-emerald-600"
-                      />
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('add-product', { id: p.id })}>
-                          <Edit className="h-3 w-3" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(p.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+  const renderOrders = () => (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold">Commandes</h2>
+      {!orders.length ? <Mt m="Aucune commande" /> : (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-left"><tr>
+                <th className="px-4 py-3 font-medium">N°</th><th className="px-4 py-3 font-medium hidden sm:table-cell">Client</th>
+                <th className="px-4 py-3 font-medium">Montant</th><th className="px-4 py-3 font-medium">Statut</th>
+                <th className="px-4 py-3 font-medium hidden md:table-cell">Date</th><th className="px-4 py-3 font-medium">Actions</th>
+              </tr></thead>
+              <tbody className="divide-y">
+                {orders.map((o: any) => (
+                  <tr key={o.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate('order-detail', { id: o.id })}>
+                    <td className="px-4 py-3 font-medium">#{o.orderNumber || o.id.slice(0, 8)}</td>
+                    <td className="px-4 py-3 hidden sm:table-cell">{o.customerName || 'Client'}</td>
+                    <td className="px-4 py-3">{formatPrice(o.total || 0)}</td>
+                    <td className="px-4 py-3"><Badge variant="secondary">{ORDER_STATUS_LABELS[o.status] || o.status}</Badge></td>
+                    <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{o.createdAt ? new Date(o.createdAt).toLocaleDateString('fr-FR') : ''}</td>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      {o.status === 'PENDING' && <Button size="sm" className="gap-1" onClick={() => updateOrderStatus(o.id, 'CONFIRMED')}>Accepter</Button>}
+                      {o.status === 'CONFIRMED' && <Button size="sm" className="gap-1" onClick={() => updateOrderStatus(o.id, 'PREPARING')}>En préparation</Button>}
+                      {o.status === 'PREPARING' && <Button size="sm" className="gap-1" onClick={() => updateOrderStatus(o.id, 'READY')}>Prête</Button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+
+  const renderOrderDetail = () => {
+    const o = orderDet;
+    if (!o.id) return <Mt m="Commande introuvable" />;
+    const stepIdx = M_STEPS.indexOf(o.status);
+    return (
+      <div className="space-y-4 max-w-2xl">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft className="h-5 w-5" /></Button>
+          <h2 className="text-xl font-bold">Commande #{o.orderNumber || o.id.slice(0, 8)}</h2>
+        </div>
+        <Card><CardContent className="p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
+            {o.paymentStatus && <Badge variant="outline">{PAYMENT_STATUS_LABELS[o.paymentStatus] || o.paymentStatus}</Badge>}
+          </div>
+          <div className="flex gap-1">{M_STEPS.map((_, i) => (
+            <div key={i} className="flex-1 h-2 rounded-full transition-colors" style={{ backgroundColor: i <= stepIdx ? '#059669' : '#e5e7eb' }} />
+          ))}</div>
+          <div className="flex justify-between text-[10px] text-muted-foreground">{M_STEP_L.map(l => <span key={l}>{l}</span>)}</div>
+          {o.status === 'PENDING' && <Button onClick={() => updateOrderStatus(o.id, 'CONFIRMED')} className="w-full">Accepter la commande</Button>}
+          {o.status === 'CONFIRMED' && <Button onClick={() => updateOrderStatus(o.id, 'PREPARING')} className="w-full">Passer en préparation</Button>}
+          {o.status === 'PREPARING' && <Button onClick={() => updateOrderStatus(o.id, 'READY')} className="w-full">Marquer comme prête</Button>}
+        </CardContent></Card>
+        <Card><CardHeader className="pb-3"><CardTitle className="text-base">Articles</CardTitle></CardHeader><CardContent>
+          <div className="space-y-2">{(o.items || []).map((it: any, i: number) => (
+            <div key={i} className="flex justify-between text-sm"><span>{it.name} x{it.quantity}</span><span className="font-medium">{formatPrice((it.price || 0) * (it.quantity || 1))}</span></div>
+          ))}</div>
+          <div className="border-t mt-3 pt-3 flex justify-between font-bold">
+            <span>Total</span><span>{formatPrice(o.total || 0)}</span>
+          </div>
+        </CardContent></Card>
+        <Card><CardHeader className="pb-3"><CardTitle className="text-base">Client</CardTitle></CardHeader><CardContent className="space-y-1 text-sm">
+          <p><span className="text-muted-foreground">Nom :</span> {o.customerName || 'N/A'}</p>
+          <p><span className="text-muted-foreground">Téléphone :</span> {o.customerPhone || 'N/A'}</p>
+          <p><span className="text-muted-foreground">Adresse :</span> {o.deliveryAddress || o.address || 'N/A'}</p>
+          {o.paymentMethod && <p><span className="text-muted-foreground">Paiement :</span> {PAYMENT_METHODS[o.paymentMethod] || o.paymentMethod}</p>}
+          {o.notes && <p><span className="text-muted-foreground">Notes :</span> {o.notes}</p>}
+        </CardContent></Card>
+        {o.paymentProof && (
+          <Card><CardHeader className="pb-3"><CardTitle className="text-base">Preuve de paiement</CardTitle></CardHeader><CardContent className="space-y-3">
+            {o.paymentProof.startsWith('data:') ? <img src={o.paymentProof} alt="Preuve" className="max-h-48 rounded-lg border" />
+              : <a href={o.paymentProof} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline text-sm">Voir la preuve</a>}
+            {o.paymentStatus === 'UPLOADED' && (
+              <div className="flex gap-2">
+                <Button size="sm" className="gap-1" onClick={() => handleProof(o.id, 'ACCEPTED')}><CheckCircle2 className="h-4 w-4" /> Accepter</Button>
+                <Button size="sm" variant="destructive" className="gap-1" onClick={() => handleProof(o.id, 'REJECTED')}><X className="h-4 w-4" /> Refuser</Button>
+              </div>
+            )}
+          </CardContent></Card>
+        )}
+      </div>
+    );
+  };
+
+  const renderDeliveryZones = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Zones de livraison</h2>
+        <Button className="gap-1" onClick={() => setDlg('zone')}><Plus className="h-4 w-4" /> Ajouter</Button>
+      </div>
+      {!zones.length ? <Mt m="Aucune zone configurée" /> : (
+        <Card className="overflow-hidden"><div className="overflow-x-auto">
+          <table className="w-full text-sm"><thead className="bg-gray-50 text-left"><tr>
+            <th className="px-4 py-3 font-medium">Ville</th><th className="px-4 py-3 font-medium">Quartier</th>
+            <th className="px-4 py-3 font-medium">Frais</th><th className="px-4 py-3 font-medium">Statut</th>
+          </tr></thead><tbody className="divide-y">
+            {zones.map((z: any) => (
+              <tr key={z.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3">{z.city}</td><td className="px-4 py-3">{z.neighborhood}</td>
+                <td className="px-4 py-3">{formatPrice(z.fee || 0)}</td>
+                <td className="px-4 py-3"><Switch checked={z.isActive ?? true} onCheckedChange={() => toggleZone(z)} /></td>
+              </tr>
+            ))}
+          </tbody></table>
+        </div></Card>
+      )}
+      <Dialog open={dlg === 'zone'} onOpenChange={() => setDlg('')}>
+        <DialogContent><DialogHeader><DialogTitle>Nouvelle zone de livraison</DialogTitle><DialogDescription>Ajouter une zone avec ses frais de livraison</DialogDescription></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label>Ville</Label><Input value={zf.city} onChange={e => setZf(p => ({ ...p, city: e.target.value }))} /></div>
+            <div><Label>Quartier</Label><Input value={zf.neighborhood} onChange={e => setZf(p => ({ ...p, neighborhood: e.target.value }))} /></div>
+            <div><Label>Frais (FCFA)</Label><Input type="number" value={zf.fee} onChange={e => setZf(p => ({ ...p, fee: e.target.value }))} /></div>
+          </div>
+          <DialogFooter><Button onClick={saveZone} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enregistrer'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+
+  const renderPaymentConfig = () => (
+    <div className="space-y-4 max-w-2xl">
+      <h2 className="text-xl font-bold">Moyens de paiement</h2>
+      {!payCfg.length ? <Mt m="Aucune méthode configurée" /> : (
+        <div className="space-y-3">
+          {payCfg.map((m: any, i: number) => (
+            <Card key={i}><CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">{PAYMENT_METHODS[m.method] || m.method}</h3>
+                <Switch checked={m.enabled ?? false} onCheckedChange={v => setPayCfg(prev => prev.map((mm, j) => j === i ? { ...mm, enabled: v } : mm))} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><Label className="text-xs">Numéro de téléphone</Label><Input value={m.phoneNumber || ''} onChange={e => setPayCfg(prev => prev.map((mm, j) => j === i ? { ...mm, phoneNumber: e.target.value } : mm))} placeholder="+223 ..." /></div>
+                <div><Label className="text-xs">Nom du compte</Label><Input value={m.accountName || ''} onChange={e => setPayCfg(prev => prev.map((mm, j) => j === i ? { ...mm, accountName: e.target.value } : mm))} /></div>
+              </div>
+              <div><Label className="text-xs">Instructions</Label><Textarea value={m.instructions || ''} onChange={e => setPayCfg(prev => prev.map((mm, j) => j === i ? { ...mm, instructions: e.target.value } : mm))} rows={2} /></div>
+            </CardContent></Card>
+          ))}
+          <Button className="w-full" onClick={savePayConfig} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enregistrer la configuration'}</Button>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderSubscription = () => (
+    <div className="space-y-4 max-w-lg mx-auto">
+      <h2 className="text-xl font-bold text-center">Abonnement Premium</h2>
+      {isPremium ? (
+        <Card className="border-emerald-200 bg-emerald-50"><CardContent className="p-6 text-center space-y-3">
+          <CheckCircle2 className="h-12 w-12 text-emerald-600 mx-auto" />
+          <h3 className="text-lg font-bold text-emerald-800">Compte Premium actif</h3>
+          <p className="text-sm text-emerald-700">Accès à vie à toutes les fonctionnalités premium.</p>
+          <div className="pt-2 space-y-1 text-sm text-emerald-600">{SUB_FEATURES.map(f => <p key={f}>✅ {f}</p>)}</div>
+        </CardContent></Card>
+      ) : subDone ? (
+        <Card className="border-emerald-200 bg-emerald-50"><CardContent className="p-6 text-center space-y-3">
+          <CheckCircle2 className="h-12 w-12 text-emerald-600 mx-auto" />
+          <h3 className="text-lg font-bold">Demande envoyée</h3>
+          <p className="text-sm text-muted-foreground">Votre preuve de paiement a été envoyée. Vous serez notifié après validation.</p>
+        </CardContent></Card>
+      ) : (
+        <Card><CardContent className="p-6 space-y-4">
+          <div className="text-center">
+            <Crown className="h-10 w-10 text-yellow-500 mx-auto mb-2" />
+            <h3 className="text-lg font-bold">Rapigo Mali Premium</h3>
+            <p className="text-2xl font-bold text-emerald-700 mt-1">4 000 FCFA</p>
+            <Badge variant="secondary" className="mt-1">À VIE</Badge>
+          </div>
+          <div className="space-y-1 text-sm">{SUB_FEATURES.map(f => <p key={f} className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> {f}</p>)}</div>
+          <div className="border-t pt-4">
+            {!subMethod ? (<>
+              <Label className="mb-2 block">Choisissez votre moyen de paiement</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {SUB_METHODS.map(m => (
+                  <Button key={m} variant="outline" className="justify-start" onClick={() => setSubMethod(m)}>{PAYMENT_METHODS[m]}</Button>
                 ))}
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 4. ADD / EDIT PRODUCT
-// ═══════════════════════════════════════════════════════════════════════════
-
-function AddProductView() {
-  const { data, goBack, navigate } = useMerchantNav();
-  const editId = data?.id;
-  const isEdit = !!editId;
-
-  const [loading, setLoading] = useState(isEdit);
-  const [saving, setSaving] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
-
-  const [form, setForm] = useState({
-    name: '', description: '', price: '',
-    comparePrice: '', stock: '', categoryId: '', preparationTime: '',
-    tags: '', brand: '', origin: '', image: '',
-    isAvailable: true, isFeatured: false,
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data: cats } = await apiFetch<Category[]>('/api/categories');
-      if (!cancelled && cats) setCategories(cats);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    if (!editId) return;
-    let cancelled = false;
-    (async () => {
-      const { data } = await apiFetch<Product>(`/api/products/${editId}`);
-      if (!cancelled && data) {
-        let tagsStr = '';
-        try { const t = JSON.parse(data.tags || '[]'); tagsStr = t.join(', '); } catch { /* ignore */ }
-        setForm({
-          name: data.name || '',
-          description: data.longDescription || data.shortDescription || '',
-          price: String(data.price || ''),
-          comparePrice: data.comparePrice ? String(data.comparePrice) : '',
-          stock: String(data.stock ?? ''),
-          categoryId: data.categoryId || '',
-          preparationTime: data.preparationTime ? String(data.preparationTime) : '',
-          tags: tagsStr,
-          brand: data.brand || '',
-          origin: data.origin || '',
-          image: data.image || '',
-          isAvailable: data.isAvailable,
-          isFeatured: data.isFeatured,
-        });
-        setLoading(false);
-      }
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [editId]);
-
-  const setField = (key: string, val: string | boolean) =>
-    setForm((prev) => ({ ...prev, [key]: val }));
-
-  const handleSave = async () => {
-    if (!form.name || !form.price) {
-      toast.error('Nom et prix requis');
-      return;
-    }
-    setSaving(true);
-    const tagsArr = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
-
-    const body: Record<string, unknown> = {
-      name: form.name,
-      shortDescription: form.description ? form.description.slice(0, 120) : null,
-      longDescription: form.description || null,
-      price: parseInt(form.price) || 0,
-      comparePrice: form.comparePrice ? parseInt(form.comparePrice) : null,
-      stock: parseInt(form.stock) || 0,
-      categoryId: form.categoryId || null,
-      isAvailable: form.isAvailable,
-      isFeatured: form.isFeatured,
-      preparationTime: form.preparationTime ? parseInt(form.preparationTime) : null,
-      brand: form.brand || null,
-      origin: form.origin || null,
-      tags: tagsArr.length ? tagsArr : null,
-      image: form.image || null,
-    };
-
-    const { error } = isEdit
-      ? await apiFetch(`/api/products/${editId}`, { method: 'PUT', body: JSON.stringify(body) })
-      : await apiFetch('/api/products', { method: 'POST', body: JSON.stringify(body) });
-
-    if (error) { toast.error(error); setSaving(false); return; }
-    toast.success(isEdit ? 'Produit mis à jour' : 'Produit ajouté');
-    navigate('products');
-  };
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-2 gap-4">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-      </div>
-    );
-  }
-
-  const fieldClass = 'flex flex-col gap-1.5';
-
-  return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft className="h-5 w-5" /></Button>
-        <h2 className="text-xl font-bold">{isEdit ? 'Modifier le produit' : 'Ajouter un produit'}</h2>
-      </div>
-
-      <Card>
-        <CardContent className="p-6 space-y-5">
-          {/* Image URL */}
-          <div className={fieldClass}>
-            <Label>URL de l&apos;image</Label>
-            <div className="flex gap-2">
-              <Input
-                value={form.image}
-                onChange={(e) => setField('image', e.target.value)}
-                placeholder="https://exemple.com/image.jpg"
-                className="flex-1"
-              />
-              {form.image && (
-                <div className="h-10 w-10 rounded-lg overflow-hidden border shrink-0">
-                  <img src={form.image} alt="Aperçu" className="h-full w-full object-cover" />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className={fieldClass}>
-              <Label>Nom du produit *</Label>
-              <Input value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="Ex: Poulet braisé" />
-            </div>
-            <div className={fieldClass}>
-              <Label>Catégorie</Label>
-              <Select value={form.categoryId} onValueChange={(v) => setField('categoryId', v)}>
-                <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className={fieldClass}>
-              <Label>Prix (FCFA) *</Label>
-              <Input type="number" value={form.price} onChange={(e) => setField('price', e.target.value)} placeholder="0" />
-            </div>
-            <div className={fieldClass}>
-              <Label>Prix barré (FCFA)</Label>
-              <Input type="number" value={form.comparePrice} onChange={(e) => setField('comparePrice', e.target.value)} placeholder="Optionnel" />
-            </div>
-            <div className={fieldClass}>
-              <Label>Stock</Label>
-              <Input type="number" value={form.stock} onChange={(e) => setField('stock', e.target.value)} placeholder="0" />
-            </div>
-            <div className={fieldClass}>
-              <Label>Temps de préparation (min)</Label>
-              <Input type="number" value={form.preparationTime} onChange={(e) => setField('preparationTime', e.target.value)} placeholder="30" />
-            </div>
-            <div className={fieldClass}>
-              <Label>Marque</Label>
-              <Input value={form.brand} onChange={(e) => setField('brand', e.target.value)} placeholder="Ex: Malibya" />
-            </div>
-            <div className={fieldClass}>
-              <Label>Origine</Label>
-              <Input value={form.origin} onChange={(e) => setField('origin', e.target.value)} placeholder="Ex: Mali" />
-            </div>
-          </div>
-
-          <div className={fieldClass}>
-            <Label>Description</Label>
-            <Textarea rows={3} value={form.description} onChange={(e) => setField('description', e.target.value)} placeholder="Description détaillée du produit..." />
-          </div>
-
-          <div className={fieldClass}>
-            <Label>Tags (séparés par des virgules)</Label>
-            <Input value={form.tags} onChange={(e) => setField('tags', e.target.value)} placeholder="populaire, promo, nouveau" />
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Switch checked={form.isAvailable} onCheckedChange={(v) => setField('isAvailable', v)} className="data-[state=checked]:bg-emerald-600" />
-              <Label>Disponible</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={form.isFeatured} onCheckedChange={(v) => setField('isFeatured', v)} className="data-[state=checked]:bg-emerald-600" />
-              <Label>En vedette</Label>
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="p-6 pt-0 flex gap-3">
-          <Button variant="outline" onClick={goBack}>Annuler</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {isEdit ? 'Mettre à jour' : 'Créer le produit'}
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 5. ORDERS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function OrdersView() {
-  const { navigate } = useMerchantNav();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('Toutes');
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  const [ordersKey, setOrdersKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    const statusParam = activeTab !== 'Toutes' ? activeTab : undefined;
-    (async () => {
-      setLoading(true);
-      const q = statusParam ? `?status=${statusParam}` : '';
-      const { data } = await apiFetch<{ orders: Order[] }>(`/api/orders${q}`);
-      if (!cancelled) {
-        if (data) setOrders(data.orders || []);
-        setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [activeTab, ordersKey]);
-
-  const updateOrderStatus = async (orderId: string, status: string) => {
-    setUpdatingId(orderId);
-    const { error } = await apiFetch(`/api/orders/${orderId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
-    });
-    if (error) { toast.error(error); }
-    else {
-      const label = ORDER_STATUS_LABELS[status] || status;
-      toast.success(`Commande passée à : ${label}`);
-      setOrdersKey((k) => k + 1);
-    }
-    setUpdatingId(null);
-  };
-
-  const tabs = [
-    { label: 'Toutes', value: 'Toutes' },
-    { label: 'En attente', value: 'PENDING' },
-    { label: 'Confirmées', value: 'CONFIRMED' },
-    { label: 'En préparation', value: 'PREPARING' },
-    { label: 'Prêtes', value: 'READY' },
-    { label: 'Livrées', value: 'DELIVERED' },
-    { label: 'Annulées', value: 'CANCELLED' },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="overflow-x-auto -mx-1 px-1">
-          <TabsList className="w-full justify-start min-w-max">
-            {tabs.map((t) => (
-              <TabsTrigger key={t.label} value={t.value}>{t.label}</TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-
-        <TabsContent value={activeTab} className="mt-4">
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
-            </div>
-          ) : !orders.length ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <ShoppingBag className="h-12 w-12 text-muted-foreground mb-3" />
-                <p className="text-lg font-medium">Aucune commande</p>
-                <p className="text-muted-foreground text-sm mt-1">Les commandes apparaîtront ici</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-              {orders.map((order) => {
-                const canAccept = order.status === 'PENDING';
-                const canPrepare = order.status === 'CONFIRMED';
-                const canReady = order.status === 'PREPARING';
-
-                return (
-                  <Card
-                    key={order.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => navigate('order-detail', { id: order.id })}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-sm">{order.orderNumber}</p>
-                            <StatusBadge status={order.status} />
-                            {order.paymentMethod !== 'CASH' && <PaymentBadge status={order.paymentStatus} />}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {order.client?.user ? `${order.client.user.firstName} ${order.client.user.lastName}` : 'Client'}
-                            {' · '}{order.items?.length || 0} article(s) · {formatDate(order.createdAt)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <p className="font-bold text-emerald-700 dark:text-emerald-400">{formatPrice(order.total)}</p>
-                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                            {canAccept && (
-                              <Button
-                                size="sm"
-                                onClick={() => updateOrderStatus(order.id, 'CONFIRMED')}
-                                disabled={updatingId === order.id}
-                                className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]"
-                              >
-                                {updatingId === order.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                                Accepter
-                              </Button>
-                            )}
-                            {canPrepare && (
-                              <Button
-                                size="sm"
-                                onClick={() => updateOrderStatus(order.id, 'PREPARING')}
-                                disabled={updatingId === order.id}
-                                className="bg-orange-600 hover:bg-orange-700 min-h-[44px]"
-                              >
-                                {updatingId === order.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                                Préparation
-                              </Button>
-                            )}
-                            {canReady && (
-                              <Button
-                                size="sm"
-                                onClick={() => updateOrderStatus(order.id, 'READY')}
-                                disabled={updatingId === order.id}
-                                className="bg-teal-600 hover:bg-teal-700 min-h-[44px]"
-                              >
-                                {updatingId === order.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                                Prêt
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 6. ORDER DETAIL
-// ═══════════════════════════════════════════════════════════════════════════
-
-const STATUS_FLOW = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'];
-
-function OrderDetailView() {
-  const { data, goBack } = useMerchantNav();
-  const orderId = data?.id;
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    if (!orderId) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data } = await apiFetch<Order>(`/api/orders/${orderId}`);
-      if (!cancelled && data) setOrder(data);
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [orderId, refreshKey]);
-
-  const updateStatus = async (status: string, extra?: Record<string, unknown>) => {
-    if (!orderId) return;
-    setUpdating(true);
-    const body: Record<string, unknown> = { status, ...extra };
-    const { error } = await apiFetch(`/api/orders/${orderId}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    });
-    if (error) { toast.error(error); setUpdating(false); return; }
-    toast.success('Statut mis à jour');
-    setRefreshKey((k) => k + 1);
-    setUpdating(false);
-  };
-
-  const handleCancel = async () => {
-    if (!cancelReason.trim()) { toast.error('Veuillez indiquer une raison'); return; }
-    await updateStatus('CANCELLED', { cancelReason });
-    setCancelOpen(false);
-    setCancelReason('');
-  };
-
-  const handleAcceptPayment = async () => {
-    if (!orderId) return;
-    setUpdating(true);
-    const { error } = await apiFetch(`/api/orders/${orderId}/payment-proof`, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'ACCEPT' }),
-    });
-    if (error) { toast.error(error); setUpdating(false); return; }
-    toast.success('Paiement accepté et commande confirmée');
-    setRefreshKey((k) => k + 1);
-    setUpdating(false);
-  };
-
-  const handleRejectPayment = async () => {
-    if (!rejectReason.trim()) { toast.error('Veuillez indiquer une raison'); return; }
-    if (!orderId) return;
-    setUpdating(true);
-    const { error } = await apiFetch(`/api/orders/${orderId}/payment-proof`, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'REJECT', reason: rejectReason }),
-    });
-    if (error) { toast.error(error); setUpdating(false); return; }
-    toast.success('Paiement refusé');
-    setRejectOpen(false);
-    setRejectReason('');
-    setRefreshKey((k) => k + 1);
-    setUpdating(false);
-  };
-
-  if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-60 w-full" />
-      </div>
-    );
-  }
-
-  if (!order) {
-    return (
-      <div className="max-w-3xl mx-auto text-center py-16">
-        <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-        <p>Commande non trouvée</p>
-        <Button variant="outline" onClick={goBack} className="mt-4">Retour</Button>
-      </div>
-    );
-  }
-
-  const canConfirm = ['PENDING', 'PAYMENT_PENDING'].includes(order.status);
-  const canPrepare = order.status === 'CONFIRMED';
-  const canReady = order.status === 'PREPARING';
-  const canCancel = ['PENDING', 'PAYMENT_PENDING'].includes(order.status);
-  const showPaymentProof = order.paymentMethod !== 'CASH' && ['PENDING', 'UPLOADED'].includes(order.paymentStatus);
-  const currentStatusIdx = STATUS_FLOW.indexOf(order.status);
-
-  return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft className="h-5 w-5" /></Button>
-        <div>
-          <h2 className="text-xl font-bold">{order.orderNumber}</h2>
-          <p className="text-sm text-muted-foreground">{formatDate(order.createdAt)}</p>
-        </div>
-      </div>
-
-      {/* Status timeline */}
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-lg">Statut de la commande</CardTitle></CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 flex-wrap mb-4">
-            <StatusBadge status={order.status} />
-            <span className="text-sm text-muted-foreground">Paiement :</span>
-            <PaymentBadge status={order.paymentStatus} />
-            <span className="text-sm text-muted-foreground">({PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod})</span>
-          </div>
-
-          {/* Timeline bar */}
-          <div className="relative flex items-center justify-between mb-6 px-2">
-            {STATUS_FLOW.filter((s) => s !== 'CANCELLED' && s !== 'REFUNDED').map((s, idx) => {
-              const isActive = idx <= currentStatusIdx;
-              const isCurrent = s === order.status;
-              return (
-                <React.Fragment key={s}>
-                  {idx > 0 && (
-                    <div className={`flex-1 h-0.5 ${idx <= currentStatusIdx ? 'bg-emerald-500' : 'bg-muted'}`} />
-                  )}
-                  <div className="flex flex-col items-center gap-1 z-10">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      isCurrent ? 'bg-emerald-600 text-white ring-2 ring-emerald-200 dark:ring-emerald-800' :
-                      isActive ? 'bg-emerald-500 text-white' :
-                      'bg-muted text-muted-foreground'
-                    }`}>
-                      {isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : idx + 1}
-                    </div>
-                    <span className={`text-[9px] sm:text-[10px] text-center max-w-14 leading-tight ${
-                      isCurrent ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'
-                    }`}>
-                      {ORDER_STATUS_LABELS[s]}
-                    </span>
-                  </div>
-                </React.Fragment>
-              );
-            })}
-          </div>
-
-          {/* Payment proof */}
-          {showPaymentProof && order.paymentProof && (
-            <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/10 space-y-3">
-              <p className="font-medium text-sm">Preuve de paiement {order.paymentNote && `- ${order.paymentNote}`}</p>
-              <img src={order.paymentProof} alt="Preuve de paiement" className="max-h-48 rounded-lg border" />
-              {order.paymentStatus === 'UPLOADED' && (
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleAcceptPayment} disabled={updating} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
-                    <CheckCircle2 className="h-4 w-4 mr-1" /> Accepter
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)} disabled={updating} className="min-h-[44px]">
-                    <XCircle className="h-4 w-4 mr-1" /> Refuser
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Status actions */}
-          <div className="flex flex-wrap gap-2 pt-2">
-            {canConfirm && (
-              <Button onClick={() => updateStatus('CONFIRMED')} disabled={updating} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
-                {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <CheckCircle2 className="h-4 w-4 mr-1" /> Confirmer
-              </Button>
-            )}
-            {canPrepare && (
-              <Button onClick={() => updateStatus('PREPARING')} disabled={updating} className="bg-orange-600 hover:bg-orange-700 min-h-[44px]">
-                {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Commencer préparation
-              </Button>
-            )}
-            {canReady && (
-              <Button onClick={() => updateStatus('READY')} disabled={updating} className="bg-teal-600 hover:bg-teal-700 min-h-[44px]">
-                {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Marquer prête
-              </Button>
-            )}
-            {canCancel && (
-              <Button variant="destructive" onClick={() => setCancelOpen(true)} disabled={updating} className="min-h-[44px]">
-                <XCircle className="h-4 w-4 mr-1" /> Annuler
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Items */}
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-lg">Articles</CardTitle></CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {order.items?.map((item) => (
-              <div key={item.id} className="flex items-center gap-3">
-                {item.productImage ? (
-                  <img src={item.productImage} alt={item.productName} className="h-12 w-12 rounded-lg object-cover" />
-                ) : (
-                  <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center"><Package className="h-5 w-5 text-muted-foreground" /></div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{item.productName}</p>
-                  <p className="text-xs text-muted-foreground">{item.quantity} x {formatPrice(item.unitPrice)}</p>
-                </div>
-                <span className="font-semibold text-sm">{formatPrice(item.totalPrice)}</span>
+            </>) : (<>
+              <div className="bg-emerald-50 rounded-lg p-4 text-center space-y-2">
+                <p className="text-sm font-medium">Envoyez <strong>4 000 FCFA</strong> via <strong>{PAYMENT_METHODS[subMethod]}</strong></p>
+                <p className="text-xs text-muted-foreground">puis téléchargez la capture d&apos;écran de votre paiement ci-dessous.</p>
               </div>
-            ))}
-          </div>
-          <Separator className="my-3" />
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Sous-total</span><span>{formatPrice(order.subtotal)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Livraison</span><span>{formatPrice(order.deliveryFee)}</span></div>
-            {order.serviceFee > 0 && (
-              <div className="flex justify-between"><span className="text-muted-foreground">Frais de service</span><span>{formatPrice(order.serviceFee)}</span></div>
-            )}
-            {order.discount > 0 && (
-              <div className="flex justify-between text-emerald-600"><span>Remise</span><span>-{formatPrice(order.discount)}</span></div>
-            )}
-            <Separator />
-            <div className="flex justify-between font-bold text-base"><span>Total</span><span className="text-emerald-700 dark:text-emerald-400">{formatPrice(order.total)}</span></div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Client & Delivery info */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-lg">Client</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {order.client?.user && (
-              <>
-                <p className="font-medium">{order.client.user.firstName} {order.client.user.lastName}</p>
-                <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> {order.client.user.phone}</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-lg">Livraison</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p className="font-medium">{order.deliveryAddress}</p>
-            <p className="text-muted-foreground">{order.deliveryCity}{order.deliveryQuartier ? ` · ${order.deliveryQuartier}` : ''}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {order.notes && (
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm font-medium mb-1">Notes du client</p>
-            <p className="text-sm text-muted-foreground">{order.notes}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Cancel Dialog */}
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Annuler la commande</DialogTitle>
-            <DialogDescription>Veuillez indiquer la raison de l&apos;annulation</DialogDescription>
-          </DialogHeader>
-          <Textarea rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Raison de l'annulation..." />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelOpen(false)}>Retour</Button>
-            <Button variant="destructive" onClick={handleCancel} disabled={updating}>
-              {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Confirmer l&apos;annulation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject Payment Dialog */}
-      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Refuser le paiement</DialogTitle>
-            <DialogDescription>Veuillez indiquer la raison du refus</DialogDescription>
-          </DialogHeader>
-          <Textarea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Raison du refus..." />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectOpen(false)}>Retour</Button>
-            <Button variant="destructive" onClick={handleRejectPayment} disabled={updating}>
-              {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Refuser le paiement
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 7. STATS (with charts)
-// ═══════════════════════════════════════════════════════════════════════════
-
-const PIE_COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6', '#64748b'];
-
-const revenueChartConfig = {
-  revenue: { label: 'Revenus (FCFA)', color: '#10b981' },
-  orders: { label: 'Commandes', color: '#3b82f6' },
-};
-
-function StatsView() {
-  const [stats, setStats] = useState<MerchantStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('7');
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data } = await apiFetch<MerchantStats>(`/api/stats/merchant?period=${period}`);
-      if (!cancelled) {
-        if (data) setStats(data);
-        setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [period]);
-
-  const statusData = (stats?.ordersByStatus || []).map((s) => ({
-    name: ORDER_STATUS_LABELS[s.status] || s.status,
-    value: s._count,
-  }));
-
-  // Build daily data from recentOrders if dailyRevenue not provided
-  const dailyData = (stats?.dailyRevenue || []).length > 0
-    ? stats.dailyRevenue.map((d) => ({
-        date: formatDateShort(d.date),
-        revenus: d.revenue,
-        commandes: d.orders,
-      }))
-    : (() => {
-        // Group recent orders by date
-        const dayMap: Record<string, { revenue: number; orders: number }> = {};
-        (stats?.recentOrders || []).forEach((o) => {
-          const day = formatDateShort(o.createdAt);
-          if (!dayMap[day]) dayMap[day] = { revenue: 0, orders: 0 };
-          dayMap[day].revenue += o.total;
-          dayMap[day].orders += 1;
-        });
-        return Object.entries(dayMap).map(([date, v]) => ({ date, revenus: v.revenue, commandes: v.orders }));
-      })();
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => <Card key={i}><CardContent className="p-4"><Skeleton className="h-20 w-full" /></CardContent></Card>)}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card><CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
-          <Card><CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h2 className="text-xl font-bold">Statistiques</h2>
-        <Tabs value={period} onValueChange={setPeriod}>
-          <TabsList>
-            <TabsTrigger value="7">7 jours</TabsTrigger>
-            <TabsTrigger value="30">30 jours</TabsTrigger>
-            <TabsTrigger value="90">90 jours</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {/* Key metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
-          <Card><CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Revenus totaux</p>
-            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{formatPrice(stats?.totalRevenue ?? 0)}</p>
-          </CardContent></Card>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-          <Card><CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Commandes</p>
-            <p className="text-2xl font-bold">{stats?.totalOrders ?? 0}</p>
-          </CardContent></Card>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card><CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Produits actifs</p>
-            <p className="text-2xl font-bold">{stats?.totalProducts ?? 0}</p>
-          </CardContent></Card>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <Card><CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Note moyenne</p>
-            <p className="text-2xl font-bold">{stats?.rating ? `${stats.rating.toFixed(1)}/5` : 'N/A'}</p>
-          </CardContent></Card>
-        </motion.div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Revenue bar chart */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Revenus par jour</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!dailyData.length ? (
-              <p className="text-center text-muted-foreground py-12">Aucune donnée pour cette période</p>
-            ) : (
-              <ChartContainer config={revenueChartConfig} className="h-72 w-full">
-                <BarChart data={dailyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-muted-foreground" />
-                  <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="revenus" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Pie chart */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Commandes par statut</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!statusData.length ? (
-              <p className="text-center text-muted-foreground py-12">Aucune donnée</p>
-            ) : (
-              <ChartContainer config={Object.fromEntries(statusData.map((s, i) => [s.name, { label: s.name, color: PIE_COLORS[i % PIE_COLORS.length] }]))} className="h-72 w-full">
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    dataKey="value"
-                    paddingAngle={2}
-                  >
-                    {statusData.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RTooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const item = payload[0];
-                      return (
-                        <div className="rounded-lg border bg-background px-3 py-2 shadow-lg text-xs">
-                          <p className="font-medium">{item.name}</p>
-                          <p className="text-muted-foreground">{item.value} commande(s)</p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <ChartLegend content={<ChartLegendContent />} />
-                </PieChart>
-              </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 8. SUBSCRIPTION
-// ═══════════════════════════════════════════════════════════════════════════
-
-function SubscriptionView({ merchant }: { merchant: MerchantProfile }) {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await apiFetch<Plan[]>('/api/plans');
-      if (!cancelled && data) setPlans(data);
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const currentSub = merchant.subscriptions?.[0];
-  const currentPlan = currentSub?.plan;
-
-  if (loading) {
-    return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-72 w-full" />)}</div>;
-  }
-
-  let features: string[] = [];
-  try { features = currentPlan?.features ? JSON.parse(currentPlan.features) : []; } catch { /* ignore */ }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold">Abonnement</h2>
-        <p className="text-sm text-muted-foreground">Gérez votre abonnement et accédez aux fonctionnalités premium.</p>
-      </div>
-
-      {/* Current plan */}
-      {currentSub && currentPlan && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <Card className="border-emerald-500">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Plan actuel</p>
-                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{currentPlan.name}</p>
-                  {features.length > 0 && (
-                    <ul className="mt-2 space-y-1">
-                      {features.map((f, i) => (
-                        <li key={i} className="text-xs text-muted-foreground flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> {f}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold">{formatPrice(currentPlan.price)}</p>
-                  <p className="text-xs text-muted-foreground">/ {currentPlan.duration} jours</p>
-                  <Badge variant="secondary" className="mt-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                    Actif
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Premium offer */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.1 }}
-      >
-        <Card className="border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-          <CardContent className="p-6 relative">
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-emerald-600 text-white shrink-0">
-                <Zap className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-emerald-800 dark:text-emerald-300">Accès Premium à vie</h3>
-                <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">4 000 FCFA <span className="text-sm font-normal text-muted-foreground">seulement</span></p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Accédez à toutes les fonctionnalités premium pour toujours : produits illimités, commandes illimitées, priorité de livraison, badge vedette, statistiques avancées.
-                </p>
-
-                <Separator className="my-4" />
-
-                <div>
-                  <p className="text-sm font-medium mb-2">Instructions de paiement :</p>
-                  <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                    <li>Envoyez <strong>4 000 FCFA</strong> via Orange Money ou Wave</li>
-                    <li>Envoyez la capture d&apos;écran de la preuve de paiement au support</li>
-                    <li>Votre compte sera mis à jour sous 24h</li>
-                  </ol>
-                </div>
-
-                <div className="mt-4">
-                  <SupportContact variant="compact" />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* All plans */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {plans.map((plan) => {
-          const isCurrent = currentPlan?.id === plan.id;
-          let planFeatures: string[] = [];
-          try { planFeatures = plan.features ? JSON.parse(plan.features) : []; } catch { /* ignore */ }
-
-          return (
-            <Card key={plan.id} className={isCurrent ? 'border-emerald-500' : ''}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">{plan.name}</CardTitle>
-                <CardDescription>{plan.duration} jours</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <span className="text-3xl font-bold">{formatPrice(plan.price)}</span>
-                  <span className="text-muted-foreground text-sm"> / {plan.duration}j</span>
-                </div>
-                {planFeatures.length > 0 && (
-                  <ul className="space-y-1">
-                    {planFeatures.map((f, i) => (
-                      <li key={i} className="text-sm text-muted-foreground flex items-center gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> {f}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {plan.maxProducts && <p className="text-xs text-muted-foreground">Max {plan.maxProducts} produits</p>}
-                {plan.maxCoupons && <p className="text-xs text-muted-foreground">Max {plan.maxCoupons} coupons</p>}
-                <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
-                  disabled={isCurrent}
-                  onClick={() => toast.info('Le paiement d\'abonnement sera bientôt disponible')}
-                >
-                  {isCurrent ? 'Plan actuel' : 'Choisir ce plan'}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 9. PAYMENT CONFIG
-// ═══════════════════════════════════════════════════════════════════════════
-
-function PaymentMethodCard({
-  method, label, needsPhone, config, saving, onSave,
-}: {
-  method: string;
-  label: string;
-  needsPhone: boolean;
-  config: PaymentConfig | undefined;
-  saving: boolean;
-  onSave: (method: string, body: Record<string, unknown>) => void;
-}) {
-  const isEnabled = config?.isEnabled ?? false;
-  const [phone, setPhone] = useState(config?.phoneNumber || '');
-  const [accountName, setAccountName] = useState(config?.accountName || '');
-  const [accountNumber, setAccountNumber] = useState(config?.accountNumber || '');
-  const [instructions, setInstructions] = useState(config?.instructions || '');
-
-  const handleToggle = () => {
-    onSave(method, { isEnabled: !isEnabled, phoneNumber: needsPhone ? phone : undefined, accountName, accountNumber, instructions });
-  };
-
-  const handleSave = () => {
-    onSave(method, { isEnabled: true, phoneNumber: needsPhone ? phone : undefined, accountName, accountNumber, instructions });
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{label}</CardTitle>
-          <Switch
-            checked={isEnabled}
-            onCheckedChange={handleToggle}
-            disabled={saving}
-            className="data-[state=checked]:bg-emerald-600"
-          />
-        </div>
-      </CardHeader>
-      {isEnabled && (
-        <CardContent className="pt-0 space-y-3">
-          {needsPhone && (
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm">Numéro de téléphone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+223 XX XX XX XX" />
-            </div>
-          )}
-          {!needsPhone && method !== 'CASH' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm">Nom du titulaire</Label>
-                <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm">Numéro de compte</Label>
-                <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
-              </div>
-            </div>
-          )}
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-sm">Instructions pour le client</Label>
-            <Textarea rows={2} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Instructions de paiement..." />
-          </div>
-          <Button size="sm" onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Sauvegarder
-          </Button>
-        </CardContent>
-      )}
-    </Card>
-  );
-}
-
-function PaymentConfigView({ merchant }: { merchant: MerchantProfile }) {
-  const [configs, setConfigs] = useState<PaymentConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-
-  const METHODS = [
-    { value: 'CASH', label: 'Cash', needsPhone: false },
-    { value: 'ORANGE_MONEY', label: 'Orange Money', needsPhone: true },
-    { value: 'MOOV_MONEY', label: 'Moov Money', needsPhone: true },
-    { value: 'WAVE', label: 'Wave', needsPhone: true },
-    { value: 'VISA', label: 'Visa', needsPhone: false },
-    { value: 'MASTERCARD', label: 'Mastercard', needsPhone: false },
-    { value: 'QR_CODE', label: 'QR Code', needsPhone: false },
-  ];
-
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data } = await apiFetch<PaymentConfig[]>(`/api/merchants/${merchant.id}/payment-config`);
-      if (!cancelled && data) setConfigs(data);
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [merchant.id, refreshKey]);
-
-  const getConfig = (method: string) => configs.find((c) => c.method === method);
-
-  const saveConfig = async (method: string, body: Record<string, unknown>) => {
-    setSaving(method);
-    const { error } = await apiFetch(`/api/merchants/${merchant.id}/payment-config`, {
-      method: 'POST',
-      body: JSON.stringify({ method, ...body }),
-    });
-    if (error) { toast.error(error); }
-    else { toast.success('Configuration sauvegardée'); setRefreshKey((k) => k + 1); }
-    setSaving(null);
-  };
-
-  if (loading) {
-    return <div className="space-y-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-40 w-full" />)}</div>;
-  }
-
-  return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <h2 className="text-xl font-bold">Configuration des paiements</h2>
-      <p className="text-sm text-muted-foreground">Configurez les méthodes de paiement acceptées par votre boutique.</p>
-
-      {METHODS.map((m) => (
-        <PaymentMethodCard
-          key={`${m.value}-${getConfig(m.value)?.id || 'new'}`}
-          method={m.value}
-          label={m.label}
-          needsPhone={m.needsPhone}
-          config={getConfig(m.value)}
-          saving={saving === m.value}
-          onSave={saveConfig}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 10. DELIVERY ZONES
-// ═══════════════════════════════════════════════════════════════════════════
-
-function DeliveryZonesView({ merchant }: { merchant: MerchantProfile }) {
-  const [zones, setZones] = useState<DeliveryZone[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [city, setCity] = useState('Bamako');
-  const [quartier, setQuartier] = useState('');
-  const [fee, setFee] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data } = await apiFetch<DeliveryZone[]>(`/api/merchants/${merchant.id}/delivery-zones`);
-      if (!cancelled && data) setZones(data);
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [merchant.id, refreshKey]);
-
-  const handleAdd = async () => {
-    if (!fee) { toast.error('Les frais de livraison sont requis'); return; }
-    setSaving(true);
-    const { error } = await apiFetch(`/api/merchants/${merchant.id}/delivery-zones`, {
-      method: 'POST',
-      body: JSON.stringify({ city, quartier: quartier || null, fee: parseInt(fee) || 0 }),
-    });
-    if (error) { toast.error(error); }
-    else { toast.success('Zone ajoutée'); setQuartier(''); setFee(''); setRefreshKey((k) => k + 1); }
-    setSaving(false);
-  };
-
-  const handleDelete = async (zoneId: string) => {
-    if (!confirm('Supprimer cette zone ?')) return;
-    const { error } = await apiFetch(`/api/merchants/${merchant.id}/delivery-zones?zoneId=${zoneId}`, { method: 'DELETE' });
-    if (error) { toast.error(error); return; }
-    toast.success('Zone supprimée');
-    setRefreshKey((k) => k + 1);
-  };
-
-  return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <h2 className="text-xl font-bold">Zones de livraison</h2>
-      <p className="text-sm text-muted-foreground">Définissez les zones et frais de livraison.</p>
-
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Ajouter une zone</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm">Ville</Label>
-              <Select value={city} onValueChange={setCity}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Bamako">Bamako</SelectItem>
-                  <SelectItem value="Kayes">Kayes</SelectItem>
-                  <SelectItem value="Sikasso">Sikasso</SelectItem>
-                  <SelectItem value="Ségou">Ségou</SelectItem>
-                  <SelectItem value="Mopti">Mopti</SelectItem>
-                  <SelectItem value="Gao">Gao</SelectItem>
-                  <SelectItem value="Tombouctou">Tombouctou</SelectItem>
-                  <SelectItem value="Koulikoro">Koulikoro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm">Quartier</Label>
-              <Input value={quartier} onChange={(e) => setQuartier(e.target.value)} placeholder="Optionnel" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm">Frais (FCFA)</Label>
+              <input type="file" accept="image/*" className="hidden" ref={proofRef} onChange={e => readFile(e, setSubProof)} />
+              {subProof ? <div className="relative"><img src={subProof} alt="Preuve" className="max-h-40 rounded-lg border" />
+                <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6" onClick={() => setSubProof('')}><X className="h-3 w-3" /></Button></div>
+                : <Button variant="outline" className="w-full gap-2" onClick={() => proofRef.current?.click()}><Upload className="h-4 w-4" /> Télécharger la preuve</Button>}
               <div className="flex gap-2">
-                <Input type="number" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="0" />
-                <Button onClick={handleAdd} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 shrink-0 min-h-[44px] min-w-[44px]">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+                <Button variant="outline" className="flex-1" onClick={() => { setSubMethod(''); setSubProof(''); }}>Retour</Button>
+                <Button className="flex-1" disabled={!subProof || saving} onClick={submitSub}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-4 w-4" /> Envoyer</>}
                 </Button>
               </div>
-            </div>
+            </>)}
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4">
-          {loading ? (
-            <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-          ) : !zones.length ? (
-            <p className="text-center text-muted-foreground py-8">Aucune zone configurée</p>
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {zones.map((z) => (
-                <div key={z.id} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div>
-                    <p className="font-medium text-sm">{z.city}{z.quartier ? ` · ${z.quartier}` : ''}</p>
-                    <p className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold">{formatPrice(z.fee)}</p>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(z.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </CardContent></Card>
+      )}
     </div>
   );
-}
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 11. COUPONS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function CouponsView() {
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', endDate: '',
-  });
-
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data } = await apiFetch<Coupon[]>('/api/coupons');
-      if (!cancelled && data) setCoupons(data);
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [refreshKey]);
-
-  const setField = (key: string, val: string) =>
-    setForm((prev) => ({ ...prev, [key]: val }));
-
-  const handleCreate = async () => {
-    if (!form.code || !form.value || !form.endDate) {
-      toast.error('Code, valeur et date de fin requis');
-      return;
-    }
-    setSaving(true);
-    const { error } = await apiFetch('/api/coupons', {
-      method: 'POST',
-      body: JSON.stringify({
-        code: form.code,
-        type: form.type,
-        value: parseFloat(form.value) || 0,
-        minOrder: parseInt(form.minOrder) || 0,
-        maxUses: form.maxUses ? parseInt(form.maxUses) : null,
-        endDate: form.endDate,
-      }),
-    });
-    if (error) { toast.error(error); }
-    else {
-      toast.success('Coupon créé');
-      setDialogOpen(false);
-      setForm({ code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', endDate: '' });
-      setRefreshKey((k) => k + 1);
-    }
-    setSaving(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Supprimer ce coupon ?')) return;
-    const { error } = await apiFetch(`/api/coupons/${id}`, { method: 'DELETE' });
-    if (error) { toast.error(error); return; }
-    toast.success('Coupon supprimé');
-    setRefreshKey((k) => k + 1);
-  };
-
-  const couponTypeLabel: Record<string, string> = {
-    PERCENTAGE: 'Pourcentage',
-    FIXED: 'Montant fixe',
-    FREE_DELIVERY: 'Livraison gratuite',
-  };
-
-  return (
+  const renderCoupons = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Coupons</h2>
-        <Button onClick={() => setDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
-          <PlusCircle className="h-4 w-4 mr-2" /> Créer un coupon
-        </Button>
+        <Button className="gap-1" onClick={() => setDlg('coupon')}><Plus className="h-4 w-4" /> Créer</Button>
       </div>
-
-      {loading ? (
-        <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
-      ) : !coupons.length ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Ticket className="h-12 w-12 text-muted-foreground mb-3" />
-            <p className="text-lg font-medium">Aucun coupon</p>
-            <p className="text-muted-foreground text-sm mt-1">Créez votre premier coupon de réduction</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-          {coupons.map((c) => (
-            <Card key={c.id}>
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{c.code}</p>
-                      <Badge variant="secondary">{couponTypeLabel[c.type] || c.type}</Badge>
-                      <Badge variant={c.isActive ? 'default' : 'outline'}>
-                        {c.isActive ? 'Actif' : 'Inactif'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {c.type === 'PERCENTAGE' ? `${c.value}% de réduction` :
-                        c.type === 'FIXED' ? `${formatPrice(c.value)} de réduction` :
-                          'Livraison gratuite'}
-                      {c.minOrder > 0 && ` · Min: ${formatPrice(c.minOrder)}`}
-                      {c.maxUses && ` · ${c.usedCount}/${c.maxUses} utilisations`}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Expire le {new Date(c.endDate).toLocaleDateString('fr-FR')}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => handleDelete(c.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Créer un coupon</DialogTitle>
-            <DialogDescription>Créez un code promo pour vos clients</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex flex-col gap-1.5">
-              <Label>Code *</Label>
-              <Input value={form.code} onChange={(e) => setField('code', e.target.value.toUpperCase())} placeholder="PROMO2024" />
+      {!coupons.length ? <Mt m="Aucun coupon" /> : (
+        <div className="space-y-2">{coupons.map((c: any) => (
+          <Card key={c.id}><CardContent className="p-3 flex items-center justify-between">
+            <div>
+              <p className="font-mono font-bold text-sm">{c.code}</p>
+              <p className="text-xs text-muted-foreground">{c.type === 'PERCENTAGE' ? c.value + '%' : c.type === 'FREE_DELIVERY' ? 'Livraison gratuite' : formatPrice(c.value || 0)} · Max {c.maxUses ?? '∞'} · Expire {c.endDate ? new Date(c.endDate).toLocaleDateString('fr-FR') : 'Jamais'}</p>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Type *</Label>
-              <Select value={form.type} onValueChange={(v) => setField('type', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+            <Button variant="ghost" size="icon" className="text-red-500" onClick={() => deleteCoupon(c.id)}><Trash2 className="h-4 w-4" /></Button>
+          </CardContent></Card>
+        ))}</div>
+      )}
+      <Dialog open={dlg === 'coupon'} onOpenChange={() => setDlg('')}>
+        <DialogContent><DialogHeader><DialogTitle>Nouveau coupon</DialogTitle><DialogDescription>Créer un code promo pour vos clients</DialogDescription></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label>Code</Label><Input value={cf.code} onChange={e => setCf(p => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="PROMO2025" /></div>
+            <div><Label>Type</Label>
+              <Select value={cf.type} onValueChange={v => setCf(p => ({ ...p, type: v }))}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PERCENTAGE">Pourcentage</SelectItem>
-                  <SelectItem value="FIXED">Montant fixe</SelectItem>
+                  <SelectItem value="PERCENTAGE">Pourcentage (%)</SelectItem>
+                  <SelectItem value="FIXED">Montant fixe (FCFA)</SelectItem>
                   <SelectItem value="FREE_DELIVERY">Livraison gratuite</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {form.type !== 'FREE_DELIVERY' && (
-              <div className="flex flex-col gap-1.5">
-                <Label>Valeur *</Label>
-                <Input type="number" value={form.value} onChange={(e) => setField('value', e.target.value)} placeholder={form.type === 'PERCENTAGE' ? '10' : '1000'} />
-              </div>
-            )}
             <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label>Commande min. (FCFA)</Label>
-                <Input type="number" value={form.minOrder} onChange={(e) => setField('minOrder', e.target.value)} placeholder="0" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Utilisations max</Label>
-                <Input type="number" value={form.maxUses} onChange={(e) => setField('maxUses', e.target.value)} placeholder="Illimité" />
-              </div>
+              <div><Label>Valeur</Label><Input type="number" value={cf.value} onChange={e => setCf(p => ({ ...p, value: e.target.value }))} /></div>
+              <div><Label>Commande min (FCFA)</Label><Input type="number" value={cf.minOrder} onChange={e => setCf(p => ({ ...p, minOrder: e.target.value }))} /></div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Date de fin *</Label>
-              <Input type="date" value={form.endDate} onChange={(e) => setField('endDate', e.target.value)} />
-            </div>
+            <div><Label>Utilisations max</Label><Input type="number" value={cf.maxUses} onChange={e => setCf(p => ({ ...p, maxUses: e.target.value }))} /></div>
+            <div><Label>Date d&apos;expiration</Label><Input type="date" value={cf.endDate} onChange={e => setCf(p => ({ ...p, endDate: e.target.value }))} /></div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
-            <Button onClick={handleCreate} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Créer
-            </Button>
-          </DialogFooter>
+          <DialogFooter><Button onClick={saveCoupon} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Créer le coupon'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
-}
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 12. PROFILE
-// ═══════════════════════════════════════════════════════════════════════════
-
-function ProfileView({ merchant }: { merchant: MerchantProfile }) {
-  const { user, logout } = useAuthStore();
-  const { setSpace } = useSpaceStore();
-  const [editMode, setEditMode] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    businessName: merchant.businessName,
-    businessType: merchant.businessType,
-    description: merchant.description || '',
-    address: merchant.address,
-    city: merchant.city,
-    quartier: merchant.quartier || '',
-    phone: merchant.phone,
-    email: merchant.email || '',
-    website: merchant.website || '',
-    operatingHours: merchant.operatingHours,
-  });
-
-  const setField = (key: string, val: string) =>
-    setForm((prev) => ({ ...prev, [key]: val }));
-
-  const handleSave = async () => {
-    setSaving(true);
-    const { error } = await apiFetch(`/api/merchants/me`, {
-      method: 'PUT',
-      body: JSON.stringify(form),
-    });
-    if (error) { toast.error(error); }
-    else {
-      toast.success('Profil mis à jour');
-      setEditMode(false);
-    }
-    setSaving(false);
-  };
-
-  const handleLogout = () => {
-    logout();
-    setSpace('landing');
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h2 className="text-xl font-bold">Mon profil</h2>
-
-      {/* User info card */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4 mb-6">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={user?.avatar || merchant.logo || undefined} />
-              <AvatarFallback className="bg-emerald-100 text-emerald-700 text-lg">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-semibold text-lg">{user?.firstName} {user?.lastName}</p>
-              <p className="text-sm text-muted-foreground">{user?.email}</p>
-            </div>
-          </div>
-
-          {!editMode ? (
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <Store className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="font-medium">{form.businessName}</span>
-                <Badge variant="secondary" className="ml-auto">{BUSINESS_TYPES[form.businessType] || form.businessType}</Badge>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>{form.address}, {form.city}{form.quartier ? ` · ${form.quartier}` : ''}</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>{user?.phone}</span>
-              </div>
-              {form.email && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span>{form.email}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <Star className="h-4 w-4 text-amber-500 shrink-0" />
-                <span>{merchant.rating.toFixed(1)}/5 ({merchant.totalRatings} avis)</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>Compte vérifié</span>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <Label>Nom de la boutique</Label>
-                  <Input value={form.businessName} onChange={(e) => setField('businessName', e.target.value)} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>Type d&apos;activité</Label>
-                  <Select value={form.businessType} onValueChange={(v) => setField('businessType', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(BUSINESS_TYPES).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <Label>Description</Label>
-                  <Textarea rows={2} value={form.description} onChange={(e) => setField('description', e.target.value)} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>Adresse</Label>
-                  <Input value={form.address} onChange={(e) => setField('address', e.target.value)} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>Ville</Label>
-                  <Input value={form.city} onChange={(e) => setField('city', e.target.value)} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>Quartier</Label>
-                  <Input value={form.quartier} onChange={(e) => setField('quartier', e.target.value)} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>Téléphone</Label>
-                  <Input value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>Email</Label>
-                  <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>Site web</Label>
-                  <Input value={form.website} onChange={(e) => setField('website', e.target.value)} placeholder="https://..." />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>Horaires d&apos;ouverture</Label>
-                  <Input value={form.operatingHours} onChange={(e) => setField('operatingHours', e.target.value)} placeholder="08:00-22:00" />
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setEditMode(false)}>Annuler</Button>
-                <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
-                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Sauvegarder
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {!editMode && (
-            <Button variant="outline" className="mt-4 w-full min-h-[44px]" onClick={() => setEditMode(true)}>
-              <Edit className="h-4 w-4 mr-2" /> Modifier mes informations
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Support contact */}
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-lg">Assistance & Contact</CardTitle></CardHeader>
-        <CardContent>
-          <SupportContact variant="compact" />
-        </CardContent>
-      </Card>
-
-      <Button variant="destructive" className="w-full min-h-[44px]" onClick={handleLogout}>
-        <LogOut className="h-4 w-4 mr-2" /> Se déconnecter
-      </Button>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 13. SUPPORT
-// ═══════════════════════════════════════════════════════════════════════════
-
-function SupportView() {
-  const [subject, setSubject] = useState('');
-  const [description, setDescription] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  const handleSubmit = async () => {
-    if (!subject.trim() || !description.trim()) {
-      toast.error('Sujet et description requis');
-      return;
-    }
-    setSending(true);
-    const { error } = await apiFetch('/api/support', {
-      method: 'POST',
-      body: JSON.stringify({ subject, description }),
-    });
-    if (error) { toast.error(error); }
-    else {
-      toast.success('Ticket envoyé avec succès');
-      setSent(true);
-      setSubject('');
-      setDescription('');
-    }
-    setSending(false);
-  };
-
-  if (sent) {
-    return (
-      <div className="max-w-lg mx-auto text-center py-16">
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>
-          <CheckCircle2 className="h-16 w-16 text-emerald-600 mx-auto mb-4" />
-        </motion.div>
-        <h2 className="text-xl font-bold">Ticket envoyé</h2>
-        <p className="text-muted-foreground mt-2">Notre équipe vous répondra dans les plus brefs délais.</p>
-        <Button onClick={() => setSent(false)} className="mt-6 bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
-          Envoyer un autre ticket
+  const renderSupport = () => (
+    <div className="space-y-6 max-w-lg mx-auto">
+      <h2 className="text-xl font-bold text-center">Support</h2>
+      <SupportContact />
+      <Card><CardHeader className="pb-3"><CardTitle className="text-base">Envoyer un ticket</CardTitle></CardHeader><CardContent className="space-y-3">
+        <div><Label>Sujet</Label><Input value={ticket.subject} onChange={e => setTicket(p => ({ ...p, subject: e.target.value }))} /></div>
+        <div><Label>Message</Label><Textarea value={ticket.message} onChange={e => setTicket(p => ({ ...p, message: e.target.value }))} rows={4} /></div>
+        <Button className="w-full gap-1" onClick={sendTicket} disabled={saving || !ticket.subject || !ticket.message}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-4 w-4" /> Envoyer</>}
         </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <div>
-        <h2 className="text-xl font-bold">Support</h2>
-        <p className="text-sm text-muted-foreground">Besoin d&apos;aide ? Envoyez-nous un ticket.</p>
-      </div>
-
-      <Card>
-        <CardContent className="p-6 space-y-4">
-          <div className="flex flex-col gap-1.5">
-            <Label>Sujet *</Label>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Décrivez brièvement votre problème" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Description *</Label>
-            <Textarea
-              rows={5}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Donnez-nous tous les détails nécessaires..."
-            />
-          </div>
-          <Button onClick={handleSubmit} disabled={sending} className="w-full bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
-            {sending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            <Send className="h-4 w-4 mr-2" /> Envoyer le ticket
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4">
-          <SupportContact variant="full" />
-        </CardContent>
-      </Card>
+      </CardContent></Card>
     </div>
   );
-}
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 14. NOTIFICATIONS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function NotificationsView() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data } = await apiFetch<{ notifications: Notification[]; unreadCount: number }>('/api/notifications');
-      if (!cancelled && data) {
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
-      }
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [refreshKey]);
-
-  const markAllRead = async () => {
-    const { error } = await apiFetch('/api/notifications', { method: 'PUT' });
-    if (error) { toast.error(error); return; }
-    toast.success('Toutes les notifications marquées comme lues');
-    setRefreshKey((k) => k + 1);
-  };
-
-  const markOneRead = async (id: string) => {
-    await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
-    setRefreshKey((k) => k + 1);
-  };
-
-  const typeColors: Record<string, string> = {
-    ORDER: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-    PAYMENT: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-    DELIVERY: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-    PROMO: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
-    INFO: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
-    SYSTEM: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  };
-
-  const typeLabels: Record<string, string> = {
-    ORDER: 'Commande',
-    PAYMENT: 'Paiement',
-    DELIVERY: 'Livraison',
-    PROMO: 'Promo',
-    INFO: 'Info',
-    SYSTEM: 'Système',
-  };
-
-  return (
+  const renderNotifications = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold">Notifications</h2>
-          {unreadCount > 0 && <p className="text-sm text-muted-foreground">{unreadCount} non lue(s)</p>}
-        </div>
-        {unreadCount > 0 && (
-          <Button variant="outline" size="sm" onClick={markAllRead} className="min-h-[44px]">
-            <CheckCircle2 className="h-4 w-4 mr-1" /> Tout marquer comme lu
-          </Button>
-        )}
+        <h2 className="text-xl font-bold">Notifications</h2>
+        {notifs.some((n: any) => !n.isRead) && <Button variant="outline" size="sm" onClick={markAllRead}>Tout marquer lu</Button>}
       </div>
-
-      {loading ? (
-        <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
-      ) : !notifications.length ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Bell className="h-12 w-12 text-muted-foreground mb-3" />
-            <p className="text-lg font-medium">Aucune notification</p>
-            <p className="text-muted-foreground text-sm mt-1">Vos notifications apparaîtront ici</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2 max-h-[70vh] overflow-y-auto">
-          {notifications.map((n) => (
-            <Card
-              key={n.id}
-              className={`cursor-pointer transition-colors ${!n.isRead ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-900/5' : ''}`}
-              onClick={() => { if (!n.isRead) markOneRead(n.id); }}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <Badge variant="secondary" className={typeColors[n.type] || typeColors.INFO}>
-                    {typeLabels[n.type] || n.type}
-                  </Badge>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm ${!n.isRead ? 'font-semibold' : 'font-medium'}`}>{n.title}</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">{n.message}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{formatDate(n.createdAt)}</p>
-                  </div>
-                  {!n.isRead && <div className="w-2 h-2 rounded-full bg-emerald-600 mt-1.5 shrink-0" />}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      {!notifs.length ? <Mt m="Aucune notification" /> : (
+        <div className="space-y-2">{notifs.map((n: any) => (
+          <Card key={n.id} className={`cursor-pointer transition-colors ${!n.isRead ? 'bg-emerald-50 border-emerald-200' : ''}`} onClick={() => markRead(n.id)}>
+            <CardContent className="p-3 flex items-start gap-3">
+              <Bell className={`h-4 w-4 mt-0.5 shrink-0 ${!n.isRead ? 'text-emerald-600' : 'text-muted-foreground'}`} />
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm ${!n.isRead ? 'font-medium' : ''}`}>{n.title}</p>
+                {n.message && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>}
+                {n.createdAt && <p className="text-[10px] text-muted-foreground mt-1">{new Date(n.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>}
+              </div>
+            </CardContent>
+          </Card>
+        ))}</div>
       )}
     </div>
   );
-}
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════
-
-const PAGE_TITLES: Record<string, string> = {
-  dashboard: 'Tableau de bord',
-  products: 'Produits',
-  'add-product': 'Ajouter un produit',
-  orders: 'Commandes',
-  'order-detail': 'Détails de la commande',
-  stats: 'Statistiques',
-  coupons: 'Coupons',
-  'payment-config': 'Configuration des paiements',
-  'delivery-zones': 'Zones de livraison',
-  subscription: 'Abonnement',
-  notifications: 'Notifications',
-  profile: 'Mon profil',
-  support: 'Support',
-};
-
-export default function MerchantApp() {
-  const { view, navigate } = useMerchantNav();
-  const { user } = useAuthStore();
-  const [merchant, setMerchant] = useState<MerchantProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [notifs, setNotifs] = useState<{ unreadCount: number } | null>(null);
-
-  // Fetch merchant profile
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await apiFetch<MerchantProfile>('/api/merchants/me');
-      if (!cancelled) {
-        if (data) setMerchant(data);
-        if (error) toast.error(error);
-        setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Fetch unread notifications count
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await apiFetch<{ unreadCount: number }>('/api/notifications?limit=1');
-      if (!cancelled && data) setNotifs(data);
-    })();
-    return () => { cancelled = true; };
-  }, [view]);
-
-  // ─── Loading ───
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
-          <p className="text-muted-foreground">Chargement...</p>
+  const renderProfile = () => (
+    <div className="space-y-4 max-w-2xl">
+      <h2 className="text-xl font-bold">Mon profil</h2>
+      <Card><CardContent className="p-4 space-y-4">
+        <div className="flex items-center gap-4">
+          {prof.logo ? <img src={prof.logo} alt="Logo" className="h-16 w-16 rounded-full object-cover bg-gray-100" />
+            : <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xl">{(prof.name || '?')[0]}</div>}
+          <div>
+            <input type="file" accept="image/*" className="hidden" ref={logoRef} onChange={e => readFile(e, v => setProf(p => ({ ...p, logo: v })))} />
+            <Button variant="outline" size="sm" onClick={() => logoRef.current?.click()} className="gap-1"><Upload className="h-3 w-3" /> Changer le logo</Button>
+          </div>
         </div>
-      </div>
-    );
-  }
+        <div><Label>Nom du commerce</Label><Input value={prof.name || ''} onChange={e => setProf(p => ({ ...p, name: e.target.value }))} /></div>
+        <div><Label>Type de commerce</Label>
+          <Select value={prof.type || ''} onValueChange={v => setProf(p => ({ ...p, type: v }))}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+            <SelectContent>{Object.entries(BUSINESS_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div><Label>Description</Label><Textarea value={prof.description || ''} onChange={e => setProf(p => ({ ...p, description: e.target.value }))} rows={3} /></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div><Label>Adresse</Label><Input value={prof.address || ''} onChange={e => setProf(p => ({ ...p, address: e.target.value }))} /></div>
+          <div><Label>Téléphone</Label><Input value={prof.phone || ''} onChange={e => setProf(p => ({ ...p, phone: e.target.value }))} /></div>
+        </div>
+        <div><Label>Horaires d&apos;ouverture</Label><Input value={prof.operatingHours || ''} onChange={e => setProf(p => ({ ...p, operatingHours: e.target.value }))} placeholder="Lun-Sam 8h-22h" /></div>
+        <Button className="w-full" onClick={saveProfile} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enregistrer'}</Button>
+      </CardContent></Card>
+    </div>
+  );
 
-  // ─── Not found ───
-  if (!merchant) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="max-w-md mx-4">
-          <CardContent className="flex flex-col items-center py-12 text-center">
-            <AlertCircle className="h-16 w-16 text-destructive mb-4" />
-            <h2 className="text-xl font-bold">Profil marchand non trouvé</h2>
-            <p className="text-muted-foreground mt-2">Votre profil marchand n&apos;a pas été trouvé. Veuillez contacter le support.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // ─── Waiting for approval ───
-  if (!merchant.isApproved) {
-    return (
-      <WaitingScreen
-        merchant={merchant}
-        onLogout={() => {
-          useAuthStore.getState().logout();
-          useSpaceStore.getState().setSpace('landing');
-        }}
-      />
-    );
-  }
-
-  // ─── Render view ───
   const renderView = () => {
     switch (view) {
-      case 'dashboard': return <DashboardView />;
-      case 'products': return <ProductsView merchantId={merchant.id} />;
-      case 'add-product': return <AddProductView />;
-      case 'orders': return <OrdersView />;
-      case 'order-detail': return <OrderDetailView />;
-      case 'stats': return <StatsView />;
-      case 'coupons': return <CouponsView />;
-      case 'payment-config': return <PaymentConfigView merchant={merchant} />;
-      case 'delivery-zones': return <DeliveryZonesView merchant={merchant} />;
-      case 'subscription': return <SubscriptionView merchant={merchant} />;
-      case 'profile': return <ProfileView merchant={merchant} />;
-      case 'notifications': return <NotificationsView />;
-      case 'support': return <SupportView />;
-      default: return <DashboardView />;
+      case 'dashboard': return renderDashboard();
+      case 'products': return renderProducts();
+      case 'add-product': return renderAddProduct();
+      case 'orders': return renderOrders();
+      case 'order-detail': return renderOrderDetail();
+      case 'delivery-zones': return renderDeliveryZones();
+      case 'payment-config': return renderPaymentConfig();
+      case 'subscription': return renderSubscription();
+      case 'coupons': return renderCoupons();
+      case 'support': return renderSupport();
+      case 'notifications': return renderNotifications();
+      case 'profile': return renderProfile();
+      default: return <Mt m="Vue non disponible" />;
     }
   };
 
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>;
+  if (!merchant?.isApproved) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <Card className="max-w-md w-full"><CardContent className="p-6 space-y-4 text-center">
+        <Clock className="h-12 w-12 text-yellow-500 mx-auto" />
+        <h2 className="text-lg font-bold">Compte en attente de validation</h2>
+        <p className="text-sm text-muted-foreground">Votre compte commerçant est en cours de vérification par notre équipe. Vous serez notifié dès qu&apos;il sera activé.</p>
+        <SupportContact variant="compact" />
+        <Button variant="outline" className="w-full" onClick={handleLogout}>Se déconnecter</Button>
+      </CardContent></Card>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* ─── Desktop Sidebar ─── */}
-      <aside className={`hidden lg:flex flex-col border-r bg-card transition-all duration-200 ${sidebarCollapsed ? 'w-16' : 'w-64'} sticky top-0 h-screen`}>
-        <div className="flex items-center gap-3 p-4 border-b">
-          {merchant.logo ? (
-            <img src={merchant.logo} alt="" className="h-8 w-8 rounded-lg object-cover shrink-0" />
-          ) : (
-            <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shrink-0">
-              <Store className="h-4 w-4 text-white" />
-            </div>
-          )}
-          {!sidebarCollapsed && (
-            <span className="font-bold text-sm truncate">{merchant.businessName}</span>
-          )}
-          <Button
-            variant="ghost" size="icon" className="ml-auto h-7 w-7 shrink-0"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          >
-            <ChevronRight className={`h-4 w-4 transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`} />
-          </Button>
+    <div className="flex min-h-screen bg-gray-50">
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-emerald-700 text-white shrink-0">
+        <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><img src="/logo.svg" alt="Rapigo" className="h-8" /><span className="font-bold text-lg">Rapigo Mali</span></div>
+        {renderNav()}
+        <div className="p-4 border-t border-emerald-600">
+          <p className="text-sm text-emerald-200 truncate">{merchant.name || user?.firstName}</p>
+          {isPremium && <p className="text-xs text-yellow-300 flex items-center gap-1 mt-1"><Crown className="h-3 w-3" /> Premium</p>}
+          <Button variant="ghost" className="text-white hover:bg-emerald-600 w-full justify-start mt-2 gap-2" onClick={handleLogout}><LogOut className="h-4 w-4" /> Déconnexion</Button>
         </div>
-        <ScrollArea className="flex-1 py-2">
-          <nav className="space-y-1 px-2">
-            {SIDEBAR_ITEMS.map((item) => {
-              const active = view === item.view;
-              return (
-                <button
-                  key={item.view}
-                  onClick={() => navigate(item.view)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
-                    active
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  }`}
-                  title={sidebarCollapsed ? item.label : undefined}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
-                </button>
-              );
-            })}
-          </nav>
-        </ScrollArea>
       </aside>
-
-      {/* ─── Mobile Sidebar Overlay ─── */}
-      <AnimatePresence>
-        {sidebarOpen && (
-          <div className="lg:hidden fixed inset-0 z-50">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/50"
-              onClick={() => setSidebarOpen(false)}
-            />
-            <motion.aside
-              initial={{ x: -288 }}
-              animate={{ x: 0 }}
-              exit={{ x: -288 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute left-0 top-0 bottom-0 w-72 bg-card border-r flex flex-col shadow-xl"
-            >
-              <div className="flex items-center gap-3 p-4 border-b">
-                {merchant.logo ? (
-                  <img src={merchant.logo} alt="" className="h-8 w-8 rounded-lg object-cover" />
-                ) : (
-                  <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-                    <Store className="h-4 w-4 text-white" />
-                  </div>
-                )}
-                <span className="font-bold text-sm truncate">{merchant.businessName}</span>
-                <Button variant="ghost" size="icon" className="ml-auto h-7 w-7" onClick={() => setSidebarOpen(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <ScrollArea className="flex-1 py-2">
-                <nav className="space-y-1 px-2">
-                  {SIDEBAR_ITEMS.map((item) => {
-                    const active = view === item.view;
-                    return (
-                      <button
-                        key={item.view}
-                        onClick={() => { navigate(item.view); setSidebarOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
-                          active
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
-                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                        }`}
-                      >
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-              </ScrollArea>
-            </motion.aside>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ─── Main Content ─── */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-          <div className="flex items-center gap-3 h-14 px-4">
-            <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9" onClick={() => setSidebarOpen(true)}>
-              <Menu className="h-5 w-5" />
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+        <header className="lg:hidden h-14 flex items-center px-4 bg-white border-b sticky top-0 z-30 gap-2">
+          <Button variant="ghost" size="icon" onClick={() => setMobileMenu(true)}><Menu className="h-5 w-5" /></Button>
+          <h1 className="font-semibold text-sm truncate">{VL[view] || 'Espace Commerçant'}</h1>
+          <div className="ml-auto">
+            <Button variant="ghost" size="icon" onClick={() => navigate('notifications')} className="relative">
+              <Bell className="h-5 w-5" />
+              {notifs.filter((n: any) => !n.isRead).length > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full" />}
             </Button>
-            <h1 className="font-semibold text-lg hidden sm:block">{PAGE_TITLES[view] || 'Tableau de bord'}</h1>
-
-            <div className="ml-auto flex items-center gap-2">
-              {/* Notifications */}
-              <Button
-                variant="ghost" size="icon" className="relative h-9 w-9"
-                onClick={() => navigate('notifications')}
-              >
-                <Bell className="h-4 w-4" />
-                {(notifs?.unreadCount ?? 0) > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center font-bold">
-                    {notifs!.unreadCount > 9 ? '9+' : notifs!.unreadCount}
-                  </span>
-                )}
-              </Button>
-
-              {/* Profile dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2 h-9 px-2">
-                    <Avatar className="h-7 w-7">
-                      <AvatarImage src={user?.avatar || undefined} />
-                      <AvatarFallback className="text-xs bg-emerald-100 text-emerald-700">
-                        {user?.firstName?.[0]}{user?.lastName?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="hidden sm:inline text-sm font-medium max-w-32 truncate">
-                      {merchant.businessName}
-                    </span>
-                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>
-                    <p className="text-sm font-medium">{user?.firstName} {user?.lastName}</p>
-                    <p className="text-xs text-muted-foreground">{user?.email}</p>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('profile')}>
-                    <User className="h-4 w-4 mr-2" /> Mon profil
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('notifications')}>
-                    <Bell className="h-4 w-4 mr-2" /> Notifications
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('support')}>
-                    <MessageSquare className="h-4 w-4 mr-2" /> Support
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => { useAuthStore.getState().logout(); useSpaceStore.getState().setSpace('landing'); }}
-                  >
-                    <LogOut className="h-4 w-4 mr-2" /> Se déconnecter
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
           </div>
         </header>
-
-        {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6">
-          <PageTransition keyVal={view}>
-            {renderView()}
-          </PageTransition>
+        <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6 overflow-y-auto">
+          <AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={TR}>{renderView()}</motion.div></AnimatePresence>
         </main>
-
-        {/* ─── Mobile Bottom Nav ─── */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t z-30 safe-area-inset-bottom">
-          <div className="flex items-center justify-around h-16">
-            {MOBILE_NAV_ITEMS.map((item) => {
-              const active = view === item.view;
-              return (
-                <button
-                  key={item.view}
-                  onClick={() => navigate(item.view)}
-                  className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors relative min-w-[56px] min-h-[44px] ${
-                    active ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'
-                  }`}
-                >
-                  {item.view === 'notifications' && (notifs?.unreadCount ?? 0) > 0 && (
-                    <span className="absolute -top-0.5 right-1 h-3.5 w-3.5 rounded-full bg-red-500 text-[8px] text-white flex items-center justify-center font-bold">
-                      {notifs!.unreadCount > 9 ? '9' : notifs!.unreadCount}
-                    </span>
-                  )}
-                  <item.icon className={`h-5 w-5 ${active ? 'text-emerald-600' : ''}`} />
-                  <span className="text-[10px] font-medium">{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t h-16 flex items-center justify-around z-30 safe-area-inset-bottom">
+          {bottomNav.map(it => (
+            <button key={it.v} onClick={() => navigate(it.v)} className={`flex flex-col items-center gap-0.5 px-2 py-1 min-w-0 ${view === it.v ? 'text-emerald-700' : 'text-gray-400'}`}>
+              <it.icon className="h-5 w-5" /><span className="text-[10px] leading-tight truncate max-w-16">{it.l}</span>
+            </button>
+          ))}
         </nav>
       </div>
+      <Sheet open={mobileMenu} onOpenChange={setMobileMenu}>
+        <SheetContent side="left" className="w-72 bg-emerald-700 text-white border-none p-0">
+          <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><img src="/logo.svg" alt="Rapigo" className="h-8" /><span className="font-bold text-lg">Rapigo Mali</span></div>
+          {renderNav(() => setMobileMenu(false))}
+          <div className="p-4 border-t border-emerald-600">
+            <p className="text-sm text-emerald-200">{merchant.name || user?.firstName}</p>
+            <Button variant="ghost" className="text-white hover:bg-emerald-600 w-full justify-start mt-2 gap-2" onClick={() => { handleLogout(); setMobileMenu(false); }}><LogOut className="h-4 w-4" /> Déconnexion</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

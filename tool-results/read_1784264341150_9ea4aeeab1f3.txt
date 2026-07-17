@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useEffect } from 'react';
+     4→import {
+     5→  LayoutDashboard, Package, PlusCircle, ShoppingBag, MapPin,
+     6→  CreditCard, Crown, User, Bell, LogOut, Menu, X, ChevronLeft,
+     7→  Search, Edit, Trash2, Star, Clock, DollarSign, TrendingUp,
+     8→  Loader2, AlertCircle, Send, MessageSquare, Phone,
+     9→  Mail, Store, Ticket,
+    10→  CheckCircle2, XCircle, ChevronDown, ChevronRight,
+    11→  Eye, ShieldCheck, Zap,
+    12→} from 'lucide-react';
+    13→import { motion, AnimatePresence } from 'framer-motion';
+    14→import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip } from 'recharts';
+    15→import { Button } from '@/components/ui/button';
+    16→import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+    17→import { Input } from '@/components/ui/input';
+    18→import { Badge } from '@/components/ui/badge';
+    19→import {
+    20→  Dialog, DialogContent, DialogHeader, DialogTitle,
+    21→  DialogDescription, DialogFooter,
+    22→} from '@/components/ui/dialog';
+    23→import { Textarea } from '@/components/ui/textarea';
+    24→import {
+    25→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    26→} from '@/components/ui/select';
+    27→import { Separator } from '@/components/ui/separator';
+    28→import { Label } from '@/components/ui/label';
+    29→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    30→import { Switch } from '@/components/ui/switch';
+    31→import { Skeleton } from '@/components/ui/skeleton';
+    32→import {
+    33→  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+    34→  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+    35→} from '@/components/ui/dropdown-menu';
+    36→import { ScrollArea } from '@/components/ui/scroll-area';
+    37→import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+    38→import {
+    39→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    40→} from '@/components/ui/table';
+    41→import {
+    42→  ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
+    43→} from '@/components/ui/chart';
+    44→import {
+    45→  useMerchantNav, useAuthStore, useSpaceStore,
+    46→  apiFetch, formatPrice,
+    47→  ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
+    48→  PAYMENT_STATUS_LABELS, PAYMENT_METHODS,
+    49→  BUSINESS_TYPES,
+    50→} from '@/lib/store';
+    51→import type { MerchantView } from '@/lib/store';
+    52→import { toast } from 'sonner';
+    53→import { SupportContact } from '@/components/support-contact';
+    54→
+    55→// ─── Types ──────────────────────────────────────────────────────────────────
+    56→
+    57→interface MerchantProfile {
+    58→  id: string;
+    59→  businessName: string;
+    60→  businessType: string;
+    61→  description: string | null;
+    62→  shortDescription: string | null;
+    63→  logo: string | null;
+    64→  coverImage: string | null;
+    65→  address: string;
+    66→  city: string;
+    67→  quartier: string | null;
+    68→  phone: string;
+    69→  email: string | null;
+    70→  website: string | null;
+    71→  operatingHours: string;
+    72→  isApproved: boolean;
+    73→  isFeatured: boolean;
+    74→  rating: number;
+    75→  totalRatings: number;
+    76→  commissionRate: number;
+    77→  minOrderAmount: number;
+    78→  user: { id: string; email: string; phone: string; firstName: string; lastName: string; isActive: boolean; avatar?: string | null };
+    79→  deliveryZones: DeliveryZone[];
+    80→  paymentConfigs: PaymentConfig[];
+    81→  subscriptions: (Subscription & { plan: Plan })[];
+    82→  _count: { products: number; orders: number };
+    83→}
+    84→
+    85→interface Product {
+    86→  id: string;
+    87→  merchantId: string;
+    88→  categoryId: string | null;
+    89→  name: string;
+    90→  slug: string;
+    91→  shortDescription: string | null;
+    92→  longDescription: string | null;
+    93→  price: number;
+    94→  comparePrice: number | null;
+    95→  image: string | null;
+    96→  images: string | null;
+    97→  video: string | null;
+    98→  sku: string | null;
+    99→  barcode: string | null;
+   100→  weight: string | null;
+   101→  tags: string | null;
+   102→  brand: string | null;
+   103→  origin: string | null;
+   104→  stock: number;
+   105→  isAvailable: boolean;
+   106→  isFeatured: boolean;
+   107→  preparationTime: number | null;
+   108→  rating: number;
+   109→  totalSold: number;
+   110→  createdAt: string;
+   111→  category: { id: string; name: string; slug: string } | null;
+   112→}
+   113→
+   114→interface Category {
+   115→  id: string;
+   116→  name: string;
+   117→  slug: string;
+   118→  icon: string | null;
+   119→  image: string | null;
+   120→  parentId: string | null;
+   121→  sortOrder: number;
+   122→  isActive: boolean;
+   123→  _count: { products: number; children: number };
+   124→}
+   125→
+   126→interface Order {
+   127→  id: string;
+   128→  orderNumber: string;
+   129→  clientId: string;
+   130→  merchantId: string;
+   131→  driverId: string | null;
+   132→  status: string;
+   133→  subtotal: number;
+   134→  deliveryFee: number;
+   135→  serviceFee: number;
+   136→  discount: number;
+   137→  total: number;
+   138→  paymentMethod: string;
+   139→  paymentStatus: string;
+   140→  paymentProof: string | null;
+   141→  paymentNote: string | null;
+   142→  deliveryAddress: string;
+   143→  deliveryCity: string;
+   144→  deliveryQuartier: string | null;
+   145→  notes: string | null;
+   146→  estimatedTime: number | null;
+   147→  cancelReason: string | null;
+   148→  createdAt: string;
+   149→  items: OrderItem[];
+   150→  client: { id: string; user: { firstName: string; lastName: string; phone: string; avatar: string | null } } | null;
+   151→  merchant: { id: string; businessName: string; logo: string | null; address: string } | null;
+   152→  driver: { id: string; user: { firstName: string; lastName: string; phone: string; avatar: string | null } } | null;
+   153→  ratings: unknown[];
+   154→}
+   155→
+   156→interface OrderItem {
+   157→  id: string;
+   158→  orderId: string;
+   159→  productId: string;
+   160→  productName: string;
+   161→  productImage: string | null;
+   162→  quantity: number;
+   163→  unitPrice: number;
+   164→  totalPrice: number;
+   165→  variants: string | null;
+   166→  supplements: string | null;
+   167→  notes: string | null;
+   168→}
+   169→
+   170→interface DeliveryZone {
+   171→  id: string;
+   172→  merchantId: string;
+   173→  city: string;
+   174→  quartier: string | null;
+   175→  fee: number;
+   176→  currency: string;
+   177→  isActive: boolean;
+   178→}
+   179→
+   180→interface PaymentConfig {
+   181→  id: string;
+   182→  merchantId: string;
+   183→  method: string;
+   184→  isEnabled: boolean;
+   185→  phoneNumber: string | null;
+   186→  accountName: string | null;
+   187→  accountNumber: string | null;
+   188→  qrCode: string | null;
+   189→  instructions: string | null;
+   190→}
+   191→
+   192→interface Plan {
+   193→  id: string;
+   194→  name: string;
+   195→  slug: string;
+   196→  price: number;
+   197→  currency: string;
+   198→  duration: number;
+   199→  features: string | null;
+   200→  maxProducts: number | null;
+   201→  maxOrders: number | null;
+   202→  maxCoupons: number | null;
+   203→  priority: number;
+   204→  isActive: boolean;
+   205→}
+   206→
+   207→interface Subscription {
+   208→  id: string;
+   209→  merchantId: string;
+   210→  planId: string;
+   211→  status: string;
+   212→  startDate: string;
+   213→  endDate: string;
+   214→  autoRenew: boolean;
+   215→  plan: Plan;
+   216→}
+   217→
+   218→interface Coupon {
+   219→  id: string;
+   220→  code: string;
+   221→  merchantId: string | null;
+   222→  type: string;
+   223→  value: number;
+   224→  minOrder: number;
+   225→  maxUses: number | null;
+   226→  usedCount: number;
+   227→  startDate: string;
+   228→  endDate: string;
+   229→  isActive: boolean;
+   230→  merchant: { id: string; businessName: string } | null;
+   231→}
+   232→
+   233→interface Notification {
+   234→  id: string;
+   235→  userId: string;
+   236→  title: string;
+   237→  message: string;
+   238→  type: string;
+   239→  data: string | null;
+   240→  isRead: boolean;
+   241→  createdAt: string;
+   242→}
+   243→
+   244→interface MerchantStats {
+   245→  totalOrders: number;
+   246→  todayOrders: number;
+   247→  totalProducts: number;
+   248→  totalRevenue: number;
+   249→  todayRevenue: number;
+   250→  pendingOrders: number;
+   251→  rating: number;
+   252→  totalRatings: number;
+   253→  recentOrders: Order[];
+   254→  ordersByStatus: { status: string; _count: number }[];
+   255→  dailyRevenue?: { date: string; revenue: number; orders: number }[];
+   256→}
+   257→
+   258→// ─── Navigation config ──────────────────────────────────────────────────────
+   259→
+   260→const SIDEBAR_ITEMS: { label: string; view: MerchantView; icon: React.ElementType }[] = [
+   261→  { label: 'Tableau de bord', view: 'dashboard', icon: LayoutDashboard },
+   262→  { label: 'Produits', view: 'products', icon: Package },
+   263→  { label: 'Commandes', view: 'orders', icon: ShoppingBag },
+   264→  { label: 'Statistiques', view: 'stats', icon: TrendingUp },
+   265→  { label: 'Abonnement', view: 'subscription', icon: Crown },
+   266→  { label: 'Zones livraison', view: 'delivery-zones', icon: MapPin },
+   267→  { label: 'Paiement', view: 'payment-config', icon: CreditCard },
+   268→  { label: 'Coupons', view: 'coupons', icon: Ticket },
+   269→  { label: 'Support', view: 'support', icon: MessageSquare },
+   270→  { label: 'Profil', view: 'profile', icon: User },
+   271→];
+   272→
+   273→const MOBILE_NAV_ITEMS: { label: string; view: MerchantView; icon: React.ElementType }[] = [
+   274→  { label: 'Accueil', view: 'dashboard', icon: LayoutDashboard },
+   275→  { label: 'Produits', view: 'products', icon: Package },
+   276→  { label: 'Commandes', view: 'orders', icon: ShoppingBag },
+   277→  { label: 'Notifications', view: 'notifications', icon: Bell },
+   278→  { label: 'Profil', view: 'profile', icon: User },
+   279→];
+   280→
+   281→// ─── Shared helpers ─────────────────────────────────────────────────────────
+   282→
+   283→function StatusBadge({ status }: { status: string }) {
+   284→  return (
+   285→    <Badge variant="secondary" className={ORDER_STATUS_COLORS[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'}>
+   286→      {ORDER_STATUS_LABELS[status] || status}
+   287→    </Badge>
+   288→  );
+   289→}
+   290→
+   291→function PaymentBadge({ status }: { status: string }) {
+   292→  const colors: Record<string, string> = {
+   293→    PENDING: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+   294→    UPLOADED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+   295→    ACCEPTED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+   296→    REJECTED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+   297→    FAILED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+   298→    REFUNDED: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+   299→  };
+   300→  return (
+   301→    <Badge variant="secondary" className={colors[status] || colors.PENDING}>
+   302→      {PAYMENT_STATUS_LABELS[status] || status}
+   303→    </Badge>
+   304→  );
+   305→}
+   306→
+   307→function formatDate(dateStr: string) {
+   308→  return new Date(dateStr).toLocaleDateString('fr-FR', {
+   309→    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+   310→  });
+   311→}
+   312→
+   313→function formatDateShort(dateStr: string) {
+   314→  return new Date(dateStr).toLocaleDateString('fr-FR', {
+   315→    day: '2-digit', month: 'short',
+   316→  });
+   317→}
+   318→
+   319→function isToday(dateStr: string) {
+   320→  const d = new Date(dateStr);
+   321→  const now = new Date();
+   322→  return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+   323→}
+   324→
+   325→const fadeInUp = {
+   326→  initial: { opacity: 0, y: 16 },
+   327→  animate: { opacity: 1, y: 0 },
+   328→  exit: { opacity: 0, y: -12 },
+   329→};
+   330→
+   331→// ─── Page transition wrapper ────────────────────────────────────────────────
+   332→
+   333→function PageTransition({ children, keyVal }: { children: React.ReactNode; keyVal: string }) {
+   334→  return (
+   335→    <AnimatePresence mode="wait">
+   336→      <motion.div
+   337→        key={keyVal}
+   338→        initial={fadeInUp.initial}
+   339→        animate={fadeInUp.animate}
+   340→        exit={fadeInUp.exit}
+   341→        transition={{ duration: 0.2 }}
+   342→      >
+   343→        {children}
+   344→      </motion.div>
+   345→    </AnimatePresence>
+   346→  );
+   347→}
+   348→
+   349→// ═══════════════════════════════════════════════════════════════════════════
+   350→// 1. WAITING SCREEN (when !merchant.isApproved)
+   351→// ═══════════════════════════════════════════════════════════════════════════
+   352→
+   353→function WaitingScreen({ merchant, onLogout }: { merchant: MerchantProfile; onLogout: () => void }) {
+   354→  return (
+   355→    <div className="min-h-screen flex flex-col bg-background">
+   356→      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+   357→        <span className="text-lg font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+   358→          Rapigo Mali
+   359→        </span>
+   360→        <Button variant="ghost" size="sm" onClick={onLogout} className="text-destructive hover:text-destructive">
+   361→          <LogOut className="h-4 w-4 mr-1" />
+   362→          Déconnexion
+   363→        </Button>
+   364→      </header>
+   365→
+   366→      <div className="flex-1 flex items-center justify-center p-4">
+   367→        <motion.div
+   368→          initial={{ opacity: 0, scale: 0.95 }}
+   369→          animate={{ opacity: 1, scale: 1 }}
+   370→          transition={{ duration: 0.4 }}
+   371→          className="max-w-md w-full"
+   372→        >
+   373→          <Card>
+   374→            <CardContent className="flex flex-col items-center py-12 text-center">
+   375→              <motion.div
+   376→                initial={{ scale: 0 }}
+   377→                animate={{ scale: 1 }}
+   378→                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+   379→                className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center mb-6"
+   380→              >
+   381→                <Clock className="h-10 w-10 text-amber-600" />
+   382→              </motion.div>
+   383→
+   384→              <motion.h2
+   385→                initial={{ opacity: 0, y: 10 }}
+   386→                animate={{ opacity: 1, y: 0 }}
+   387→                transition={{ delay: 0.3 }}
+   388→                className="text-2xl font-bold"
+   389→              >
+   390→                Compte en attente de validation
+   391→              </motion.h2>
+   392→
+   393→              <motion.p
+   394→                initial={{ opacity: 0, y: 10 }}
+   395→                animate={{ opacity: 1, y: 0 }}
+   396→                transition={{ delay: 0.4 }}
+   397→                className="text-muted-foreground mt-3 max-w-sm"
+   398→              >
+   399→                Votre compte marchand <strong>{merchant.businessName}</strong> est en cours de vérification par notre équipe.
+   400→                Notre équipe vérifiera vos informations. Vous serez notifié par email.
+   401→              </motion.p>
+   402→
+   403→              <motion.p
+   404→                initial={{ opacity: 0 }}
+   405→                animate={{ opacity: 1 }}
+   406→                transition={{ delay: 0.5 }}
+   407→                className="text-sm text-muted-foreground mt-4"
+   408→              >
+   409→                Le processus prend généralement 24 à 48 heures. Merci de votre patience.
+   410→              </motion.p>
+   411→
+   412→              <Separator className="my-6 w-full" />
+   413→
+   414→              <motion.div
+   415→                initial={{ opacity: 0, y: 10 }}
+   416→                animate={{ opacity: 1, y: 0 }}
+   417→                transition={{ delay: 0.6 }}
+   418→                className="w-full bg-muted/50 rounded-lg p-4"
+   419→              >
+   420→                <SupportContact variant="full" />
+   421→              </motion.div>
+   422→            </CardContent>
+   423→          </Card>
+   424→        </motion.div>
+   425→      </div>
+   426→    </div>
+   427→  );
+   428→}
+   429→
+   430→// ═══════════════════════════════════════════════════════════════════════════
+   431→// 2. DASHBOARD
+   432→// ═══════════════════════════════════════════════════════════════════════════
+   433→
+   434→function DashboardView() {
+   435→  const { navigate } = useMerchantNav();
+   436→  const [stats, setStats] = useState<MerchantStats | null>(null);
+   437→  const [loading, setLoading] = useState(true);
+   438→
+   439→  useEffect(() => {
+   440→    let cancelled = false;
+   441→    (async () => {
+   442→      const { data } = await apiFetch<MerchantStats>('/api/stats/merchant');
+   443→      if (!cancelled) {
+   444→        if (data) setStats(data);
+   445→        setLoading(false);
+   446→      }
+   447→    })();
+   448→    return () => { cancelled = true; };
+   449→  }, []);
+   450→
+   451→  if (loading) {
+   452→    return (
+   453→      <div className="space-y-6">
+   454→        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   455→          {[1, 2, 3, 4].map((i) => (
+   456→            <Card key={i}><CardContent className="p-4 lg:p-6"><Skeleton className="h-20 w-full" /></CardContent></Card>
+   457→          ))}
+   458→        </div>
+   459→        <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>
+   460→      </div>
+   461→    );
+   462→  }
+   463→
+   464→  // Compute today's orders/revenue from recentOrders
+   465→  const todayOrders = stats?.recentOrders?.filter((o) => isToday(o.createdAt)) || [];
+   466→  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
+   467→
+   468→  const statCards = [
+   469→    { label: 'Commandes aujourd\'hui', value: todayOrders.length, icon: ShoppingBag, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
+   470→    { label: 'Revenus du jour', value: formatPrice(todayRevenue), icon: DollarSign, color: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
+   471→    { label: 'Produits actifs', value: stats?.totalProducts ?? 0, icon: Package, color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20' },
+   472→    { label: 'Note moyenne', value: stats?.rating ? `${stats.rating.toFixed(1)}/5` : 'N/A', icon: Star, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
+   473→  ];
+   474→
+   475→  return (
+   476→    <div className="space-y-6">
+   477→      {/* Stats cards */}
+   478→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   479→        {statCards.map((s, idx) => (
+   480→          <motion.div
+   481→            key={s.label}
+   482→            initial={{ opacity: 0, y: 20 }}
+   483→            animate={{ opacity: 1, y: 0 }}
+   484→            transition={{ delay: idx * 0.05 }}
+   485→          >
+   486→            <Card className="hover:shadow-md transition-shadow">
+   487→              <CardContent className="p-4 lg:p-6">
+   488→                <div className="flex items-center justify-between mb-2">
+   489→                  <span className="text-xs sm:text-sm text-muted-foreground">{s.label}</span>
+   490→                  <div className={`p-2 rounded-lg ${s.color}`}>
+   491→                    <s.icon className="h-4 w-4" />
+   492→                  </div>
+   493→                </div>
+   494→                <p className="text-xl lg:text-2xl font-bold">{s.value}</p>
+   495→              </CardContent>
+   496→            </Card>
+   497→          </motion.div>
+   498→        ))}
+   499→      </div>
+   500→
+   501→      {/* Quick actions */}
+   502→      <Card>
+   503→        <CardHeader className="pb-3">
+   504→          <CardTitle className="text-lg">Actions rapides</CardTitle>
+   505→        </CardHeader>
+   506→        <CardContent className="flex flex-wrap gap-3">
+   507→          <Button onClick={() => navigate('add-product')} className="bg-emerald-600 hover:bg-emerald-700">
+   508→            <PlusCircle className="h-4 w-4 mr-2" /> Ajouter produit
+   509→          </Button>
+   510→          <Button variant="outline" onClick={() => navigate('orders')}>
+   511→            <ShoppingBag className="h-4 w-4 mr-2" /> Voir commandes
+   512→          </Button>
+   513→        </CardContent>
+   514→      </Card>
+   515→
+   516→      {/* Recent orders */}
+   517→      <Card>
+   518→        <CardHeader className="pb-3">
+   519→          <div className="flex items-center justify-between">
+   520→            <CardTitle className="text-lg">Commandes récentes</CardTitle>
+   521→            <Button variant="ghost" size="sm" onClick={() => navigate('orders')}>
+   522→              Voir tout <ChevronRight className="h-4 w-4 ml-1" />
+   523→            </Button>
+   524→          </div>
+   525→        </CardHeader>
+   526→        <CardContent>
+   527→          {!stats?.recentOrders?.length ? (
+   528→            <div className="flex flex-col items-center justify-center py-12 text-center">
+   529→              <ShoppingBag className="h-10 w-10 text-muted-foreground/40 mb-3" />
+   530→              <p className="text-muted-foreground">Aucune commande récente</p>
+   531→            </div>
+   532→          ) : (
+   533→            <div className="space-y-3 max-h-96 overflow-y-auto">
+   534→              {stats.recentOrders.slice(0, 5).map((order) => (
+   535→                <motion.div
+   536→                  key={order.id}
+   537→                  initial={{ opacity: 0 }}
+   538→                  animate={{ opacity: 1 }}
+   539→                  className="flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors"
+   540→                  onClick={() => navigate('order-detail', { id: order.id })}
+   541→                >
+   542→                  <div className="min-w-0 flex-1">
+   543→                    <p className="font-medium text-sm">{order.orderNumber}</p>
+   544→                    <p className="text-xs text-muted-foreground truncate">
+   545→                      {order.client?.user ? `${order.client.user.firstName} ${order.client.user.lastName}` : 'Client'}
+   546→                      {' · '}{formatDate(order.createdAt)}
+   547→                    </p>
+   548→                  </div>
+   549→                  <div className="flex items-center gap-2 ml-3">
+   550→                    <span className="font-semibold text-sm">{formatPrice(order.total)}</span>
+   551→                    <StatusBadge status={order.status} />
+   552→                  </div>
+   553→                </motion.div>
+   554→              ))}
+   555→            </div>
+   556→          )}
+   557→        </CardContent>
+   558→      </Card>
+   559→    </div>
+   560→  );
+   561→}
+   562→
+   563→// ═══════════════════════════════════════════════════════════════════════════
+   564→// 3. PRODUCTS (table view)
+   565→// ═══════════════════════════════════════════════════════════════════════════
+   566→
+   567→function ProductsView({ merchantId }: { merchantId: string }) {
+   568→  const { navigate } = useMerchantNav();
+   569→  const [products, setProducts] = useState<Product[]>([]);
+   570→  const [loading, setLoading] = useState(true);
+   571→  const [search, setSearch] = useState('');
+   572→  const [statusFilter, setStatusFilter] = useState<string>('all');
+   573→  const [togglingId, setTogglingId] = useState<string | null>(null);
+   574→  const [refreshKey, setRefreshKey] = useState(0);
+   575→
+   576→  useEffect(() => {
+   577→    let cancelled = false;
+   578→    (async () => {
+   579→      setLoading(true);
+   580→      const { data } = await apiFetch<Product[]>(`/api/products?merchantId=${merchantId}&available=false`);
+   581→      if (!cancelled) {
+   582→        if (data) setProducts(data);
+   583→        setLoading(false);
+   584→      }
+   585→    })();
+   586→    return () => { cancelled = true; };
+   587→  }, [merchantId, refreshKey]);
+   588→
+   589→  const handleDelete = async (id: string) => {
+   590→    if (!confirm('Supprimer ce produit ?')) return;
+   591→    const { error } = await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+   592→    if (error) { toast.error(error); return; }
+   593→    toast.success('Produit supprimé');
+   594→    setRefreshKey((k) => k + 1);
+   595→  };
+   596→
+   597→  const handleToggleAvailable = async (p: Product) => {
+   598→    setTogglingId(p.id);
+   599→    const { error } = await apiFetch(`/api/products/${p.id}`, {
+   600→      method: 'PUT',
+   601→      body: JSON.stringify({ isAvailable: !p.isAvailable }),
+   602→    });
+   603→    if (error) { toast.error(error); }
+   604→    else { toast.success(p.isAvailable ? 'Produit désactivé' : 'Produit activé'); setRefreshKey((k) => k + 1); }
+   605→    setTogglingId(null);
+   606→  };
+   607→
+   608→  const filtered = products.filter((p) => {
+   609→    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+   610→    const matchStatus = statusFilter === 'all' ||
+   611→      (statusFilter === 'available' && p.isAvailable) ||
+   612→      (statusFilter === 'unavailable' && !p.isAvailable);
+   613→    return matchSearch && matchStatus;
+   614→  });
+   615→
+   616→  if (loading) {
+   617→    return (
+   618→      <div className="space-y-4">
+   619→        <Skeleton className="h-10 w-full max-w-sm" />
+   620→        <Card><CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
+   621→      </div>
+   622→    );
+   623→  }
+   624→
+   625→  return (
+   626→    <div className="space-y-4">
+   627→      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+   628→        <div className="flex flex-col sm:flex-row gap-2">
+   629→          <div className="relative">
+   630→            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   631→            <Input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 w-full sm:w-64" />
+   632→          </div>
+   633→          <Select value={statusFilter} onValueChange={setStatusFilter}>
+   634→            <SelectTrigger className="w-full sm:w-40">
+   635→              <SelectValue />
+   636→            </SelectTrigger>
+   637→            <SelectContent>
+   638→              <SelectItem value="all">Tous</SelectItem>
+   639→              <SelectItem value="available">Disponibles</SelectItem>
+   640→              <SelectItem value="unavailable">Indisponibles</SelectItem>
+   641→            </SelectContent>
+   642→          </Select>
+   643→        </div>
+   644→        <Button onClick={() => navigate('add-product')} className="bg-emerald-600 hover:bg-emerald-700 shrink-0">
+   645→          <PlusCircle className="h-4 w-4 mr-2" /> Ajouter un produit
+   646→        </Button>
+   647→      </div>
+   648→
+   649→      <Card>
+   650→        <CardContent className="p-0">
+   651→          {!filtered.length ? (
+   652→            <div className="flex flex-col items-center justify-center py-16 text-center">
+   653→              <Package className="h-12 w-12 text-muted-foreground mb-3" />
+   654→              <p className="text-lg font-medium">Aucun produit</p>
+   655→              <p className="text-muted-foreground text-sm mt-1">Commencez par ajouter votre premier produit</p>
+   656→              <Button onClick={() => navigate('add-product')} className="mt-4 bg-emerald-600 hover:bg-emerald-700">
+   657→                <PlusCircle className="h-4 w-4 mr-2" /> Ajouter un produit
+   658→              </Button>
+   659→            </div>
+   660→          ) : (
+   661→            <>
+   662→              {/* Desktop table */}
+   663→              <div className="hidden md:block">
+   664→                <Table>
+   665→                  <TableHeader>
+   666→                    <TableRow>
+   667→                      <TableHead>Image</TableHead>
+   668→                      <TableHead>Nom</TableHead>
+   669→                      <TableHead>Prix</TableHead>
+   670→                      <TableHead>Stock</TableHead>
+   671→                      <TableHead>Catégorie</TableHead>
+   672→                      <TableHead>Statut</TableHead>
+   673→                      <TableHead className="text-right">Actions</TableHead>
+   674→                    </TableRow>
+   675→                  </TableHeader>
+   676→                  <TableBody>
+   677→                    {filtered.map((p) => (
+   678→                      <TableRow key={p.id}>
+   679→                        <TableCell>
+   680→                          <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden">
+   681→                            {p.image ? (
+   682→                              <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+   683→                            ) : (
+   684→                              <div className="h-full w-full flex items-center justify-center">
+   685→                                <Package className="h-4 w-4 text-muted-foreground/40" />
+   686→                              </div>
+   687→                            )}
+   688→                          </div>
+   689→                        </TableCell>
+   690→                        <TableCell>
+   691→                          <div>
+   692→                            <p className="font-medium text-sm truncate max-w-40">{p.name}</p>
+   693→                            {p.brand && <p className="text-xs text-muted-foreground">{p.brand}</p>}
+   694→                          </div>
+   695→                        </TableCell>
+   696→                        <TableCell>
+   697→                          <div>
+   698→                            <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">{formatPrice(p.price)}</span>
+   699→                            {p.comparePrice && p.comparePrice > p.price && (
+   700→                              <p className="text-xs text-muted-foreground line-through">{formatPrice(p.comparePrice)}</p>
+   701→                            )}
+   702→                          </div>
+   703→                        </TableCell>
+   704→                        <TableCell>
+   705→                          <span className={`text-sm font-medium ${p.stock <= 0 ? 'text-destructive' : ''}`}>{p.stock}</span>
+   706→                        </TableCell>
+   707→                        <TableCell>
+   708→                          <span className="text-sm text-muted-foreground">{p.category?.name || '—'}</span>
+   709→                        </TableCell>
+   710→                        <TableCell>
+   711→                          <Switch
+   712→                            checked={p.isAvailable}
+   713→                            onCheckedChange={() => handleToggleAvailable(p)}
+   714→                            disabled={togglingId === p.id}
+   715→                            className="data-[state=checked]:bg-emerald-600"
+   716→                          />
+   717→                        </TableCell>
+   718→                        <TableCell>
+   719→                          <div className="flex items-center justify-end gap-1">
+   720→                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('add-product', { id: p.id })}>
+   721→                              <Edit className="h-4 w-4" />
+   722→                            </Button>
+   723→                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)}>
+   724→                              <Trash2 className="h-4 w-4" />
+   725→                            </Button>
+   726→                          </div>
+   727→                        </TableCell>
+   728→                      </TableRow>
+   729→                    ))}
+   730→                  </TableBody>
+   731→                </Table>
+   732→              </div>
+   733→
+   734→              {/* Mobile cards */}
+   735→              <div className="md:hidden divide-y">
+   736→                {filtered.map((p) => (
+   737→                  <div key={p.id} className="flex items-center gap-3 p-4">
+   738→                    <div className="h-12 w-12 rounded-lg bg-muted overflow-hidden shrink-0">
+   739→                      {p.image ? (
+   740→                        <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+   741→                      ) : (
+   742→                        <div className="h-full w-full flex items-center justify-center">
+   743→                          <Package className="h-5 w-5 text-muted-foreground/40" />
+   744→                        </div>
+   745→                      )}
+   746→                    </div>
+   747→                    <div className="flex-1 min-w-0">
+   748→                      <p className="font-medium text-sm truncate">{p.name}</p>
+   749→                      <p className="text-xs text-muted-foreground">
+   750→                        {p.category?.name || '—'} · Stock: {p.stock}
+   751→                      </p>
+   752→                      <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">{formatPrice(p.price)}</span>
+   753→                    </div>
+   754→                    <div className="flex flex-col items-end gap-1 shrink-0">
+   755→                      <Switch
+   756→                        checked={p.isAvailable}
+   757→                        onCheckedChange={() => handleToggleAvailable(p)}
+   758→                        disabled={togglingId === p.id}
+   759→                        className="data-[state=checked]:bg-emerald-600"
+   760→                      />
+   761→                      <div className="flex gap-1">
+   762→                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('add-product', { id: p.id })}>
+   763→                          <Edit className="h-3 w-3" />
+   764→                        </Button>
+   765→                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(p.id)}>
+   766→                          <Trash2 className="h-3 w-3" />
+   767→                        </Button>
+   768→                      </div>
+   769→                    </div>
+   770→                  </div>
+   771→                ))}
+   772→              </div>
+   773→            </>
+   774→          )}
+   775→        </CardContent>
+   776→      </Card>
+   777→    </div>
+   778→  );
+   779→}
+   780→
+   781→// ═══════════════════════════════════════════════════════════════════════════
+   782→// 4. ADD / EDIT PRODUCT
+   783→// ═══════════════════════════════════════════════════════════════════════════
+   784→
+   785→function AddProductView() {
+   786→  const { data, goBack, navigate } = useMerchantNav();
+   787→  const editId = data?.id;
+   788→  const isEdit = !!editId;
+   789→
+   790→  const [loading, setLoading] = useState(isEdit);
+   791→  const [saving, setSaving] = useState(false);
+   792→  const [categories, setCategories] = useState<Category[]>([]);
+   793→
+   794→  const [form, setForm] = useState({
+   795→    name: '', description: '', price: '',
+   796→    comparePrice: '', stock: '', categoryId: '', preparationTime: '',
+   797→    tags: '', brand: '', origin: '', image: '',
+   798→    isAvailable: true, isFeatured: false,
+   799→  });
+   800→
+   801→  useEffect(() => {
+   802→    let cancelled = false;
+   803→    (async () => {
+   804→      const { data: cats } = await apiFetch<Category[]>('/api/categories');
+   805→      if (!cancelled && cats) setCategories(cats);
+   806→    })();
+   807→    return () => { cancelled = true; };
+   808→  }, []);
+   809→
+   810→  useEffect(() => {
+   811→    if (!editId) return;
+   812→    let cancelled = false;
+   813→    (async () => {
+   814→      const { data } = await apiFetch<Product>(`/api/products/${editId}`);
+   815→      if (!cancelled && data) {
+   816→        let tagsStr = '';
+   817→        try { const t = JSON.parse(data.tags || '[]'); tagsStr = t.join(', '); } catch { /* ignore */ }
+   818→        setForm({
+   819→          name: data.name || '',
+   820→          description: data.longDescription || data.shortDescription || '',
+   821→          price: String(data.price || ''),
+   822→          comparePrice: data.comparePrice ? String(data.comparePrice) : '',
+   823→          stock: String(data.stock ?? ''),
+   824→          categoryId: data.categoryId || '',
+   825→          preparationTime: data.preparationTime ? String(data.preparationTime) : '',
+   826→          tags: tagsStr,
+   827→          brand: data.brand || '',
+   828→          origin: data.origin || '',
+   829→          image: data.image || '',
+   830→          isAvailable: data.isAvailable,
+   831→          isFeatured: data.isFeatured,
+   832→        });
+   833→        setLoading(false);
+   834→      }
+   835→      if (!cancelled) setLoading(false);
+   836→    })();
+   837→    return () => { cancelled = true; };
+   838→  }, [editId]);
+   839→
+   840→  const setField = (key: string, val: string | boolean) =>
+   841→    setForm((prev) => ({ ...prev, [key]: val }));
+   842→
+   843→  const handleSave = async () => {
+   844→    if (!form.name || !form.price) {
+   845→      toast.error('Nom et prix requis');
+   846→      return;
+   847→    }
+   848→    setSaving(true);
+   849→    const tagsArr = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
+   850→
+   851→    const body: Record<string, unknown> = {
+   852→      name: form.name,
+   853→      shortDescription: form.description ? form.description.slice(0, 120) : null,
+   854→      longDescription: form.description || null,
+   855→      price: parseInt(form.price) || 0,
+   856→      comparePrice: form.comparePrice ? parseInt(form.comparePrice) : null,
+   857→      stock: parseInt(form.stock) || 0,
+   858→      categoryId: form.categoryId || null,
+   859→      isAvailable: form.isAvailable,
+   860→      isFeatured: form.isFeatured,
+   861→      preparationTime: form.preparationTime ? parseInt(form.preparationTime) : null,
+   862→      brand: form.brand || null,
+   863→      origin: form.origin || null,
+   864→      tags: tagsArr.length ? tagsArr : null,
+   865→      image: form.image || null,
+   866→    };
+   867→
+   868→    const { error } = isEdit
+   869→      ? await apiFetch(`/api/products/${editId}`, { method: 'PUT', body: JSON.stringify(body) })
+   870→      : await apiFetch('/api/products', { method: 'POST', body: JSON.stringify(body) });
+   871→
+   872→    if (error) { toast.error(error); setSaving(false); return; }
+   873→    toast.success(isEdit ? 'Produit mis à jour' : 'Produit ajouté');
+   874→    navigate('products');
+   875→  };
+   876→
+   877→  if (loading) {
+   878→    return (
+   879→      <div className="space-y-4">
+   880→        <Skeleton className="h-8 w-48" />
+   881→        <div className="grid grid-cols-2 gap-4">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+   882→      </div>
+   883→    );
+   884→  }
+   885→
+   886→  const fieldClass = 'flex flex-col gap-1.5';
+   887→
+   888→  return (
+   889→    <div className="max-w-3xl mx-auto space-y-6">
+   890→      <div className="flex items-center gap-3">
+   891→        <Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft className="h-5 w-5" /></Button>
+   892→        <h2 className="text-xl font-bold">{isEdit ? 'Modifier le produit' : 'Ajouter un produit'}</h2>
+   893→      </div>
+   894→
+   895→      <Card>
+   896→        <CardContent className="p-6 space-y-5">
+   897→          {/* Image URL */}
+   898→          <div className={fieldClass}>
+   899→            <Label>URL de l&apos;image</Label>
+   900→            <div className="flex gap-2">
+   901→              <Input
+   902→                value={form.image}
+   903→                onChange={(e) => setField('image', e.target.value)}
+   904→                placeholder="https://exemple.com/image.jpg"
+   905→                className="flex-1"
+   906→              />
+   907→              {form.image && (
+   908→                <div className="h-10 w-10 rounded-lg overflow-hidden border shrink-0">
+   909→                  <img src={form.image} alt="Aperçu" className="h-full w-full object-cover" />
+   910→                </div>
+   911→              )}
+   912→            </div>
+   913→          </div>
+   914→
+   915→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   916→            <div className={fieldClass}>
+   917→              <Label>Nom du produit *</Label>
+   918→              <Input value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="Ex: Poulet braisé" />
+   919→            </div>
+   920→            <div className={fieldClass}>
+   921→              <Label>Catégorie</Label>
+   922→              <Select value={form.categoryId} onValueChange={(v) => setField('categoryId', v)}>
+   923→                <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+   924→                <SelectContent>
+   925→                  {categories.map((c) => (
+   926→                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+   927→                  ))}
+   928→                </SelectContent>
+   929→              </Select>
+   930→            </div>
+   931→            <div className={fieldClass}>
+   932→              <Label>Prix (FCFA) *</Label>
+   933→              <Input type="number" value={form.price} onChange={(e) => setField('price', e.target.value)} placeholder="0" />
+   934→            </div>
+   935→            <div className={fieldClass}>
+   936→              <Label>Prix barré (FCFA)</Label>
+   937→              <Input type="number" value={form.comparePrice} onChange={(e) => setField('comparePrice', e.target.value)} placeholder="Optionnel" />
+   938→            </div>
+   939→            <div className={fieldClass}>
+   940→              <Label>Stock</Label>
+   941→              <Input type="number" value={form.stock} onChange={(e) => setField('stock', e.target.value)} placeholder="0" />
+   942→            </div>
+   943→            <div className={fieldClass}>
+   944→              <Label>Temps de préparation (min)</Label>
+   945→              <Input type="number" value={form.preparationTime} onChange={(e) => setField('preparationTime', e.target.value)} placeholder="30" />
+   946→            </div>
+   947→            <div className={fieldClass}>
+   948→              <Label>Marque</Label>
+   949→              <Input value={form.brand} onChange={(e) => setField('brand', e.target.value)} placeholder="Ex: Malibya" />
+   950→            </div>
+   951→            <div className={fieldClass}>
+   952→              <Label>Origine</Label>
+   953→              <Input value={form.origin} onChange={(e) => setField('origin', e.target.value)} placeholder="Ex: Mali" />
+   954→            </div>
+   955→          </div>
+   956→
+   957→          <div className={fieldClass}>
+   958→            <Label>Description</Label>
+   959→            <Textarea rows={3} value={form.description} onChange={(e) => setField('description', e.target.value)} placeholder="Description détaillée du produit..." />
+   960→          </div>
+   961→
+   962→          <div className={fieldClass}>
+   963→            <Label>Tags (séparés par des virgules)</Label>
+   964→            <Input value={form.tags} onChange={(e) => setField('tags', e.target.value)} placeholder="populaire, promo, nouveau" />
+   965→          </div>
+   966→
+   967→          <div className="flex items-center gap-6">
+   968→            <div className="flex items-center gap-2">
+   969→              <Switch checked={form.isAvailable} onCheckedChange={(v) => setField('isAvailable', v)} className="data-[state=checked]:bg-emerald-600" />
+   970→              <Label>Disponible</Label>
+   971→            </div>
+   972→            <div className="flex items-center gap-2">
+   973→              <Switch checked={form.isFeatured} onCheckedChange={(v) => setField('isFeatured', v)} className="data-[state=checked]:bg-emerald-600" />
+   974→              <Label>En vedette</Label>
+   975→            </div>
+   976→          </div>
+   977→        </CardContent>
+   978→        <CardFooter className="p-6 pt-0 flex gap-3">
+   979→          <Button variant="outline" onClick={goBack}>Annuler</Button>
+   980→          <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+   981→            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+   982→            {isEdit ? 'Mettre à jour' : 'Créer le produit'}
+   983→          </Button>
+   984→        </CardFooter>
+   985→      </Card>
+   986→    </div>
+   987→  );
+   988→}
+   989→
+   990→// ═══════════════════════════════════════════════════════════════════════════
+   991→// 5. ORDERS
+   992→// ═══════════════════════════════════════════════════════════════════════════
+   993→
+   994→function OrdersView() {
+   995→  const { navigate } = useMerchantNav();
+   996→  const [orders, setOrders] = useState<Order[]>([]);
+   997→  const [loading, setLoading] = useState(true);
+   998→  const [activeTab, setActiveTab] = useState('Toutes');
+   999→  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  1000→
+  1001→  const [ordersKey, setOrdersKey] = useState(0);
+  1002→
+  1003→  useEffect(() => {
+  1004→    let cancelled = false;
+  1005→    const statusParam = activeTab !== 'Toutes' ? activeTab : undefined;
+  1006→    (async () => {
+  1007→      setLoading(true);
+  1008→      const q = statusParam ? `?status=${statusParam}` : '';
+  1009→      const { data } = await apiFetch<{ orders: Order[] }>(`/api/orders${q}`);
+  1010→      if (!cancelled) {
+  1011→        if (data) setOrders(data.orders || []);
+  1012→        setLoading(false);
+  1013→      }
+  1014→    })();
+  1015→    return () => { cancelled = true; };
+  1016→  }, [activeTab, ordersKey]);
+  1017→
+  1018→  const updateOrderStatus = async (orderId: string, status: string) => {
+  1019→    setUpdatingId(orderId);
+  1020→    const { error } = await apiFetch(`/api/orders/${orderId}`, {
+  1021→      method: 'PUT',
+  1022→      body: JSON.stringify({ status }),
+  1023→    });
+  1024→    if (error) { toast.error(error); }
+  1025→    else {
+  1026→      const label = ORDER_STATUS_LABELS[status] || status;
+  1027→      toast.success(`Commande passée à : ${label}`);
+  1028→      setOrdersKey((k) => k + 1);
+  1029→    }
+  1030→    setUpdatingId(null);
+  1031→  };
+  1032→
+  1033→  const tabs = [
+  1034→    { label: 'Toutes', value: 'Toutes' },
+  1035→    { label: 'En attente', value: 'PENDING' },
+  1036→    { label: 'Confirmées', value: 'CONFIRMED' },
+  1037→    { label: 'En préparation', value: 'PREPARING' },
+  1038→    { label: 'Prêtes', value: 'READY' },
+  1039→    { label: 'Livrées', value: 'DELIVERED' },
+  1040→    { label: 'Annulées', value: 'CANCELLED' },
+  1041→  ];
+  1042→
+  1043→  return (
+  1044→    <div className="space-y-4">
+  1045→      <Tabs value={activeTab} onValueChange={setActiveTab}>
+  1046→        <div className="overflow-x-auto -mx-1 px-1">
+  1047→          <TabsList className="w-full justify-start min-w-max">
+  1048→            {tabs.map((t) => (
+  1049→              <TabsTrigger key={t.label} value={t.value}>{t.label}</TabsTrigger>
+  1050→            ))}
+  1051→          </TabsList>
+  1052→        </div>
+  1053→
+  1054→        <TabsContent value={activeTab} className="mt-4">
+  1055→          {loading ? (
+  1056→            <div className="space-y-3">
+  1057→              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
+  1058→            </div>
+  1059→          ) : !orders.length ? (
+  1060→            <Card>
+  1061→              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+  1062→                <ShoppingBag className="h-12 w-12 text-muted-foreground mb-3" />
+  1063→                <p className="text-lg font-medium">Aucune commande</p>
+  1064→                <p className="text-muted-foreground text-sm mt-1">Les commandes apparaîtront ici</p>
+  1065→              </CardContent>
+  1066→            </Card>
+  1067→          ) : (
+  1068→            <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+  1069→              {orders.map((order) => {
+  1070→                const canAccept = order.status === 'PENDING';
+  1071→                const canPrepare = order.status === 'CONFIRMED';
+  1072→                const canReady = order.status === 'PREPARING';
+  1073→
+  1074→                return (
+  1075→                  <Card
+  1076→                    key={order.id}
+  1077→                    className="cursor-pointer hover:shadow-md transition-shadow"
+  1078→                    onClick={() => navigate('order-detail', { id: order.id })}
+  1079→                  >
+  1080→                    <CardContent className="p-4">
+  1081→                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+  1082→                        <div className="min-w-0 flex-1">
+  1083→                          <div className="flex items-center gap-2 flex-wrap">
+  1084→                            <p className="font-semibold text-sm">{order.orderNumber}</p>
+  1085→                            <StatusBadge status={order.status} />
+  1086→                            {order.paymentMethod !== 'CASH' && <PaymentBadge status={order.paymentStatus} />}
+  1087→                          </div>
+  1088→                          <p className="text-xs text-muted-foreground mt-1">
+  1089→                            {order.client?.user ? `${order.client.user.firstName} ${order.client.user.lastName}` : 'Client'}
+  1090→                            {' · '}{order.items?.length || 0} article(s) · {formatDate(order.createdAt)}
+  1091→                          </p>
+  1092→                        </div>
+  1093→                        <div className="flex items-center gap-3 shrink-0">
+  1094→                          <p className="font-bold text-emerald-700 dark:text-emerald-400">{formatPrice(order.total)}</p>
+  1095→                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+  1096→                            {canAccept && (
+  1097→                              <Button
+  1098→                                size="sm"
+  1099→                                onClick={() => updateOrderStatus(order.id, 'CONFIRMED')}
+  1100→                                disabled={updatingId === order.id}
+  1101→                                className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]"
+  1102→                              >
+  1103→                                {updatingId === order.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+  1104→                                Accepter
+  1105→                              </Button>
+  1106→                            )}
+  1107→                            {canPrepare && (
+  1108→                              <Button
+  1109→                                size="sm"
+  1110→                                onClick={() => updateOrderStatus(order.id, 'PREPARING')}
+  1111→                                disabled={updatingId === order.id}
+  1112→                                className="bg-orange-600 hover:bg-orange-700 min-h-[44px]"
+  1113→                              >
+  1114→                                {updatingId === order.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+  1115→                                Préparation
+  1116→                              </Button>
+  1117→                            )}
+  1118→                            {canReady && (
+  1119→                              <Button
+  1120→                                size="sm"
+  1121→                                onClick={() => updateOrderStatus(order.id, 'READY')}
+  1122→                                disabled={updatingId === order.id}
+  1123→                                className="bg-teal-600 hover:bg-teal-700 min-h-[44px]"
+  1124→                              >
+  1125→                                {updatingId === order.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+  1126→                                Prêt
+  1127→                              </Button>
+  1128→                            )}
+  1129→                          </div>
+  1130→                        </div>
+  1131→                      </div>
+  1132→                    </CardContent>
+  1133→                  </Card>
+  1134→                );
+  1135→              })}
+  1136→            </div>
+  1137→          )}
+  1138→        </TabsContent>
+  1139→      </Tabs>
+  1140→    </div>
+  1141→  );
+  1142→}
+  1143→
+  1144→// ═══════════════════════════════════════════════════════════════════════════
+  1145→// 6. ORDER DETAIL
+  1146→// ═══════════════════════════════════════════════════════════════════════════
+  1147→
+  1148→const STATUS_FLOW = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'];
+  1149→
+  1150→function OrderDetailView() {
+  1151→  const { data, goBack } = useMerchantNav();
+  1152→  const orderId = data?.id;
+  1153→  const [order, setOrder] = useState<Order | null>(null);
+  1154→  const [loading, setLoading] = useState(true);
+  1155→  const [updating, setUpdating] = useState(false);
+  1156→  const [cancelOpen, setCancelOpen] = useState(false);
+  1157→  const [cancelReason, setCancelReason] = useState('');
+  1158→  const [rejectOpen, setRejectOpen] = useState(false);
+  1159→  const [rejectReason, setRejectReason] = useState('');
+  1160→  const [refreshKey, setRefreshKey] = useState(0);
+  1161→
+  1162→  useEffect(() => {
+  1163→    if (!orderId) return;
+  1164→    let cancelled = false;
+  1165→    (async () => {
+  1166→      setLoading(true);
+  1167→      const { data } = await apiFetch<Order>(`/api/orders/${orderId}`);
+  1168→      if (!cancelled && data) setOrder(data);
+  1169→      if (!cancelled) setLoading(false);
+  1170→    })();
+  1171→    return () => { cancelled = true; };
+  1172→  }, [orderId, refreshKey]);
+  1173→
+  1174→  const updateStatus = async (status: string, extra?: Record<string, unknown>) => {
+  1175→    if (!orderId) return;
+  1176→    setUpdating(true);
+  1177→    const body: Record<string, unknown> = { status, ...extra };
+  1178→    const { error } = await apiFetch(`/api/orders/${orderId}`, {
+  1179→      method: 'PUT',
+  1180→      body: JSON.stringify(body),
+  1181→    });
+  1182→    if (error) { toast.error(error); setUpdating(false); return; }
+  1183→    toast.success('Statut mis à jour');
+  1184→    setRefreshKey((k) => k + 1);
+  1185→    setUpdating(false);
+  1186→  };
+  1187→
+  1188→  const handleCancel = async () => {
+  1189→    if (!cancelReason.trim()) { toast.error('Veuillez indiquer une raison'); return; }
+  1190→    await updateStatus('CANCELLED', { cancelReason });
+  1191→    setCancelOpen(false);
+  1192→    setCancelReason('');
+  1193→  };
+  1194→
+  1195→  const handleAcceptPayment = async () => {
+  1196→    if (!orderId) return;
+  1197→    setUpdating(true);
+  1198→    const { error } = await apiFetch(`/api/orders/${orderId}/payment-proof`, {
+  1199→      method: 'POST',
+  1200→      body: JSON.stringify({ action: 'ACCEPT' }),
+  1201→    });
+  1202→    if (error) { toast.error(error); setUpdating(false); return; }
+  1203→    toast.success('Paiement accepté et commande confirmée');
+  1204→    setRefreshKey((k) => k + 1);
+  1205→    setUpdating(false);
+  1206→  };
+  1207→
+  1208→  const handleRejectPayment = async () => {
+  1209→    if (!rejectReason.trim()) { toast.error('Veuillez indiquer une raison'); return; }
+  1210→    if (!orderId) return;
+  1211→    setUpdating(true);
+  1212→    const { error } = await apiFetch(`/api/orders/${orderId}/payment-proof`, {
+  1213→      method: 'POST',
+  1214→      body: JSON.stringify({ action: 'REJECT', reason: rejectReason }),
+  1215→    });
+  1216→    if (error) { toast.error(error); setUpdating(false); return; }
+  1217→    toast.success('Paiement refusé');
+  1218→    setRejectOpen(false);
+  1219→    setRejectReason('');
+  1220→    setRefreshKey((k) => k + 1);
+  1221→    setUpdating(false);
+  1222→  };
+  1223→
+  1224→  if (loading) {
+  1225→    return (
+  1226→      <div className="max-w-3xl mx-auto space-y-4">
+  1227→        <Skeleton className="h-8 w-48" />
+  1228→        <Skeleton className="h-60 w-full" />
+  1229→      </div>
+  1230→    );
+  1231→  }
+  1232→
+  1233→  if (!order) {
+  1234→    return (
+  1235→      <div className="max-w-3xl mx-auto text-center py-16">
+  1236→        <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+  1237→        <p>Commande non trouvée</p>
+  1238→        <Button variant="outline" onClick={goBack} className="mt-4">Retour</Button>
+  1239→      </div>
+  1240→    );
+  1241→  }
+  1242→
+  1243→  const canConfirm = ['PENDING', 'PAYMENT_PENDING'].includes(order.status);
+  1244→  const canPrepare = order.status === 'CONFIRMED';
+  1245→  const canReady = order.status === 'PREPARING';
+  1246→  const canCancel = ['PENDING', 'PAYMENT_PENDING'].includes(order.status);
+  1247→  const showPaymentProof = order.paymentMethod !== 'CASH' && ['PENDING', 'UPLOADED'].includes(order.paymentStatus);
+  1248→  const currentStatusIdx = STATUS_FLOW.indexOf(order.status);
+  1249→
+  1250→  return (
+  1251→    <div className="max-w-3xl mx-auto space-y-4">
+  1252→      <div className="flex items-center gap-3">
+  1253→        <Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft className="h-5 w-5" /></Button>
+  1254→        <div>
+  1255→          <h2 className="text-xl font-bold">{order.orderNumber}</h2>
+  1256→          <p className="text-sm text-muted-foreground">{formatDate(order.createdAt)}</p>
+  1257→        </div>
+  1258→      </div>
+  1259→
+  1260→      {/* Status timeline */}
+  1261→      <Card>
+  1262→        <CardHeader className="pb-3"><CardTitle className="text-lg">Statut de la commande</CardTitle></CardHeader>
+  1263→        <CardContent>
+  1264→          <div className="flex items-center gap-2 flex-wrap mb-4">
+  1265→            <StatusBadge status={order.status} />
+  1266→            <span className="text-sm text-muted-foreground">Paiement :</span>
+  1267→            <PaymentBadge status={order.paymentStatus} />
+  1268→            <span className="text-sm text-muted-foreground">({PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod})</span>
+  1269→          </div>
+  1270→
+  1271→          {/* Timeline bar */}
+  1272→          <div className="relative flex items-center justify-between mb-6 px-2">
+  1273→            {STATUS_FLOW.filter((s) => s !== 'CANCELLED' && s !== 'REFUNDED').map((s, idx) => {
+  1274→              const isActive = idx <= currentStatusIdx;
+  1275→              const isCurrent = s === order.status;
+  1276→              return (
+  1277→                <React.Fragment key={s}>
+  1278→                  {idx > 0 && (
+  1279→                    <div className={`flex-1 h-0.5 ${idx <= currentStatusIdx ? 'bg-emerald-500' : 'bg-muted'}`} />
+  1280→                  )}
+  1281→                  <div className="flex flex-col items-center gap-1 z-10">
+  1282→                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+  1283→                      isCurrent ? 'bg-emerald-600 text-white ring-2 ring-emerald-200 dark:ring-emerald-800' :
+  1284→                      isActive ? 'bg-emerald-500 text-white' :
+  1285→                      'bg-muted text-muted-foreground'
+  1286→                    }`}>
+  1287→                      {isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : idx + 1}
+  1288→                    </div>
+  1289→                    <span className={`text-[9px] sm:text-[10px] text-center max-w-14 leading-tight ${
+  1290→                      isCurrent ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'
+  1291→                    }`}>
+  1292→                      {ORDER_STATUS_LABELS[s]}
+  1293→                    </span>
+  1294→                  </div>
+  1295→                </React.Fragment>
+  1296→              );
+  1297→            })}
+  1298→          </div>
+  1299→
+  1300→          {/* Payment proof */}
+  1301→          {showPaymentProof && order.paymentProof && (
+  1302→            <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/10 space-y-3">
+  1303→              <p className="font-medium text-sm">Preuve de paiement {order.paymentNote && `- ${order.paymentNote}`}</p>
+  1304→              <img src={order.paymentProof} alt="Preuve de paiement" className="max-h-48 rounded-lg border" />
+  1305→              {order.paymentStatus === 'UPLOADED' && (
+  1306→                <div className="flex gap-2">
+  1307→                  <Button size="sm" onClick={handleAcceptPayment} disabled={updating} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
+  1308→                    <CheckCircle2 className="h-4 w-4 mr-1" /> Accepter
+  1309→                  </Button>
+  1310→                  <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)} disabled={updating} className="min-h-[44px]">
+  1311→                    <XCircle className="h-4 w-4 mr-1" /> Refuser
+  1312→                  </Button>
+  1313→                </div>
+  1314→              )}
+  1315→            </div>
+  1316→          )}
+  1317→
+  1318→          {/* Status actions */}
+  1319→          <div className="flex flex-wrap gap-2 pt-2">
+  1320→            {canConfirm && (
+  1321→              <Button onClick={() => updateStatus('CONFIRMED')} disabled={updating} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
+  1322→                {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  1323→                <CheckCircle2 className="h-4 w-4 mr-1" /> Confirmer
+  1324→              </Button>
+  1325→            )}
+  1326→            {canPrepare && (
+  1327→              <Button onClick={() => updateStatus('PREPARING')} disabled={updating} className="bg-orange-600 hover:bg-orange-700 min-h-[44px]">
+  1328→                {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  1329→                Commencer préparation
+  1330→              </Button>
+  1331→            )}
+  1332→            {canReady && (
+  1333→              <Button onClick={() => updateStatus('READY')} disabled={updating} className="bg-teal-600 hover:bg-teal-700 min-h-[44px]">
+  1334→                {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  1335→                Marquer prête
+  1336→              </Button>
+  1337→            )}
+  1338→            {canCancel && (
+  1339→              <Button variant="destructive" onClick={() => setCancelOpen(true)} disabled={updating} className="min-h-[44px]">
+  1340→                <XCircle className="h-4 w-4 mr-1" /> Annuler
+  1341→              </Button>
+  1342→            )}
+  1343→          </div>
+  1344→        </CardContent>
+  1345→      </Card>
+  1346→
+  1347→      {/* Items */}
+  1348→      <Card>
+  1349→        <CardHeader className="pb-2"><CardTitle className="text-lg">Articles</CardTitle></CardHeader>
+  1350→        <CardContent>
+  1351→          <div className="space-y-3">
+  1352→            {order.items?.map((item) => (
+  1353→              <div key={item.id} className="flex items-center gap-3">
+  1354→                {item.productImage ? (
+  1355→                  <img src={item.productImage} alt={item.productName} className="h-12 w-12 rounded-lg object-cover" />
+  1356→                ) : (
+  1357→                  <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center"><Package className="h-5 w-5 text-muted-foreground" /></div>
+  1358→                )}
+  1359→                <div className="flex-1 min-w-0">
+  1360→                  <p className="font-medium text-sm truncate">{item.productName}</p>
+  1361→                  <p className="text-xs text-muted-foreground">{item.quantity} x {formatPrice(item.unitPrice)}</p>
+  1362→                </div>
+  1363→                <span className="font-semibold text-sm">{formatPrice(item.totalPrice)}</span>
+  1364→              </div>
+  1365→            ))}
+  1366→          </div>
+  1367→          <Separator className="my-3" />
+  1368→          <div className="space-y-1 text-sm">
+  1369→            <div className="flex justify-between"><span className="text-muted-foreground">Sous-total</span><span>{formatPrice(order.subtotal)}</span></div>
+  1370→            <div className="flex justify-between"><span className="text-muted-foreground">Livraison</span><span>{formatPrice(order.deliveryFee)}</span></div>
+  1371→            {order.serviceFee > 0 && (
+  1372→              <div className="flex justify-between"><span className="text-muted-foreground">Frais de service</span><span>{formatPrice(order.serviceFee)}</span></div>
+  1373→            )}
+  1374→            {order.discount > 0 && (
+  1375→              <div className="flex justify-between text-emerald-600"><span>Remise</span><span>-{formatPrice(order.discount)}</span></div>
+  1376→            )}
+  1377→            <Separator />
+  1378→            <div className="flex justify-between font-bold text-base"><span>Total</span><span className="text-emerald-700 dark:text-emerald-400">{formatPrice(order.total)}</span></div>
+  1379→          </div>
+  1380→        </CardContent>
+  1381→      </Card>
+  1382→
+  1383→      {/* Client & Delivery info */}
+  1384→      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1385→        <Card>
+  1386→          <CardHeader className="pb-2"><CardTitle className="text-lg">Client</CardTitle></CardHeader>
+  1387→          <CardContent className="space-y-2 text-sm">
+  1388→            {order.client?.user && (
+  1389→              <>
+  1390→                <p className="font-medium">{order.client.user.firstName} {order.client.user.lastName}</p>
+  1391→                <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> {order.client.user.phone}</p>
+  1392→              </>
+  1393→            )}
+  1394→          </CardContent>
+  1395→        </Card>
+  1396→        <Card>
+  1397→          <CardHeader className="pb-2"><CardTitle className="text-lg">Livraison</CardTitle></CardHeader>
+  1398→          <CardContent className="space-y-2 text-sm">
+  1399→            <p className="font-medium">{order.deliveryAddress}</p>
+  1400→            <p className="text-muted-foreground">{order.deliveryCity}{order.deliveryQuartier ? ` · ${order.deliveryQuartier}` : ''}</p>
+  1401→          </CardContent>
+  1402→        </Card>
+  1403→      </div>
+  1404→
+  1405→      {order.notes && (
+  1406→        <Card>
+  1407→          <CardContent className="p-4">
+  1408→            <p className="text-sm font-medium mb-1">Notes du client</p>
+  1409→            <p className="text-sm text-muted-foreground">{order.notes}</p>
+  1410→          </CardContent>
+  1411→        </Card>
+  1412→      )}
+  1413→
+  1414→      {/* Cancel Dialog */}
+  1415→      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+  1416→        <DialogContent>
+  1417→          <DialogHeader>
+  1418→            <DialogTitle>Annuler la commande</DialogTitle>
+  1419→            <DialogDescription>Veuillez indiquer la raison de l&apos;annulation</DialogDescription>
+  1420→          </DialogHeader>
+  1421→          <Textarea rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Raison de l'annulation..." />
+  1422→          <DialogFooter>
+  1423→            <Button variant="outline" onClick={() => setCancelOpen(false)}>Retour</Button>
+  1424→            <Button variant="destructive" onClick={handleCancel} disabled={updating}>
+  1425→              {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  1426→              Confirmer l&apos;annulation
+  1427→            </Button>
+  1428→          </DialogFooter>
+  1429→        </DialogContent>
+  1430→      </Dialog>
+  1431→
+  1432→      {/* Reject Payment Dialog */}
+  1433→      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+  1434→        <DialogContent>
+  1435→          <DialogHeader>
+  1436→            <DialogTitle>Refuser le paiement</DialogTitle>
+  1437→            <DialogDescription>Veuillez indiquer la raison du refus</DialogDescription>
+  1438→          </DialogHeader>
+  1439→          <Textarea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Raison du refus..." />
+  1440→          <DialogFooter>
+  1441→            <Button variant="outline" onClick={() => setRejectOpen(false)}>Retour</Button>
+  1442→            <Button variant="destructive" onClick={handleRejectPayment} disabled={updating}>
+  1443→              {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  1444→              Refuser le paiement
+  1445→            </Button>
+  1446→          </DialogFooter>
+  1447→        </DialogContent>
+  1448→      </Dialog>
+  1449→    </div>
+  1450→  );
+  1451→}
+  1452→
+  1453→// ═══════════════════════════════════════════════════════════════════════════
+  1454→// 7. STATS (with charts)
+  1455→// ═══════════════════════════════════════════════════════════════════════════
+  1456→
+  1457→const PIE_COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6', '#64748b'];
+  1458→
+  1459→const revenueChartConfig = {
+  1460→  revenue: { label: 'Revenus (FCFA)', color: '#10b981' },
+  1461→  orders: { label: 'Commandes', color: '#3b82f6' },
+  1462→};
+  1463→
+  1464→function StatsView() {
+  1465→  const [stats, setStats] = useState<MerchantStats | null>(null);
+  1466→  const [loading, setLoading] = useState(true);
+  1467→  const [period, setPeriod] = useState('7');
+  1468→
+  1469→  useEffect(() => {
+  1470→    let cancelled = false;
+  1471→    (async () => {
+  1472→      setLoading(true);
+  1473→      const { data } = await apiFetch<MerchantStats>(`/api/stats/merchant?period=${period}`);
+  1474→      if (!cancelled) {
+  1475→        if (data) setStats(data);
+  1476→        setLoading(false);
+  1477→      }
+  1478→    })();
+  1479→    return () => { cancelled = true; };
+  1480→  }, [period]);
+  1481→
+  1482→  const statusData = (stats?.ordersByStatus || []).map((s) => ({
+  1483→    name: ORDER_STATUS_LABELS[s.status] || s.status,
+  1484→    value: s._count,
+  1485→  }));
+  1486→
+  1487→  // Build daily data from recentOrders if dailyRevenue not provided
+  1488→  const dailyData = (stats?.dailyRevenue || []).length > 0
+  1489→    ? stats.dailyRevenue.map((d) => ({
+  1490→        date: formatDateShort(d.date),
+  1491→        revenus: d.revenue,
+  1492→        commandes: d.orders,
+  1493→      }))
+  1494→    : (() => {
+  1495→        // Group recent orders by date
+  1496→        const dayMap: Record<string, { revenue: number; orders: number }> = {};
+  1497→        (stats?.recentOrders || []).forEach((o) => {
+  1498→          const day = formatDateShort(o.createdAt);
+  1499→          if (!dayMap[day]) dayMap[day] = { revenue: 0, orders: 0 };
+  1500→          dayMap[day].revenue += o.total;
+  1501→          dayMap[day].orders += 1;
+  1502→        });
+  1503→        return Object.entries(dayMap).map(([date, v]) => ({ date, revenus: v.revenue, commandes: v.orders }));
+  1504→      })();
+  1505→
+  1506→  if (loading) {
+  1507→    return (
+  1508→      <div className="space-y-6">
+  1509→        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  1510→          {[1, 2, 3, 4].map((i) => <Card key={i}><CardContent className="p-4"><Skeleton className="h-20 w-full" /></CardContent></Card>)}
+  1511→        </div>
+  1512→        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1513→          <Card><CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
+  1514→          <Card><CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent></Card>
+  1515→        </div>
+  1516→      </div>
+  1517→    );
+  1518→  }
+  1519→
+  1520→  return (
+  1521→    <div className="space-y-6">
+  1522→      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+  1523→        <h2 className="text-xl font-bold">Statistiques</h2>
+  1524→        <Tabs value={period} onValueChange={setPeriod}>
+  1525→          <TabsList>
+  1526→            <TabsTrigger value="7">7 jours</TabsTrigger>
+  1527→            <TabsTrigger value="30">30 jours</TabsTrigger>
+  1528→            <TabsTrigger value="90">90 jours</TabsTrigger>
+  1529→          </TabsList>
+  1530→        </Tabs>
+  1531→      </div>
+  1532→
+  1533→      {/* Key metrics */}
+  1534→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  1535→        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
+  1536→          <Card><CardContent className="p-4">
+  1537→            <p className="text-sm text-muted-foreground">Revenus totaux</p>
+  1538→            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{formatPrice(stats?.totalRevenue ?? 0)}</p>
+  1539→          </CardContent></Card>
+  1540→        </motion.div>
+  1541→        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+  1542→          <Card><CardContent className="p-4">
+  1543→            <p className="text-sm text-muted-foreground">Commandes</p>
+  1544→            <p className="text-2xl font-bold">{stats?.totalOrders ?? 0}</p>
+  1545→          </CardContent></Card>
+  1546→        </motion.div>
+  1547→        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+  1548→          <Card><CardContent className="p-4">
+  1549→            <p className="text-sm text-muted-foreground">Produits actifs</p>
+  1550→            <p className="text-2xl font-bold">{stats?.totalProducts ?? 0}</p>
+  1551→          </CardContent></Card>
+  1552→        </motion.div>
+  1553→        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+  1554→          <Card><CardContent className="p-4">
+  1555→            <p className="text-sm text-muted-foreground">Note moyenne</p>
+  1556→            <p className="text-2xl font-bold">{stats?.rating ? `${stats.rating.toFixed(1)}/5` : 'N/A'}</p>
+  1557→          </CardContent></Card>
+  1558→        </motion.div>
+  1559→      </div>
+  1560→
+  1561→      {/* Charts */}
+  1562→      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  1563→        {/* Revenue bar chart */}
+  1564→        <Card className="lg:col-span-2">
+  1565→          <CardHeader className="pb-3">
+  1566→            <CardTitle className="text-lg">Revenus par jour</CardTitle>
+  1567→          </CardHeader>
+  1568→          <CardContent>
+  1569→            {!dailyData.length ? (
+  1570→              <p className="text-center text-muted-foreground py-12">Aucune donnée pour cette période</p>
+  1571→            ) : (
+  1572→              <ChartContainer config={revenueChartConfig} className="h-72 w-full">
+  1573→                <BarChart data={dailyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+  1574→                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+  1575→                  <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+  1576→                  <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
+  1577→                  <ChartTooltip content={<ChartTooltipContent />} />
+  1578→                  <Bar dataKey="revenus" fill="#10b981" radius={[4, 4, 0, 0]} />
+  1579→                </BarChart>
+  1580→              </ChartContainer>
+  1581→            )}
+  1582→          </CardContent>
+  1583→        </Card>
+  1584→
+  1585→        {/* Pie chart */}
+  1586→        <Card>
+  1587→          <CardHeader className="pb-3">
+  1588→            <CardTitle className="text-lg">Commandes par statut</CardTitle>
+  1589→          </CardHeader>
+  1590→          <CardContent>
+  1591→            {!statusData.length ? (
+  1592→              <p className="text-center text-muted-foreground py-12">Aucune donnée</p>
+  1593→            ) : (
+  1594→              <ChartContainer config={Object.fromEntries(statusData.map((s, i) => [s.name, { label: s.name, color: PIE_COLORS[i % PIE_COLORS.length] }]))} className="h-72 w-full">
+  1595→                <PieChart>
+  1596→                  <Pie
+  1597→                    data={statusData}
+  1598→                    cx="50%"
+  1599→                    cy="50%"
+  1600→                    innerRadius={50}
+  1601→                    outerRadius={80}
+  1602→                    dataKey="value"
+  1603→                    paddingAngle={2}
+  1604→                  >
+  1605→                    {statusData.map((_, i) => (
+  1606→                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+  1607→                    ))}
+  1608→                  </Pie>
+  1609→                  <RTooltip
+  1610→                    content={({ active, payload }) => {
+  1611→                      if (!active || !payload?.length) return null;
+  1612→                      const item = payload[0];
+  1613→                      return (
+  1614→                        <div className="rounded-lg border bg-background px-3 py-2 shadow-lg text-xs">
+  1615→                          <p className="font-medium">{item.name}</p>
+  1616→                          <p className="text-muted-foreground">{item.value} commande(s)</p>
+  1617→                        </div>
+  1618→                      );
+  1619→                    }}
+  1620→                  />
+  1621→                  <ChartLegend content={<ChartLegendContent />} />
+  1622→                </PieChart>
+  1623→              </ChartContainer>
+  1624→            )}
+  1625→          </CardContent>
+  1626→        </Card>
+  1627→      </div>
+  1628→    </div>
+  1629→  );
+  1630→}
+  1631→
+  1632→// ═══════════════════════════════════════════════════════════════════════════
+  1633→// 8. SUBSCRIPTION
+  1634→// ═══════════════════════════════════════════════════════════════════════════
+  1635→
+  1636→function SubscriptionView({ merchant }: { merchant: MerchantProfile }) {
+  1637→  const [plans, setPlans] = useState<Plan[]>([]);
+  1638→  const [loading, setLoading] = useState(true);
+  1639→
+  1640→  useEffect(() => {
+  1641→    let cancelled = false;
+  1642→    (async () => {
+  1643→      const { data } = await apiFetch<Plan[]>('/api/plans');
+  1644→      if (!cancelled && data) setPlans(data);
+  1645→      if (!cancelled) setLoading(false);
+  1646→    })();
+  1647→    return () => { cancelled = true; };
+  1648→  }, []);
+  1649→
+  1650→  const currentSub = merchant.subscriptions?.[0];
+  1651→  const currentPlan = currentSub?.plan;
+  1652→
+  1653→  if (loading) {
+  1654→    return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-72 w-full" />)}</div>;
+  1655→  }
+  1656→
+  1657→  let features: string[] = [];
+  1658→  try { features = currentPlan?.features ? JSON.parse(currentPlan.features) : []; } catch { /* ignore */ }
+  1659→
+  1660→  return (
+  1661→    <div className="space-y-6">
+  1662→      <div>
+  1663→        <h2 className="text-xl font-bold">Abonnement</h2>
+  1664→        <p className="text-sm text-muted-foreground">Gérez votre abonnement et accédez aux fonctionnalités premium.</p>
+  1665→      </div>
+  1666→
+  1667→      {/* Current plan */}
+  1668→      {currentSub && currentPlan && (
+  1669→        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+  1670→          <Card className="border-emerald-500">
+  1671→            <CardContent className="p-4">
+  1672→              <div className="flex items-center justify-between">
+  1673→                <div>
+  1674→                  <p className="text-sm text-muted-foreground">Plan actuel</p>
+  1675→                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{currentPlan.name}</p>
+  1676→                  {features.length > 0 && (
+  1677→                    <ul className="mt-2 space-y-1">
+  1678→                      {features.map((f, i) => (
+  1679→                        <li key={i} className="text-xs text-muted-foreground flex items-center gap-1">
+  1680→                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> {f}
+  1681→                        </li>
+  1682→                      ))}
+  1683→                    </ul>
+  1684→                  )}
+  1685→                </div>
+  1686→                <div className="text-right">
+  1687→                  <p className="text-2xl font-bold">{formatPrice(currentPlan.price)}</p>
+  1688→                  <p className="text-xs text-muted-foreground">/ {currentPlan.duration} jours</p>
+  1689→                  <Badge variant="secondary" className="mt-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+  1690→                    Actif
+  1691→                  </Badge>
+  1692→                </div>
+  1693→              </div>
+  1694→            </CardContent>
+  1695→          </Card>
+  1696→        </motion.div>
+  1697→      )}
+  1698→
+  1699→      {/* Premium offer */}
+  1700→      <motion.div
+  1701→        initial={{ opacity: 0, scale: 0.98 }}
+  1702→        animate={{ opacity: 1, scale: 1 }}
+  1703→        transition={{ delay: 0.1 }}
+  1704→      >
+  1705→        <Card className="border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 overflow-hidden relative">
+  1706→          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+  1707→          <CardContent className="p-6 relative">
+  1708→            <div className="flex items-start gap-4">
+  1709→              <div className="p-3 rounded-xl bg-emerald-600 text-white shrink-0">
+  1710→                <Zap className="h-6 w-6" />
+  1711→              </div>
+  1712→              <div className="flex-1">
+  1713→                <h3 className="text-xl font-bold text-emerald-800 dark:text-emerald-300">Accès Premium à vie</h3>
+  1714→                <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">4 000 FCFA <span className="text-sm font-normal text-muted-foreground">seulement</span></p>
+  1715→                <p className="text-sm text-muted-foreground mt-2">
+  1716→                  Accédez à toutes les fonctionnalités premium pour toujours : produits illimités, commandes illimitées, priorité de livraison, badge vedette, statistiques avancées.
+  1717→                </p>
+  1718→
+  1719→                <Separator className="my-4" />
+  1720→
+  1721→                <div>
+  1722→                  <p className="text-sm font-medium mb-2">Instructions de paiement :</p>
+  1723→                  <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+  1724→                    <li>Envoyez <strong>4 000 FCFA</strong> via Orange Money ou Wave</li>
+  1725→                    <li>Envoyez la capture d&apos;écran de la preuve de paiement au support</li>
+  1726→                    <li>Votre compte sera mis à jour sous 24h</li>
+  1727→                  </ol>
+  1728→                </div>
+  1729→
+  1730→                <div className="mt-4">
+  1731→                  <SupportContact variant="compact" />
+  1732→                </div>
+  1733→              </div>
+  1734→            </div>
+  1735→          </CardContent>
+  1736→        </Card>
+  1737→      </motion.div>
+  1738→
+  1739→      {/* All plans */}
+  1740→      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  1741→        {plans.map((plan) => {
+  1742→          const isCurrent = currentPlan?.id === plan.id;
+  1743→          let planFeatures: string[] = [];
+  1744→          try { planFeatures = plan.features ? JSON.parse(plan.features) : []; } catch { /* ignore */ }
+  1745→
+  1746→          return (
+  1747→            <Card key={plan.id} className={isCurrent ? 'border-emerald-500' : ''}>
+  1748→              <CardHeader className="pb-2">
+  1749→                <CardTitle className="text-lg">{plan.name}</CardTitle>
+  1750→                <CardDescription>{plan.duration} jours</CardDescription>
+  1751→              </CardHeader>
+  1752→              <CardContent className="space-y-4">
+  1753→                <div>
+  1754→                  <span className="text-3xl font-bold">{formatPrice(plan.price)}</span>
+  1755→                  <span className="text-muted-foreground text-sm"> / {plan.duration}j</span>
+  1756→                </div>
+  1757→                {planFeatures.length > 0 && (
+  1758→                  <ul className="space-y-1">
+  1759→                    {planFeatures.map((f, i) => (
+  1760→                      <li key={i} className="text-sm text-muted-foreground flex items-center gap-1.5">
+  1761→                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> {f}
+  1762→                      </li>
+  1763→                    ))}
+  1764→                  </ul>
+  1765→                )}
+  1766→                {plan.maxProducts && <p className="text-xs text-muted-foreground">Max {plan.maxProducts} produits</p>}
+  1767→                {plan.maxCoupons && <p className="text-xs text-muted-foreground">Max {plan.maxCoupons} coupons</p>}
+  1768→                <Button
+  1769→                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+  1770→                  disabled={isCurrent}
+  1771→                  onClick={() => toast.info('Le paiement d\'abonnement sera bientôt disponible')}
+  1772→                >
+  1773→                  {isCurrent ? 'Plan actuel' : 'Choisir ce plan'}
+  1774→                </Button>
+  1775→              </CardContent>
+  1776→            </Card>
+  1777→          );
+  1778→        })}
+  1779→      </div>
+  1780→    </div>
+  1781→  );
+  1782→}
+  1783→
+  1784→// ═══════════════════════════════════════════════════════════════════════════
+  1785→// 9. PAYMENT CONFIG
+  1786→// ═══════════════════════════════════════════════════════════════════════════
+  1787→
+  1788→function PaymentMethodCard({
+  1789→  method, label, needsPhone, config, saving, onSave,
+  1790→}: {
+  1791→  method: string;
+  1792→  label: string;
+  1793→  needsPhone: boolean;
+  1794→  config: PaymentConfig | undefined;
+  1795→  saving: boolean;
+  1796→  onSave: (method: string, body: Record<string, unknown>) => void;
+  1797→}) {
+  1798→  const isEnabled = config?.isEnabled ?? false;
+  1799→  const [phone, setPhone] = useState(config?.phoneNumber || '');
+  1800→  const [accountName, setAccountName] = useState(config?.accountName || '');
+  1801→  const [accountNumber, setAccountNumber] = useState(config?.accountNumber || '');
+  1802→  const [instructions, setInstructions] = useState(config?.instructions || '');
+  1803→
+  1804→  const handleToggle = () => {
+  1805→    onSave(method, { isEnabled: !isEnabled, phoneNumber: needsPhone ? phone : undefined, accountName, accountNumber, instructions });
+  1806→  };
+  1807→
+  1808→  const handleSave = () => {
+  1809→    onSave(method, { isEnabled: true, phoneNumber: needsPhone ? phone : undefined, accountName, accountNumber, instructions });
+  1810→  };
+  1811→
+  1812→  return (
+  1813→    <Card>
+  1814→      <CardHeader className="pb-3">
+  1815→        <div className="flex items-center justify-between">
+  1816→          <CardTitle className="text-base">{label}</CardTitle>
+  1817→          <Switch
+  1818→            checked={isEnabled}
+  1819→            onCheckedChange={handleToggle}
+  1820→            disabled={saving}
+  1821→            className="data-[state=checked]:bg-emerald-600"
+  1822→          />
+  1823→        </div>
+  1824→      </CardHeader>
+  1825→      {isEnabled && (
+  1826→        <CardContent className="pt-0 space-y-3">
+  1827→          {needsPhone && (
+  1828→            <div className="flex flex-col gap-1.5">
+  1829→              <Label className="text-sm">Numéro de téléphone</Label>
+  1830→              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+223 XX XX XX XX" />
+  1831→            </div>
+  1832→          )}
+  1833→          {!needsPhone && method !== 'CASH' && (
+  1834→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  1835→              <div className="flex flex-col gap-1.5">
+  1836→                <Label className="text-sm">Nom du titulaire</Label>
+  1837→                <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} />
+  1838→              </div>
+  1839→              <div className="flex flex-col gap-1.5">
+  1840→                <Label className="text-sm">Numéro de compte</Label>
+  1841→                <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+  1842→              </div>
+  1843→            </div>
+  1844→          )}
+  1845→          <div className="flex flex-col gap-1.5">
+  1846→            <Label className="text-sm">Instructions pour le client</Label>
+  1847→            <Textarea rows={2} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Instructions de paiement..." />
+  1848→          </div>
+  1849→          <Button size="sm" onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 min-h-[44px]">
+  1850→            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  1851→            Sauvegarder
+  1852→          </Button>
+  1853→        </CardContent>
+  1854→      )}
+  1855→    </Card>
+  1856→  );
+  1857→}
+  1858→
+  1859→function PaymentConfigView({ merchant }: { merchant: MerchantProfile }) {
+  1860→  const [configs, setConfigs] = useState<PaymentConfig[]>([]);
+  1861→  const [loading, setLoading] = useState(true);
+  1862→  const [saving, setSaving] = useState<string | null>(null);
+  1863→
+  1864→  const METHODS = [
+  1865→    { value: 'CASH', label: 'Cash', needsPhone: false },
+  1866→    { value: 'ORANGE_MONEY', label: 'Orange Money', needsPhone: true },
+  1867→    { value: 'MOOV_MONEY', label: 'Moov Money', needsPhone: true },
+  1868→    { value: 'WAVE', label: 'Wave', needsPhone: true },
+  1869→    { value: 'VISA', label: 'Visa', needsPhone: false },
+  1870→    { value: 'MASTERCARD', label: 'Mastercard', needsPhone: false },
+  1871→    { value: 'QR_CODE', label: 'QR Code', needsPhone: false },
+  1872→  ];
+  1873→
+  1874→  const [refreshKey, setRefreshKey] = useState(0);
+  1875→
+  1876→  useEffect(() => {
+  1877→    let cancelled = false;
+  1878→    (async () => {
+  1879→      setLoading(true);
+  1880→      const { data } = await apiFetch<PaymentConfig[]>(`/api/merchants/${merchant.id}/payment-config`);
+  1881→      if (!cancelled && data) setConfigs(data);
+  1882→      if (!cancelled) setLoading(false);
+  1883→    })();
+  1884→    return () => { cancelled = true; };
+  1885→  }, [merchant.id, refreshKey]);
+  1886→
+  1887→  const getConfig = (method: string) => configs.find((c) => c.method === method);
+  1888→
+  1889→  const saveConfig = async (method: string, body: Record<string, unknown>) => {
+  1890→    setSaving(method);
+  1891→    const { error } = await apiFetch(`/api/merchants/${merchant.id}/payment-config`, {
+  1892→      method: 'POST',
+  1893→      body: JSON.stringify({ method, ...body }),
+  1894→    });
+  1895→    if (error) { toast.error(error); }
+  1896→    else { toast.success('Configuration sauvegardée'); setRefreshKey((k) => k + 1); }
+  1897→    setSaving(null);
+  1898→  };
+  1899→
+  1900→  if (loading) {
+  1901→    return <div className="space-y-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-40 w-full" />)}</div>;
+  1902→  }
+  1903→
+  1904→  return (
+  1905→    <div className="max-w-3xl mx-auto space-y-4">
+  1906→      <h2 className="text-xl font-bold">Configuration des paiements</h2>
+  1907→      <p className="text-sm text-muted-foreground">Configurez les méthodes de paiement acceptées par votre boutique.</p>
+  1908→
+  1909→      {METHODS.map((m) => (
+  1910→        <PaymentMethodCard
+  1911→          key={`${m.value}-${getConfig(m.value)?.id || 'new'}`}
+  1912→          method={m.value}
+  1913→          label={m.label}
+  1914→          needsPhone={m.needsPhone}
+  1915→          config={getConfig(m.value)}
+  1916→          saving={saving === m.value}
+  1917→          onSave={saveConfig}
+  1918→        />
+  1919→      ))}
+  1920→    </div>
+  1921→  );
+  1922→}
+  1923→
+  1924→// ═══════════════════════════════════════════════════════════════════════════
+  1925→// 10. DELIVERY ZONES
+  1926→// ═══════════════════════════════════════════════════════════════════════════
+  1927→
+  1928→function DeliveryZonesView({ merchant }: { merchant: MerchantProfile }) {
+  1929→  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  1930→  const [loading, setLoading] = useState(true);
+  1931→  const [saving, setSaving] = useState(false);
+  1932→  const [city, setCity] = useState('Bamako');
+  1933→  const [quartier, setQuartier] = useState('');
+  1934→  const [fee, setFee] = useState('');
+  1935→  const [refreshKey, setRefreshKey] = useState(0);
+  1936→
+  1937→  useEffect(() => {
+  1938→    let cancelled = false;
+  1939→    (async () => {
+  1940→      setLoading(true);
+  1941→      const { data } = await apiFetch<DeliveryZone[]>(`/api/merchants/${merchant.id}/delivery-zones`);
+  1942→      if (!cancelled && data) setZones(data);
+  1943→      if (!cancelled) setLoading(false);
+  1944→    })();
+  1945→    return () => { cancelled = true; };
+  1946→  }, [merchant.id, refreshKey]);
+  1947→
+  1948→  const handleAdd = async () => {
+  1949→    if (!fee) { toast.error('Les frais de livraison sont requis'); return; }
+  1950→    setSaving(true);
+  1951→    const { error } = await apiFetch(`/api/merchants/${merchant.id}/delivery-zones`, {
+  1952→      method: 'POST',
+  1953→      body: JSON.stringify({ city, quartier: quartier || null, fee: parseInt(fee) || 0 }),
+  1954→    });
+  1955→    if (error) { toast.error(error); }
+  1956→    else { toast.success('Zone ajoutée'); setQuartier(''); setFee(''); setRefreshKey((k) => k + 1); }
+  1957→    setSaving(false);
+  1958→  };
+  1959→
+  1960→  const handleDelete = async (zoneId: string) => {
+  1961→    if (!confirm('Supprimer cette zone ?')) return;
+  1962→    const { error } = await apiFetch(`/api/merchants/${merchant.id}/delivery-zones?zoneId=${zoneId}`, { method: 'DELETE' });
+  1963→    if (error) { toast.error(error); return; }
+  1964→    toast.success('Zone supprimée');
+  1965→    setRefreshKey((k) => k + 1);
+  1966→  };
+  1967→
+  1968→  return (
+  1969→    <div className="max-w-3xl mx-auto space-y-4">
+  1970→      <h2 className="text-xl font-bold">Zones de livraison</h2>
+  1971→      <p className="text-sm text-muted-foreground">Définissez les zones et frais de livraison.</p>
+  1972→
+  1973→      <Card>
+  1974→        <CardHeader className="pb-3"><CardTitle className="text-base">Ajouter une zone</CardTitle></CardHeader>
+  1975→        <CardContent>
+  1976→          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+  1977→            <div className="flex flex-col gap-1.5">
+  1978→              <Label className="text-sm">Ville</Label>
+  1979→              <Select value={city} onValueChange={setCity}>
+  1980→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1981→                <SelectContent>
+  1982→                  <SelectItem value="Bamako">Bamako</SelectItem>
+  1983→                  <SelectItem value="Kayes">Kayes</SelectItem>
+  1984→                  <SelectItem value="Sikasso">Sikasso</SelectItem>
+  1985→                  <SelectItem value="Ségou">Ségou</SelectItem>
+  1986→                  <SelectItem value="Mopti">Mopti</SelectItem>
+  1987→                  <SelectItem value="Gao">Gao</SelectItem>
+  1988→                  <SelectItem value="Tombouctou">Tombouctou</SelectItem>
+  1989→                  <SelectItem value="Koulikoro">Koulikoro</SelectItem>
+  1990→                </SelectContent>
+  1991→              </Select>
+  1992→            </div>
+  1993→            <div className="flex flex-col gap-1.5">
+  1994→              <Label className="text-sm">Quartier</Label>
+  1995→              <Input value={quartier} onChange={(e) => setQuartier(e.target.value)} placeholder="Optionnel" />
+  1996→            </div>
+  1997→            <div className="flex flex-col gap-1.5">
+  1998→              <Label className="text-sm">Frais (FCFA)</Label>
+  1999→              <div className="flex gap-2">
+  2000→                <Input type="number" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="0" />
+
+[showing lines 1-2000 of 2904; use offset=2001 with limit to continue reading]
