@@ -1,0 +1,25 @@
+services:
+  rapigo:
+    build: .
+    container_name: rapigo-mali
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-rg-mali-2024-s3cur3-k3y-x9f2k8m4p7w1q5}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://rapigo.ml}
+      - DATABASE_URL=file:/app/data/rapigo.db
+      - PORT=3000
+    volumes:
+      - rapigo-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  rapigo-data:
+    driver: local

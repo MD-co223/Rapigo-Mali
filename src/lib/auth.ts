@@ -1,7 +1,10 @@
 import jwt from 'jsonwebtoken';
 import { headers } from 'next/headers';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rg-mali-2024-s3cur3-k3y-x9f2k8m4p7w1q5';
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-only-secret-do-not-use-in-prod');
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required in production');
+}
 
 export interface JWTPayload {
   userId: string;

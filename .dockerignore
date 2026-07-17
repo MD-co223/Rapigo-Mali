@@ -1,0 +1,46 @@
+# Docker volumes
+data/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.db-journal
+db/
+
+# Logs
+logs/
+*.log
+dev.log
+server.log
+
+# Tool results
+tool-results/
+
+# Screenshots / test files
+*.png
+!public/*.png
+!public/*.ico
+!public/*.svg
+
+# Uploads
+upload/
+
+# Misc
+.zscripts/
+download/
+start-dev.sh
+keep-server.sh
+run-*.sh
+test-*.sh
+verify-*.png
+v*.png
+test-*.png
+rapigo-*.png
+client-*.png
+admin-*.png
+certification-*.png
+prisma_seed_temp.json

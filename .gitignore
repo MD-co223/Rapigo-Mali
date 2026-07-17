@@ -30,8 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env
+.env.local
+.env.production
+
+# Example env is safe to commit
+!.env.example
 
 # vercel
 .vercel
@@ -44,11 +49,30 @@ local-*
 .claude
 .z-ai-config
 *.log
-dev.log
-dev.out.log
-test
-prompt
 
-server.log
 # Skills directory
 /skills/
+
+# Database
+db/
+*.db
+*.db-journal
+
+# Tool results / screenshots
+tool-results/
+upload/
+download/
+.zscripts/
+
+# Test/debug artifacts
+verify-*.png
+v*.png
+test-*.png
+rapigo-*.png
+client-*.png
+admin-*.png
+certification-*.png
+run-*.sh
+keep-server.sh
+start-dev.sh
+prisma_seed_temp.json
