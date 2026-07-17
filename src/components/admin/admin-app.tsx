@@ -1522,7 +1522,7 @@ function CategoriesView() {
                           onClick={() => handleToggle(cat)}
                         >
                           <Badge variant={cat.isActive ? 'default' : 'secondary'} className={cat.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : ''}>
-                            {cat.isActive ? 'Active' : 'Inactive'}
+                            {cat.isActive ? 'Actif' : 'Inactif'}
                           </Badge>
                         </Button>
                       </TableCell>

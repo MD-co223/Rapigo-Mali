@@ -20,7 +20,7 @@ export const SUPPORT_INFO = {
 export function SupportContactCard({ className = '' }: { className?: string }) {
   return (
     <div className={`space-y-3 ${className}`}>
-      <p className="text-sm font-semibold text-center">Support &amp; Contact</p>
+      <p className="text-sm font-semibold text-center">Assistance &amp; Contact</p>
       <div className="flex items-center gap-2 text-sm">
         <User className="h-4 w-4 text-emerald-600 shrink-0" />
         <span>

@@ -567,7 +567,7 @@ export default function Page() {
 
             {/* Support */}
             <div>
-              <h4 className="font-semibold text-sm mb-3">Support &amp; Contact</h4>
+              <h4 className="font-semibold text-sm mb-3">Assistance &amp; Contact</h4>
               <div className="space-y-2 text-sm">
                 <p className="flex items-center gap-2">
                   <User className="w-4 h-4 text-emerald-600 shrink-0" />
