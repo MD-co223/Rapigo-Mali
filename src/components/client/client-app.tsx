@@ -206,7 +206,7 @@ function HomeView() {
     (async () => {
       const [c, m] = await Promise.all([apiFetch<Category[]>('/api/categories'), apiFetch<Merchant[]>('/api/merchants?approved=true')]);
       if (c.data) setCats(c.data);
-      if (m.data) setMerchants(Array.isArray(m.data) ? m.data : m.data.merchants || []);
+      if (m.data) setMerchants(Array.isArray(m.data) ? m.data : []);
       setLoading(false);
     })();
   }, []);
@@ -272,8 +272,8 @@ function SearchView() {
       apiFetch<Merchant[]>(`/api/merchants?search=${encodeURIComponent(q)}&approved=true`),
       apiFetch<Product[]>(`/api/products?search=${encodeURIComponent(q)}&isAvailable=true`),
     ]);
-    if (mRes.data) setMerchants(Array.isArray(mRes.data) ? mRes.data : mRes.data.merchants || []);
-    if (pRes.data) setProducts(Array.isArray(pRes.data) ? pRes.data : pRes.data.products || []);
+    if (mRes.data) setMerchants(Array.isArray(mRes.data) ? mRes.data : []);
+    if (pRes.data) setProducts(Array.isArray(pRes.data) ? pRes.data : []);
   };
 
   useEffect(() => { if (q) doSearch(); }, []); // eslint-disable-line
@@ -314,7 +314,7 @@ function CategoryView() {
 
   useEffect(() => {
     if (!data?.id) return;
-    apiFetch<Product[]>(`/api/products?categoryId=${data.id}&isAvailable=true`).then(r => { if (r.data) setProducts(Array.isArray(r.data) ? r.data : r.data.products || []); setLoading(false); });
+    apiFetch<Product[]>(`/api/products?categoryId=${data.id}&isAvailable=true`).then(r => { if (r.data) setProducts(Array.isArray(r.data) ? r.data : []); setLoading(false); });
   }, [data?.id]);
 
   return (
@@ -345,7 +345,7 @@ function MerchantDetailView() {
     (async () => {
       const [mRes, pRes] = await Promise.all([apiFetch<Merchant>(`/api/merchants/${data.id}`), apiFetch<Product[]>(`/api/products?merchantId=${data.id}&isAvailable=true`)]);
       if (mRes.data) setMerchant(mRes.data);
-      if (pRes.data) setProducts(Array.isArray(pRes.data) ? pRes.data : pRes.data.products || []);
+      if (pRes.data) setProducts(Array.isArray(pRes.data) ? pRes.data : []);
       setLoading(false);
     })();
   }, [data?.id]);
@@ -554,7 +554,11 @@ function CheckoutView() {
     });
   }, []);
 
-  if (items.length === 0) { navigate('home'); return null; }
+  useEffect(() => {
+    if (items.length === 0) navigate('home');
+  }, [items.length, navigate]);
+
+  if (items.length === 0) return null;
 
   const subtotal = getTotal();
   const couponDiscount = appliedCoupon?.discount || 0;

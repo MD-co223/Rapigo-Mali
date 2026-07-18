@@ -123,7 +123,7 @@ export default function MerchantApp() {
       apiFetch<any>('/api/orders?merchantId=' + mid + '&limit=5').then(r => r.data && setOrders(r.data.orders || r.data || []));
     }
     if (view === 'products') {
-      apiFetch<any>('/api/products?merchantId=' + mid).then(r => r.data && setProducts(r.data.products || r.data || []));
+      apiFetch<any>('/api/products?merchantId=' + mid).then(r => r.data && setProducts(Array.isArray(r.data) ? r.data : []));
       apiFetch<any>('/api/categories').then(r => r.data && setCategories(r.data.categories || r.data || []));
     }
     if (view === 'orders') {
@@ -332,7 +332,7 @@ export default function MerchantApp() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{formatPrice(o.total || 0)}</p>
-                    <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-800'}`}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
+                    <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'}`}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
                   </div>
                 </div>
               ))}
@@ -353,7 +353,7 @@ export default function MerchantApp() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {products.map((p: any) => (
             <Card key={p.id} className="overflow-hidden">
-              {p.image ? <img src={p.image} alt={p.name} className="h-32 w-full object-cover bg-gray-100" /> : <div className="h-32 bg-gray-100 flex items-center justify-center text-muted-foreground text-sm">Image</div>}
+              {p.image ? <img src={p.image} alt={p.name} className="h-32 w-full object-cover bg-gray-100 dark:bg-gray-800" /> : <div className="h-32 bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-muted-foreground text-sm">Image</div>}
               <CardContent className="p-3 space-y-2">
                 <div className="flex items-start justify-between">
                   <h3 className="font-medium text-sm line-clamp-1">{p.name}</h3>
@@ -431,18 +431,18 @@ export default function MerchantApp() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-left"><tr>
+              <thead className="bg-gray-50 dark:bg-gray-800 text-left"><tr>
                 <th className="px-4 py-3 font-medium">N°</th><th className="px-4 py-3 font-medium hidden sm:table-cell">Client</th>
                 <th className="px-4 py-3 font-medium">Montant</th><th className="px-4 py-3 font-medium">Statut</th>
                 <th className="px-4 py-3 font-medium hidden md:table-cell">Date</th><th className="px-4 py-3 font-medium">Actions</th>
               </tr></thead>
               <tbody className="divide-y">
                 {orders.map((o: any) => (
-                  <tr key={o.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate('order-detail', { id: o.id })}>
+                  <tr key={o.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer" onClick={() => navigate('order-detail', { id: o.id })}>
                     <td className="px-4 py-3 font-medium">#{o.orderNumber || o.id.slice(0, 8)}</td>
                     <td className="px-4 py-3 hidden sm:table-cell">{o.customerName || 'Client'}</td>
                     <td className="px-4 py-3">{formatPrice(o.total || 0)}</td>
-                    <td className="px-4 py-3"><Badge className={ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-800'}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge></td>
+                    <td className="px-4 py-3"><Badge className={ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge></td>
                     <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{o.createdAt ? new Date(o.createdAt).toLocaleDateString('fr-FR') : ''}</td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       {o.status === 'PENDING' && <Button size="sm" className="gap-1" onClick={() => updateOrderStatus(o.id, 'CONFIRMED')}>Accepter</Button>}
@@ -471,7 +471,7 @@ export default function MerchantApp() {
         </div>
         <Card><CardContent className="p-4 space-y-4">
           <div className="flex items-center gap-2">
-            <Badge className={ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-800'}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
+            <Badge className={ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
             {o.paymentStatus && <Badge variant="outline">{PAYMENT_STATUS_LABELS[o.paymentStatus] || o.paymentStatus}</Badge>}
           </div>
           <div className="flex gap-1">{M_STEPS.map((_, i) => (
@@ -521,12 +521,12 @@ export default function MerchantApp() {
       </div>
       {!zones.length ? <Mt m="Aucune zone configurée" icon={MapPin} /> : (
         <Card className="overflow-hidden"><div className="overflow-x-auto">
-          <table className="w-full text-sm"><thead className="bg-gray-50 text-left"><tr>
+          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800 text-left"><tr>
             <th className="px-4 py-3 font-medium">Ville</th><th className="px-4 py-3 font-medium">Quartier</th>
             <th className="px-4 py-3 font-medium">Frais</th><th className="px-4 py-3 font-medium">Statut</th>
           </tr></thead><tbody className="divide-y">
             {zones.map((z: any) => (
-              <tr key={z.id} className="hover:bg-gray-50">
+              <tr key={z.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                 <td className="px-4 py-3">{z.city}</td><td className="px-4 py-3">{z.quartier || '-'}</td>
                 <td className="px-4 py-3">{formatPrice(z.fee || 0)}</td>
                 <td className="px-4 py-3"><Switch checked={z.isActive ?? true} onCheckedChange={() => toggleZone(z)} /></td>
@@ -713,7 +713,7 @@ export default function MerchantApp() {
       <h2 className="text-xl font-bold">Mon profil</h2>
       <Card><CardContent className="p-4 space-y-4">
         <div className="flex items-center gap-4">
-          {prof.logo ? <img src={prof.logo} alt="Logo" className="h-16 w-16 rounded-full object-contain bg-gray-100" />
+          {prof.logo ? <img src={prof.logo} alt="Logo" className="h-16 w-16 rounded-full object-contain bg-gray-100 dark:bg-gray-800" />
             : <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xl">{(prof.businessName || '?')[0]}</div>}
           <div>
             <input type="file" accept="image/*" className="hidden" ref={logoRef} onChange={e => readFile(e, v => setProf(p => ({ ...p, logo: v })))} />
@@ -758,7 +758,7 @@ export default function MerchantApp() {
 
   if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>;
   if (!merchant?.isApproved) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="max-w-md w-full"><CardContent className="p-6 space-y-4 text-center">
         <Clock className="h-12 w-12 text-yellow-500 mx-auto" />
         <h2 className="text-lg font-bold">Compte en attente de validation</h2>
@@ -770,7 +770,7 @@ export default function MerchantApp() {
   );
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
       <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-emerald-700 text-white shrink-0">
         <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo variant="icon" height={32} /></div>
         {renderNav()}
@@ -781,7 +781,7 @@ export default function MerchantApp() {
         </div>
       </aside>
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        <header className="lg:hidden h-14 flex items-center px-4 bg-white border-b sticky top-0 z-30 gap-2">
+        <header className="lg:hidden h-14 flex items-center px-4 bg-white dark:bg-gray-950 border-b dark:border-gray-700 sticky top-0 z-30 gap-2">
           <Button variant="ghost" size="icon" onClick={() => setMobileMenu(true)}><Menu className="h-5 w-5" /></Button>
           <h1 className="font-semibold text-sm truncate">{VL[view] || 'Espace Commerçant'}</h1>
           <div className="ml-auto">
@@ -794,7 +794,7 @@ export default function MerchantApp() {
         <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6 overflow-y-auto">
           <AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={TR}>{renderView()}</motion.div></AnimatePresence>
         </main>
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t h-16 flex items-center justify-around z-30 safe-area-inset-bottom">
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-950 border-t dark:border-gray-700 h-16 flex items-center justify-around z-30 safe-area-inset-bottom">
           {bottomNav.map(it => (
             <button key={it.v} onClick={() => navigate(it.v)} className={`flex flex-col items-center gap-0.5 px-2 py-1 min-w-0 ${view === it.v ? 'text-emerald-700' : 'text-gray-400'}`}>
               <it.icon className="h-5 w-5" /><span className="text-[10px] leading-tight truncate max-w-16">{it.l}</span>

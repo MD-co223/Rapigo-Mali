@@ -256,7 +256,15 @@ export async function apiFetch<T = unknown>(
     const res = await fetch(path, { ...options, headers });
     const text = await res.text();
     let data: T | null = null;
-    try { data = JSON.parse(text); } catch { /* not JSON */ }
+    try {
+      const parsed = JSON.parse(text);
+      // Auto-unwrap paginated responses { items: [...], total, limit, offset }
+      if (parsed && typeof parsed === 'object' && 'items' in parsed && Array.isArray(parsed.items)) {
+        data = parsed.items as T;
+      } else {
+        data = parsed as T;
+      }
+    } catch { /* not JSON */ }
     
     if (!res.ok) {
       const errorMsg = data && typeof data === 'object' && 'error' in data 

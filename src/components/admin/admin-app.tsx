@@ -1109,7 +1109,7 @@ function ProductsView() {
   useEffect(() => {
     (async () => {
       const { data } = await apiFetch<any[]>('/api/products');
-      setProducts(Array.isArray(data) ? data : data?.products || []);
+      setProducts(Array.isArray(data) ? data : []);
       setLoading(false);
     })();
   }, []);

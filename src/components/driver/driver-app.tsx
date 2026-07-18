@@ -526,21 +526,23 @@ export default function DriverApp() {
             {view === 'ratings' && (
               <div className="p-4 space-y-4">
                 <div className="text-center space-y-2 py-6">
-                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-50">
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-50 dark:bg-emerald-900/30">
                     <Star className="h-10 w-10 text-emerald-500 fill-emerald-500" />
                   </div>
-                  <p className="text-4xl font-bold">{driver.rating ? driver.rating.toFixed(1) : '—'}</p>
-                  <p className="text-sm text-gray-400">Note moyenne</p>
+                  {driver.rating ? (
+                    <>
+                      <p className="text-4xl font-bold">{driver.rating.toFixed(1)}</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">
+                        Note moyenne : {driver.rating.toFixed(1)}/5 ({driver.totalDeliveries} avis)
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-4xl font-bold">—</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">Aucun avis pour le moment</p>
+                    </>
+                  )}
                 </div>
-                <Card className="shadow-sm"><CardContent className="p-4 space-y-3">
-                  <h3 className="font-semibold text-sm">Répartition</h3>
-                  {[5, 4, 3, 2, 1].map(n => (
-                    <div key={n} className="flex items-center gap-2 text-sm">
-                      <span className="w-3">{n}</span><Star className="h-3 w-3 text-amber-400 fill-amber-400 drop-shadow-sm" />
-                      <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: n === 5 ? '70%' : n === 4 ? '20%' : n === 3 ? '7%' : n === 2 ? '2%' : '1%' }} /></div>
-                    </div>
-                  ))}
-                </CardContent></Card>
               </div>
             )}
 
