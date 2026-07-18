@@ -1342,3 +1342,36 @@ Stage Summary:
 - Banner in header + footer of landing page
 - Ultra-stylized splash animation on every app open (~2.8s)
 - Zero lint errors, zero TypeScript errors
+
+---
+Task ID: deploy-fix-1
+Agent: Main Orchestrator
+Task: Analyser et corriger les erreurs de déploiement échoué + Logo + Animation splash
+
+Work Log:
+- Analysé les déploiements Vercel via API — trouvé 2 déploiements en ERROR (V3.0 et V2.8)
+- Identifié la cause racine: `JWT_SECRET` throw au moment de l'évaluation du module pendant le build
+- `auth.ts` faisait `throw new Error('JWT_SECRET required')` au top-level quand NODE_ENV=production
+- Vercel met NODE_ENV=production pendant le build mais JWT_SECRET n'est dispo qu'au runtime
+- Corrigé avec pattern lazy: `function getJwtSecret()` appelée à la demande au lieu de l'évaluation au chargement
+- Build production local vérifié: `next build` compile avec succès, 36 pages, 0 erreurs
+- Pushé le fix → Déploiement Vercel dpl_HmZhG3gF = READY ✅
+- Généré 8 tailles d'icônes PWA (favicon-16, 32, 180, 192, 512, maskable, app-icon, favicon.ico) depuis le nouveau logo IMG-20260718-WA0000.jpg avec Pillow
+- Mis à jour layout.tsx: appleWebApp startupImage, OG images, Twitter card → nouveau logo
+- Créé animation splash cinématique ultra-stylée avec Framer Motion:
+  - Phase 0: Entrée sombre avec gradient émeraude
+  - Phase 1: Révélation du logo (blur→net, scale 0.6→1)
+  - Phase 2: Pulsation lumineuse + rayons cinématiques + anneaux pulsants
+  - Phase 3: Tagline lettre-par-lettre "Rapide • Fiable • Partout au Mali"
+  - Phase 4: Shimmer brillant sur le logo
+  - Phase 5: Zoom-out + fade vers l'app
+  - 12 particules orbitales, 3 anneaux pulsants, 6 rayons lumineux
+- Testé dans le navigateur: splash animation fonctionne, login admin fonctionne, dashboard affiche, 0 erreurs console
+- Pushé → Déploiement Vercel dpl_EwMQsXif = READY ✅
+
+Stage Summary:
+- Root cause du déploiement échoué: auth.ts JWT_SECRET throw au build-time (pas au runtime)
+- Fix: Lazy evaluation pattern dans getJwtSecret()
+- Nouveau logo appliqué: toutes icônes PWA + splash screen + OG/Twitter cards
+- Animation splash cinématique 6 phases avec effets lumière, particules, shimmer
+- Site live: https://rapigo-mali.vercel.app — 2 déploiements réussis consécutifs
