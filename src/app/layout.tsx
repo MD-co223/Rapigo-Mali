@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "sonner";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { ServiceWorkerRegistration } from "@/components/service-worker-reg";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -114,6 +116,8 @@ export default function RootLayout({
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         {/* Structured Data - JSON-LD */}
         <script
           type="application/ld+json"
@@ -150,7 +154,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <ServiceWorkerRegistration />
           {children}
+          <PwaInstallPrompt />
           <Toaster
             position="top-center"
             richColors
