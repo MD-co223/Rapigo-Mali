@@ -27,15 +27,15 @@ export function RapigoLogo({
 }: RapigoLogoProps) {
   return (
     <div
-      style={{ height, width: 'auto', maxWidth: '100%', overflow: 'visible' }}
-      className={`relative flex-shrink-0 ${className}`}
+      style={{ height, maxHeight: height, minHeight: height }}
+      className={`relative overflow-visible flex-shrink-0 ${className}`}
     >
       <Image
         src={VARIANT_SRC[variant]}
         alt={alt}
         fill
-        sizes="auto"
-        className="!relative !h-full !w-auto object-contain"
+        sizes={`${height * 5}px`}
+        className="!relative !h-full !w-auto object-contain object-left"
         unoptimized
         priority={priority}
       />

@@ -240,7 +240,8 @@ export default function HomePage() {
       <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
-            <RapigoLogo variant="horizontal" height={36} priority />
+            <RapigoLogo variant="icon" height={36} priority className="md:hidden" />
+            <RapigoLogo variant="horizontal" height={36} priority className="hidden md:block" />
           </div>
 
           <nav className="hidden md:flex items-center gap-6 text-sm">
@@ -418,7 +419,8 @@ export default function HomePage() {
             {/* Informations */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <RapigoLogo variant="horizontal" height={32} />
+                <RapigoLogo variant="icon" height={32} className="md:hidden" />
+                <RapigoLogo variant="horizontal" height={32} className="hidden md:block" />
               </div>
               <p className="text-sm text-muted-foreground max-w-sm">
                 Votre plateforme de livraison N°1 au Mali. Rapide, fiable, partout au Mali.
