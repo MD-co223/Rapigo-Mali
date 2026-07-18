@@ -126,10 +126,12 @@ export function EmptyState({
 
 /* ─── RefreshButton: Button with spinning animation when refreshing ───── */
 import { Loader2, RefreshCw } from 'lucide-react';
-import { Button, type ButtonProps } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { useCallback, useState } from 'react';
 
-interface RefreshButtonProps extends Omit<ButtonProps, 'onClick'> {
+type ButtonHTMLProps = React.ComponentProps<typeof Button>;
+
+interface RefreshButtonProps extends Omit<ButtonHTMLProps, 'onClick'> {
   onRefresh: () => Promise<void> | void;
   /** Label shown next to icon. Default: "Actualiser" */
   label?: string;
