@@ -620,12 +620,18 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* EN-TÊTE */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2.5">
-            <RapigoLogo variant="icon" height={36} priority className="md:hidden" />
-            <RapigoLogo variant="horizontal" height={36} priority className="hidden md:block" />
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-lg">
+        {/* Bannière Rapigo Mali */}
+        <div className="w-full bg-white dark:bg-gray-950 border-b border-emerald-100 dark:border-emerald-900/30">
+          <div className="container mx-auto px-4 py-2">
+            <img
+              src="/rapigo-banner.jpeg"
+              alt="Rapigo Mali — Rapide, Fiable, Partout au Mali"
+              className="h-10 sm:h-12 md:h-14 w-auto object-contain mx-auto"
+            />
           </div>
+        </div>
+        <div className="container mx-auto flex h-14 items-center justify-between px-4">
 
           <nav className="hidden md:flex items-center gap-6 text-sm">
             <a href="#categories" className="text-muted-foreground hover:text-foreground transition-colors">Catégories</a>
@@ -797,14 +803,20 @@ export default function HomePage() {
 
       {/* PIED DE PAGE */}
       <footer className="border-t bg-background mt-auto">
+        {/* Bannière Rapigo Mali */}
+        <div className="w-full bg-white dark:bg-gray-950 border-b border-emerald-100 dark:border-emerald-900/30">
+          <div className="container mx-auto px-4 py-4">
+            <img
+              src="/rapigo-banner.jpeg"
+              alt="Rapigo Mali — Rapide, Fiable, Partout au Mali"
+              className="h-12 sm:h-14 md:h-16 w-auto object-contain mx-auto"
+            />
+          </div>
+        </div>
         <div className="container mx-auto px-4 py-12">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Informations */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <RapigoLogo variant="icon" height={32} className="md:hidden" />
-                <RapigoLogo variant="horizontal" height={32} className="hidden md:block" />
-              </div>
               <p className="text-sm text-muted-foreground max-w-sm">
                 Votre plateforme de livraison N°1 au Mali. Rapide, fiable, partout au Mali.
               </p>
@@ -873,7 +885,7 @@ export default function HomePage() {
         <DialogContent className="sm:max-w-md max-h-[90dvh] flex flex-col">
           <DialogHeader>
             <div className="mx-auto mb-2">
-              <RapigoLogo variant="vertical" height={40} className="mx-auto" />
+              <img src="/rapigo-banner.jpeg" alt="Rapigo Mali" className="h-10 w-auto object-contain mx-auto" />
             </div>
             <DialogTitle className="text-center text-xl">
               {authTab === 'login' ? 'Connexion' : 'Créer un compte'}

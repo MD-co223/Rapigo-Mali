@@ -359,15 +359,20 @@ export default function DriverApp() {
       />
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
-        <RapigoLogo variant="icon" height={28} />
-        <div className="flex-1" />
-        <button onClick={() => navigate('notifications')} className="relative p-1">
-          <Bell className="h-5 w-5" />
-          {unread > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
-        </button>
-        <Switch checked={isOnline} onCheckedChange={toggleOnline} disabled={togglingOnline} />
-      </header>
+      <div className="sticky top-0 z-50">
+        <div className="bg-white dark:bg-gray-950 border-b border-emerald-100 dark:border-emerald-900/30 flex items-center justify-center px-4 py-1">
+          <img src="/rapigo-banner.jpeg" alt="Rapigo Mali" className="h-7 w-auto object-contain" />
+        </div>
+        <header className="bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
+          <RapigoLogo variant="icon" height={28} />
+          <div className="flex-1" />
+          <button onClick={() => navigate('notifications')} className="relative p-1">
+            <Bell className="h-5 w-5" />
+            {unread > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
+          </button>
+          <Switch checked={isOnline} onCheckedChange={toggleOnline} disabled={togglingOnline} />
+        </header>
+      </div>
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20">

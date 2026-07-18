@@ -212,7 +212,11 @@ function HomeView() {
   }, []);
 
   return (
-    <div className="px-4 pt-4 space-y-6">
+    <div className="px-4 pt-0 space-y-4">
+      {/* Bannière Rapigo */}
+      <div className="bg-white dark:bg-gray-950 -mx-4 px-4 py-1.5">
+        <img src="/rapigo-banner.jpeg" alt="Rapigo Mali" className="h-8 w-auto object-contain mx-auto" />
+      </div>
       <div className="flex items-center gap-3">
         <RapigoLogo variant="icon" height={28} />
       </div>

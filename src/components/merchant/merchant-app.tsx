@@ -772,7 +772,10 @@ export default function MerchantApp() {
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
       <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-emerald-700 text-white shrink-0">
-        <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo variant="icon" height={32} /></div>
+        <div className="flex items-center justify-center px-4 py-1.5 border-b border-emerald-600">
+          <img src="/rapigo-banner.jpeg" alt="Rapigo Mali" className="h-9 w-auto object-contain brightness-0 invert" />
+        </div>
+        <div className="flex items-center gap-3 px-4 h-14 border-b border-emerald-600"><RapigoLogo variant="icon" height={32} /></div>
         {renderNav()}
         <div className="p-4 border-t border-emerald-600">
           <p className="text-sm text-emerald-200 truncate">{merchant.businessName || user?.firstName}</p>
@@ -781,7 +784,11 @@ export default function MerchantApp() {
         </div>
       </aside>
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        <header className="lg:hidden h-14 flex items-center px-4 bg-white dark:bg-gray-950 border-b dark:border-gray-700 sticky top-0 z-30 gap-2">
+        <header className="lg:hidden flex flex-col bg-white dark:bg-gray-950 border-b dark:border-gray-700 sticky top-0 z-30">
+          <div className="flex items-center justify-center px-4 py-1 bg-white dark:bg-gray-950 border-b border-emerald-100 dark:border-emerald-900/30">
+            <img src="/rapigo-banner.jpeg" alt="Rapigo Mali" className="h-7 w-auto object-contain" />
+          </div>
+          <div className="h-14 flex items-center px-4 gap-2">
           <Button variant="ghost" size="icon" onClick={() => setMobileMenu(true)}><Menu className="h-5 w-5" /></Button>
           <h1 className="font-semibold text-sm truncate">{VL[view] || 'Espace Commerçant'}</h1>
           <div className="ml-auto">
@@ -789,6 +796,7 @@ export default function MerchantApp() {
               <Bell className="h-5 w-5" />
               {notifs.filter((n: any) => !n.isRead).length > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full" />}
             </Button>
+          </div>
           </div>
         </header>
         <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6 overflow-y-auto">
@@ -804,7 +812,10 @@ export default function MerchantApp() {
       </div>
       <Sheet open={mobileMenu} onOpenChange={setMobileMenu}>
         <SheetContent side="left" className="w-72 bg-emerald-700 text-white border-none p-0">
-          <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo variant="icon" height={32} /></div>
+          <div className="flex items-center justify-center px-4 py-1.5 border-b border-emerald-600">
+            <img src="/rapigo-banner.jpeg" alt="Rapigo Mali" className="h-8 w-auto object-contain brightness-0 invert" />
+          </div>
+          <div className="flex items-center gap-3 px-4 h-14 border-b border-emerald-600"><RapigoLogo variant="icon" height={32} /></div>
           {renderNav(() => setMobileMenu(false))}
           <div className="p-4 border-t border-emerald-600">
             <p className="text-sm text-emerald-200">{merchant.businessName || user?.firstName}</p>

@@ -148,7 +148,10 @@ function Sidebar() {
   const setSpace = useSpaceStore(s => s.setSpace);
   return (
     <aside className="hidden lg:flex w-64 flex-col bg-gray-900 dark:bg-gray-950 text-white shrink-0">
-      <div className="p-5 border-b border-white/10 flex items-center gap-3">
+      <div className="flex items-center justify-center px-4 py-1.5 border-b border-white/10">
+        <img src="/rapigo-banner.jpeg" alt="Rapigo Mali" className="h-9 w-auto object-contain brightness-0 invert" />
+      </div>
+      <div className="p-4 border-b border-white/10 flex items-center gap-3">
         <RapigoLogo variant="icon" height={36} />
         <div><p className="text-xs text-gray-400">Administration</p></div>
       </div>
@@ -191,7 +194,10 @@ function MobileMenu() {
         <Button variant="ghost" size="icon" className="shrink-0"><Menu className="h-5 w-5" /></Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-72 p-0 bg-gray-900 dark:bg-gray-950 text-white">
-        <SheetHeader className="p-5 border-b border-white/10">
+        <div className="flex items-center justify-center px-4 py-1.5 border-b border-white/10">
+          <img src="/rapigo-banner.jpeg" alt="Rapigo Mali" className="h-8 w-auto object-contain brightness-0 invert" />
+        </div>
+        <SheetHeader className="p-4 border-b border-white/10">
           <SheetTitle className="text-left flex items-center gap-3">
             <RapigoLogo variant="icon" height={32} />
             <div><p className="text-xs text-gray-400">Administration</p></div>
@@ -1495,9 +1501,14 @@ export default function AdminApp() {
     <div className="flex h-screen bg-gray-50 dark:bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-900 border-b p-3 flex items-center gap-3 shrink-0">
-          <MobileMenu />
-          <h1 className="font-bold text-lg">{title}</h1>
+        <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-900 shrink-0">
+          <div className="flex items-center justify-center px-4 py-1 border-b border-emerald-100 dark:border-emerald-900/30">
+            <img src="/rapigo-banner.jpeg" alt="Rapigo Mali" className="h-7 w-auto object-contain" />
+          </div>
+          <div className="p-3 flex items-center gap-3 border-b">
+            <MobileMenu />
+            <h1 className="font-bold text-lg">{title}</h1>
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-24 lg:pb-6">
           <AnimatePresence mode="wait">
