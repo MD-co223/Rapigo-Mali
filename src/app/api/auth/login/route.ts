@@ -72,6 +72,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response);
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+    if (error && typeof error === 'object' && 'code' in error) {
+      const prismaError = error as { code: string; meta?: Record<string, unknown> };
+      if (prismaError.code === 'P2021') {
+        return NextResponse.json({ error: 'Service temporairement indisponible' }, { status: 503 });
+      }
+    }
+    return NextResponse.json({ error: 'Erreur serveur, veuillez réessayer' }, { status: 500 });
   }
 }

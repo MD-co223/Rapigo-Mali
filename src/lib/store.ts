@@ -119,16 +119,25 @@ export interface CartItem {
   notes?: string;
 }
 
+export interface AppliedCoupon {
+  couponId: string;
+  code: string;
+  discount: number;
+  type: string;
+}
+
 interface CartState {
   items: CartItem[];
   merchantId: string | null;
   merchantName: string | null;
+  appliedCoupon: AppliedCoupon | null;
   addItem: (item: CartItem) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
   getTotal: () => number;
   getItemCount: () => number;
+  setAppliedCoupon: (coupon: AppliedCoupon | null) => void;
 }
 
 export const useCartStore = create<CartState>()(
@@ -137,6 +146,7 @@ export const useCartStore = create<CartState>()(
       items: [],
       merchantId: null,
       merchantName: null,
+      appliedCoupon: null,
       addItem: (item) =>
         set((state) => {
           if (state.merchantId && state.merchantId !== item.merchantId) {
@@ -183,12 +193,13 @@ export const useCartStore = create<CartState>()(
             ),
           };
         }),
-      clearCart: () => set({ items: [], merchantId: null, merchantName: null }),
+      clearCart: () => set({ items: [], merchantId: null, merchantName: null, appliedCoupon: null }),
       getTotal: () => get().items.reduce((sum, i) => {
         const supps = i.supplements?.reduce((s, sup) => s + sup.price, 0) || 0;
         return sum + (i.price + supps) * i.quantity;
       }, 0),
       getItemCount: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
+      setAppliedCoupon: (coupon) => set({ appliedCoupon: coupon }),
     }),
     { name: 'rapigo-cart' }
   )
@@ -260,14 +271,14 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
 };
 
 export const ORDER_STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  PAYMENT_PENDING: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+  PENDING: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+  PAYMENT_PENDING: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
   CONFIRMED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  PREPARING: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-  READY: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  PREPARING: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+  READY: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
   ASSIGNED: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
-  PICKED_UP: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-  IN_TRANSIT: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400',
+  PICKED_UP: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  IN_TRANSIT: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
   DELIVERED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
   CANCELLED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
   REFUNDED: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, Navigation, TrendingUp, History, User,
   Bell, Phone, MapPin, Star, ChevronLeft,
   LogOut, Upload, Loader2, Send,
-  Clock, Package, Store, CheckCircle2, Wallet, Shield
+  Clock, Package, Store, CheckCircle2, Wallet, Shield, X, ClipboardList
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,11 +19,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   useDriverNav, useAuthStore, useSpaceStore, apiFetch, formatPrice,
-  ORDER_STATUS_LABELS, type DriverView
+  ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type DriverView
 } from '@/lib/store';
 import { toast } from 'sonner';
 import { SupportContact } from '@/components/support-contact';
 import { RapigoLogo } from '@/components/rapigo-logo';
+
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface DriverData {
   id: string; userId: string; vehicleType: string;
@@ -31,6 +33,7 @@ interface DriverData {
   idCardImage: string | null; licenseImage: string | null;
   vehicleImage: string | null; selfieImage: string | null;
   isApproved: boolean; isAvailable: boolean;
+  isOnline: boolean;
   rating: number | null; totalDeliveries: number; totalEarnings: number;
   user: { id: string; email: string; phone: string; firstName: string; lastName: string };
 }
@@ -43,12 +46,37 @@ const NAV: { view: DriverView; label: string; icon: typeof Home }[] = [
   { view: 'profile', label: 'Profil', icon: User },
 ];
 
-const DOCS = [
-  { key: 'idCardImage' as const, label: "Carte d'identité" },
-  { key: 'licenseImage' as const, label: 'Permis de conduire' },
-  { key: 'vehicleImage' as const, label: 'Photo véhicule' },
-  { key: 'selfieImage' as const, label: 'Selfie' },
+const DOCS: { key: 'idCardImage' | 'licenseImage' | 'vehicleImage' | 'selfieImage'; label: string; hint: string }[] = [
+  { key: 'idCardImage', label: "Carte d'identité", hint: 'Photo recto de votre carte d\'identité ou passeport' },
+  { key: 'licenseImage', label: 'Permis de conduire', hint: 'Photo recto de votre permis de conduire valide' },
+  { key: 'vehicleImage', label: 'Photo véhicule', hint: 'Photo de votre véhicule montrant la plaque d\'immatriculation' },
+  { key: 'selfieImage', label: 'Selfie', hint: 'Selfie avec votre véhicule en arrière-plan' },
 ];
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function Empty({ icon: Icon, label, description }: { icon: React.ElementType; label: string; description?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center animate-in fade-in duration-500">
+      <div className="w-16 h-16 rounded-full bg-muted/80 flex items-center justify-center mb-4">
+        <Icon className="h-8 w-8 text-muted-foreground/60" />
+      </div>
+      <p className="text-base font-medium text-muted-foreground mb-1">{label}</p>
+      {description && <p className="text-sm text-muted-foreground/70 max-w-xs">{description}</p>}
+    </div>
+  );
+}
+
+function SkList({ count = 3 }: { count?: number }) {
+  return <div className="space-y-3 p-0 animate-in fade-in duration-300">{Array.from({ length: count }).map((_, i) => (<div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-card"><Skeleton className="h-14 w-14 rounded-xl flex-shrink-0" /><div className="flex-1 space-y-2"><Skeleton className="h-4 w-3/5" /><Skeleton className="h-3 w-2/5" /></div><Skeleton className="h-6 w-20 rounded-full flex-shrink-0" /></div>))}</div>;
+}
 
 export default function DriverApp() {
   const { view, navigate } = useDriverNav();
@@ -57,6 +85,7 @@ export default function DriverApp() {
 
   const [driver, setDriver] = useState<DriverData | null>(null);
   const [isOnline, setIsOnline] = useState(false);
+  const [togglingOnline, setTogglingOnline] = useState(false);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [dots, setDots] = useState('');
@@ -73,10 +102,13 @@ export default function DriverApp() {
   const [pForm, setPForm] = useState({ firstName: '', lastName: '', phone: '' });
   const [pSaving, setPSaving] = useState(false);
   const [dialog, setDialog] = useState<{ type: string; data?: string } | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingDocKey, setPendingDocKey] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<DriverData>('/api/drivers/me').then(r => {
-      if (r.data) { setDriver(r.data); setIsOnline(r.data.isAvailable || false); }
+      if (r.data) { setDriver(r.data); setIsOnline(r.data.isOnline || r.data.isAvailable || false); }
       setLoading(false);
     });
     apiFetch<{ unreadCount: number }>('/api/notifications?unread=true&limit=1').then(r => {
@@ -84,14 +116,38 @@ export default function DriverApp() {
     });
   }, []);
 
+  // Toggle online/offline — syncs to backend (Bug 2 fix)
+  const toggleOnline = async (value: boolean) => {
+    setTogglingOnline(true);
+    try {
+      const r = await apiFetch<DriverData>('/api/drivers/me', {
+        method: 'PUT',
+        body: JSON.stringify({ isOnline: value }),
+      });
+      if (r.error) {
+        toast.error(r.error);
+        setTogglingOnline(false);
+        return;
+      }
+      setIsOnline(value);
+      if (r.data) setDriver(r.data);
+      toast.success(value ? 'Vous êtes en ligne' : 'Vous êtes hors ligne');
+    } catch {
+      toast.error('Erreur de connexion');
+    }
+    setTogglingOnline(false);
+  };
+
+  // Dots animation — only when on home view
   useEffect(() => {
     if (view !== 'home' || !isOnline) return;
     const t = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 600);
     return () => clearInterval(t);
   }, [view, isOnline]);
 
+  // Available orders polling — runs regardless of view (Bug 4 fix)
   useEffect(() => {
-    if (view !== 'home' || !isOnline) return;
+    if (!isOnline) return;
     apiFetch<Record<string, unknown>[]>('/api/drivers/available-orders').then(r => {
       if (r.data) setAvailOrders(Array.isArray(r.data) ? r.data : []);
     });
@@ -101,7 +157,7 @@ export default function DriverApp() {
       });
     }, 15000);
     return () => clearInterval(poll);
-  }, [view, isOnline]);
+  }, [isOnline]);
 
   useEffect(() => {
     if (view !== 'ride') return;
@@ -116,6 +172,7 @@ export default function DriverApp() {
 
   useEffect(() => {
     if (view !== 'history') return;
+    // Bug 3 verified: /api/orders auto-filters by driverId for DRIVER role
     apiFetch<{ orders: Record<string, unknown>[] }>('/api/orders?limit=50').then(r => {
       if (r.data) setOrders(r.data.orders || []);
     });
@@ -140,6 +197,8 @@ export default function DriverApp() {
     });
   }, [view]);
 
+  // Bug 1 verified: /api/drivers/[id]/accept uses the URL param as orderId.
+  // The driver app correctly passes the order ID. No fix needed.
   const acceptOrder = (orderId: string) => {
     apiFetch(`/api/drivers/${orderId}/accept`, { method: 'POST' }).then(r => {
       if (r.error) { toast.error(r.error); return; }
@@ -163,6 +222,7 @@ export default function DriverApp() {
     });
   };
 
+  // Bug 5 verified: PUT /api/notifications marks all as read. URL is correct.
   const markRead = (id: string) => {
     apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' }).then(() => {
       setNotifs(prev => prev.filter(n => n.id !== id));
@@ -202,6 +262,54 @@ export default function DriverApp() {
 
   const handleLogout = () => { logout(); setSpace('landing'); };
 
+  // Bug 6: Document upload via base64 → PUT /api/drivers/me
+  const handleDocUploadClick = (docKey: string) => {
+    setPendingDocKey(docKey);
+    setDialog({ type: 'document', data: docKey });
+    setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !pendingDocKey) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Veuillez sélectionner une image (JPG, PNG, etc.)');
+      resetFileInput();
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Le fichier ne doit pas dépasser 5 Mo');
+      resetFileInput();
+      return;
+    }
+
+    setUploadingDoc(pendingDocKey);
+    try {
+      const base64 = await fileToBase64(file);
+      const r = await apiFetch<DriverData>('/api/drivers/me', {
+        method: 'PUT',
+        body: JSON.stringify({ [pendingDocKey]: base64 }),
+      });
+      if (r.error) { toast.error(r.error); return; }
+      if (r.data) setDriver(r.data);
+      toast.success('Document téléchargé avec succès');
+      setDialog(null);
+    } catch {
+      toast.error('Erreur lors du téléchargement');
+    }
+    setUploadingDoc(null);
+    resetFileInput();
+  };
+
+  const resetFileInput = () => {
+    setPendingDocKey(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const getEarnings = (period: string) => {
     const now = new Date();
     return deliveredOrders.filter(o => {
@@ -233,8 +341,20 @@ export default function DriverApp() {
   const ao = activeOrder as Record<string, any> | null;
   const orderItems = (ao?.items || []) as Record<string, any>[];
 
+  // Find the pending document info for the dialog
+  const pendingDoc = DOCS.find(d => d.key === pendingDocKey);
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 max-w-lg mx-auto">
+      {/* Hidden file input for document upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
+
       {/* Header */}
       <header className="sticky top-0 z-50 bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
         <RapigoLogo variant="icon" height={28} />
@@ -243,7 +363,7 @@ export default function DriverApp() {
           <Bell className="h-5 w-5" />
           {unread > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
         </button>
-        <Switch checked={isOnline} onCheckedChange={setIsOnline} />
+        <Switch checked={isOnline} onCheckedChange={toggleOnline} disabled={togglingOnline} />
       </header>
 
       {/* Content */}
@@ -255,9 +375,9 @@ export default function DriverApp() {
             {view === 'home' && (
               <div className="p-4 space-y-4">
                 <Card className="bg-emerald-600 text-white shadow-sm"><CardContent className="p-4 flex items-center justify-between">
-                  <div><p className="text-emerald-100 text-xs">{isOnline ? 'Vous êtes en ligne' : 'Vous êtes hors ligne'}</p>
+                  <div><p className="text-emerald-100 text-xs">{togglingOnline ? 'Mise à jour...' : isOnline ? 'Vous êtes en ligne' : 'Vous êtes hors ligne'}</p>
                   <p className="font-bold text-lg">{driver.user.firstName} {driver.user.lastName}</p></div>
-                  <Switch checked={isOnline} onCheckedChange={setIsOnline} />
+                  <Switch checked={isOnline} onCheckedChange={toggleOnline} disabled={togglingOnline} />
                 </CardContent></Card>
 
                 {isOnline ? (
@@ -278,11 +398,11 @@ export default function DriverApp() {
                           <div className="flex items-start gap-2 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" /><span className="line-clamp-2">{ord.deliveryAddress}</span></div>
                           <div className="flex justify-between text-sm"><span>{items.length} article(s)</span><span className="font-semibold">{formatPrice(Number(ord.total) || 0)}</span></div>
                           <p className="text-xs text-emerald-600 font-medium">+ {formatPrice(Number(ord.deliveryFee) || 0)} frais de livraison</p>
-                          <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => acceptOrder(ord.id)}>Accepter la course</Button>
+                          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-transform" onClick={() => acceptOrder(ord.id)}>Accepter la course</Button>
                         </CardContent></Card>
                       );
                     })}
-                    {availOrders.length === 0 && <p className="text-center text-gray-400 text-sm py-6">Aucune commande disponible pour le moment</p>}
+                    {availOrders.length === 0 && <Empty icon={Package} label="Aucune commande disponible" description="Revenez plus tard ou vérifiez votre connexion." />}
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
@@ -306,9 +426,8 @@ export default function DriverApp() {
             {view === 'ride' && (
               <div className="p-4 space-y-4">
                 {!ao ? (
-                  <div className="text-center py-16 space-y-3">
-                    <Navigation className="h-12 w-12 text-gray-300 mx-auto" />
-                    <p className="text-gray-400 text-sm">Aucune course en cours</p>
+                  <div className="text-center py-16 space-y-4">
+                    <Empty icon={Navigation} label="Aucune course en cours" description="Passez en ligne pour recevoir des courses." />
                     <Button variant="outline" onClick={() => navigate('home')}>Retour à l&apos;accueil</Button>
                   </div>
                 ) : (
@@ -352,13 +471,12 @@ export default function DriverApp() {
                   const ord = o as Record<string, any>;
                   const merchant = ord.merchant as Record<string, any> | undefined;
                   const client = ord.client as Record<string, any> | undefined;
-                  const sColor = ord.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : ord.status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700';
                   return (
                     <Card key={ord.id} className="shadow-sm cursor-pointer" onClick={() => { navigate('ride'); }}>
                       <CardContent className="p-4 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="font-mono text-xs text-gray-400">{ord.orderNumber}</span>
-                          <Badge variant="secondary" className={sColor}>{ORDER_STATUS_LABELS[ord.status as string] || ord.status}</Badge>
+                          <Badge className={ORDER_STATUS_COLORS[ord.status as string] || 'bg-gray-100 text-gray-800'}>{ORDER_STATUS_LABELS[ord.status as string] || ord.status}</Badge>
                         </div>
                         <p className="text-sm font-medium">{merchant?.businessName || '—'}</p>
                         <div className="flex justify-between text-xs text-gray-400">
@@ -369,7 +487,7 @@ export default function DriverApp() {
                     </Card>
                   );
                 })}
-                {orders.length === 0 && <p className="text-center text-gray-400 text-sm py-12">Aucune livraison effectuée</p>}
+                {orders.length === 0 && <Empty icon={ClipboardList} label="Aucune livraison effectuée" description="Vos livraisons passées apparaîtront ici." />}
               </div>
             )}
 
@@ -397,7 +515,7 @@ export default function DriverApp() {
                     </CardContent></Card>
                   );
                 })}
-                {deliveredOrders.length === 0 && <p className="text-center text-gray-400 text-sm py-6">Aucun gain pour cette période</p>}
+                {deliveredOrders.length === 0 && <Empty icon={TrendingUp} label="Aucun gain enregistré" description="Vos gains apparaîtront ici une fois vos premières livraisons effectuées." />}
               </div>
             )}
 
@@ -415,7 +533,7 @@ export default function DriverApp() {
                   <h3 className="font-semibold text-sm">Répartition</h3>
                   {[5, 4, 3, 2, 1].map(n => (
                     <div key={n} className="flex items-center gap-2 text-sm">
-                      <span className="w-3">{n}</span><Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+                      <span className="w-3">{n}</span><Star className="h-3 w-3 text-amber-400 fill-amber-400 drop-shadow-sm" />
                       <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: n === 5 ? '70%' : n === 4 ? '20%' : n === 3 ? '7%' : n === 2 ? '2%' : '1%' }} /></div>
                     </div>
                   ))}
@@ -473,7 +591,7 @@ export default function DriverApp() {
                     </Card>
                   );
                 })}
-                {notifs.length === 0 && <p className="text-center text-gray-400 text-sm py-12">Aucune notification</p>}
+                {notifs.length === 0 && <Empty icon={Bell} label="Aucune notification" description="Vous n'avez pas encore de notifications." />}
               </div>
             )}
 
@@ -523,17 +641,36 @@ export default function DriverApp() {
               </div>
             )}
 
-            {/* DOCUMENTS */}
+            {/* DOCUMENTS (Bug 6: Real upload UI) */}
             {view === 'documents' && (
               <div className="p-4 space-y-4">
                 <div className="flex items-center gap-3"><button onClick={() => navigate('profile')} className="p-1"><ChevronLeft className="h-5 w-5" /></button><h2 className="font-bold text-lg">Documents</h2></div>
+                <p className="text-xs text-gray-400">Veuillez fournir les documents requis pour valider votre profil livreur. Formats acceptés : JPG, PNG. Taille maximale : 5 Mo.</p>
                 {DOCS.map(doc => {
                   const uploaded = !!driver[doc.key];
+                  const isUploading = uploadingDoc === doc.key;
                   return (
-                    <Card key={doc.key} className="shadow-sm"><CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center ${uploaded ? 'bg-emerald-100' : 'bg-gray-100'}`}>{uploaded ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <Upload className="h-5 w-5 text-gray-400" />}</div>
-                      <div><p className="text-sm font-medium">{doc.label}</p><p className={`text-xs ${uploaded ? 'text-emerald-600' : 'text-amber-500'}`}>{uploaded ? 'Fourni' : 'Non fourni'}</p></div></div>
-                      <Button variant="outline" size="sm" onClick={() => setDialog({ type: 'document', data: doc.label })}>{uploaded ? 'Remplacer' : 'Télécharger'}</Button>
+                    <Card key={doc.key} className="shadow-sm"><CardContent className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${uploaded ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                            {isUploading ? <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" /> : uploaded ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <Upload className="h-5 w-5 text-gray-400" />}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{doc.label}</p>
+                            <p className={`text-xs ${uploaded ? 'text-emerald-600' : 'text-amber-500'}`}>{isUploading ? 'Téléchargement...' : uploaded ? 'Fourni' : 'Non fourni'}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isUploading}
+                          onClick={() => handleDocUploadClick(doc.key)}
+                        >
+                          {uploaded ? 'Remplacer' : 'Télécharger'}
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-gray-400 pl-[52px]">{doc.hint}</p>
                     </CardContent></Card>
                   );
                 })}
@@ -562,11 +699,48 @@ export default function DriverApp() {
       <Dialog open={!!dialog} onOpenChange={() => setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{dialog?.type === 'withdraw' ? 'Retrait de fonds' : 'Envoi de document'}</DialogTitle>
-            <DialogDescription>{dialog?.type === 'withdraw' ? 'Contactez le support pour effectuer un retrait de votre solde.' : `Pour envoyer votre ${dialog?.data}, veuillez contacter notre support.`}</DialogDescription>
+            <DialogTitle>
+              {dialog?.type === 'withdraw'
+                ? 'Retrait de fonds'
+                : dialog?.type === 'document' && pendingDoc
+                  ? `Télécharger : ${pendingDoc.label}`
+                  : 'Envoi de document'}
+            </DialogTitle>
+            <DialogDescription>
+              {dialog?.type === 'withdraw'
+                ? 'Contactez le support pour effectuer un retrait de votre solde.'
+                : dialog?.type === 'document' && pendingDoc
+                  ? pendingDoc.hint
+                  : 'Veuillez contacter notre support.'}
+            </DialogDescription>
           </DialogHeader>
-          <SupportContact variant="compact" />
-          <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialog(null); navigate('support'); }}>Contacter le support</Button>
+          {dialog?.type === 'document' ? (
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
+                <Upload className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-gray-500 mb-1">
+                  {uploadingDoc ? 'Téléchargement en cours...' : 'Sélectionnez une image à télécharger'}
+                </p>
+                <p className="text-xs text-gray-400">JPG, PNG — max 5 Mo</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!!uploadingDoc}
+                >
+                  {uploadingDoc ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                  {uploadingDoc ? 'Envoi en cours...' : 'Choisir un fichier'}
+                </Button>
+                <Button variant="outline" onClick={() => { setDialog(null); resetFileInput(); }}>Annuler</Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <SupportContact variant="compact" />
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialog(null); navigate('support'); }}>Contacter le support</Button>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

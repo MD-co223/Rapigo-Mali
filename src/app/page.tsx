@@ -77,11 +77,23 @@ function WaitingApproval({ role }: { role: 'MERCHANT' | 'DRIVER' }) {
           <RapigoLogo variant="vertical" height={64} className="mx-auto" priority />
         </div>
         <div>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 mb-4">
+            <Clock className="h-8 w-8 text-amber-600" />
+          </div>
           <h1 className="text-2xl font-bold mb-2">Compte en attente</h1>
-          <p className="text-muted-foreground">
-            Votre compte {roleLabel} est en cours de vérification par notre équipe.
-            Vous recevrez une notification dès que votre compte sera activé.
+          <p className="text-amber-700 dark:text-amber-400 font-medium">
+            Votre compte est <strong>EN ATTENTE</strong> de validation de paiement.
           </p>
+          <p className="text-muted-foreground mt-2">
+            Effectuez le dépôt, faites une capture d&apos;écran et envoyez la preuve de paiement.
+          </p>
+        </div>
+        <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 space-y-3 text-sm border border-emerald-200">
+          <p className="font-semibold text-emerald-800 dark:text-emerald-300">📋 Inscription : 4 000 FCFA</p>
+          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+            <span className="font-medium">Paiement Orange Money :</span>
+            <a href="tel:+22377163870" className="font-bold text-lg hover:underline">+223 77 16 38 70</a>
+          </div>
         </div>
         <div className="bg-muted/50 rounded-xl p-4 space-y-2 text-sm">
           <p className="font-medium">Besoin d&apos;aide ?</p>
@@ -121,7 +133,12 @@ export default function HomePage() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isApproved, setIsApproved] = useState(true);
+  const [merchantDriverApproved, setMerchantDriverApproved] = useState<boolean | null>(null);
+
+  // Statut d'approbation effectif : CLIENT/ADMIN toujours approuvés, MERCHANT/DRIVER vérifié via API
+  const isApproved = user?.role === 'CLIENT' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
+    ? true
+    : merchantDriverApproved === true;
 
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
@@ -135,14 +152,33 @@ export default function HomePage() {
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState('CLIENT');
 
-  // Restauration de session et routage vers l'espace
+  // Restauration de session : vérifier l'approbation + routage vers l'espace
   useEffect(() => {
     if (isAuthenticated && user) {
       const spaceMap: Record<string, 'client' | 'merchant' | 'driver' | 'admin'> = {
         CLIENT: 'client', MERCHANT: 'merchant', DRIVER: 'driver',
         ADMIN: 'admin', SUPER_ADMIN: 'admin',
       };
-      setSpace(spaceMap[user.role] || 'client');
+      const targetSpace = spaceMap[user.role] || 'client';
+
+      // CLIENT et ADMIN n'ont pas besoin d'approbation
+      if (user.role === 'CLIENT' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+        setSpace(targetSpace);
+        return;
+      }
+
+      // MERCHANT / DRIVER : vérifier l'approbation via l'API
+      setSpace(targetSpace);
+      apiFetch<{ merchant?: { isApproved: boolean }; driver?: { isApproved: boolean } }>('/api/auth/me').then(({ data }) => {
+        if (data) {
+          const approved = data.merchant
+            ? data.merchant.isApproved
+            : data.driver
+              ? data.driver.isApproved
+              : true;
+          setMerchantDriverApproved(approved);
+        }
+      });
     }
   }, [isAuthenticated, user, setSpace]);
 
@@ -165,7 +201,7 @@ export default function HomePage() {
         : data.driver
           ? data.driver.isApproved
           : true;
-      setIsApproved(approved);
+      setMerchantDriverApproved(approved);
       setShowAuth(false);
       toast.success(`Bienvenue ${data.user.firstName} !`);
     }
@@ -194,7 +230,7 @@ export default function HomePage() {
       login(data.user, data.token);
       setShowAuth(false);
       if (regRole === 'MERCHANT' || regRole === 'DRIVER') {
-        setIsApproved(false);
+        setMerchantDriverApproved(false);
       }
       const roleLabel = regRole === 'CLIENT' ? 'client' : regRole === 'MERCHANT' ? 'commerçant' : 'livreur';
       toast.success(`Bienvenue ! Votre compte ${roleLabel} a été créé.`);
@@ -225,7 +261,15 @@ export default function HomePage() {
     if (SpaceComponent) {
       return (
         <Suspense fallback={<LoadingSpace />}>
-          <SpaceComponent />
+          <motion.div
+            key={currentSpace}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE_OUT }}
+          >
+            <SpaceComponent />
+          </motion.div>
         </Suspense>
       );
     }
@@ -306,13 +350,13 @@ export default function HomePage() {
               Restaurants, supermarchés, pharmacies, boutiques — commandez en ligne et recevez vos courses à domicile. Bamako, Ségou et bientôt partout au Mali.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
-              <Button size="lg" className="gap-2 text-base px-8" onClick={() => { setRegRole('CLIENT'); setAuthTab('register'); setShowAuth(true); }}>
+              <Button size="lg" className="gap-2 text-base px-8 active:scale-95 transition-transform" onClick={() => { setRegRole('CLIENT'); setAuthTab('register'); setShowAuth(true); }}>
                 Commander <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" className="gap-2 text-base px-8" onClick={() => { setRegRole('MERCHANT'); setAuthTab('register'); setShowAuth(true); }}>
+              <Button size="lg" variant="outline" className="gap-2 text-base px-8 active:scale-95 transition-transform" onClick={() => { setRegRole('MERCHANT'); setAuthTab('register'); setShowAuth(true); }}>
                 <Store className="h-4 w-4" /> Devenir Commerçant
               </Button>
-              <Button size="lg" variant="outline" className="gap-2 text-base px-8" onClick={() => { setRegRole('DRIVER'); setAuthTab('register'); setShowAuth(true); }}>
+              <Button size="lg" variant="outline" className="gap-2 text-base px-8 active:scale-95 transition-transform" onClick={() => { setRegRole('DRIVER'); setAuthTab('register'); setShowAuth(true); }}>
                 <Truck className="h-4 w-4" /> Devenir Livreur
               </Button>
             </div>
@@ -577,15 +621,33 @@ export default function HomePage() {
               </div>
 
               {regRole === 'MERCHANT' && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300">
-                  <p className="font-medium mb-1">Commerçant</p>
-                  <p className="text-xs">Votre compte sera vérifié par notre équipe avant activation. Accès Premium à vie — 4 000 FCFA seulement.</p>
+                <div className="space-y-3">
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4 text-sm border border-emerald-200 space-y-2">
+                    <p className="font-bold text-emerald-800 dark:text-emerald-300 text-base">📋 Les frais d&apos;inscription sont de 4 000 FCFA à vie.</p>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 text-sm border border-amber-200 space-y-2">
+                    <p className="font-medium text-amber-800 dark:text-amber-300">Paiement Orange Money :</p>
+                    <a href="tel:+22377163870" className="text-lg font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 77 16 38 70</a>
+                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement, puis envoyez la preuve via WhatsApp après inscription.</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
+                    <p>Votre compte sera activé après validation de votre paiement par notre équipe.</p>
+                  </div>
                 </div>
               )}
               {regRole === 'DRIVER' && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300">
-                  <p className="font-medium mb-1">Livreur</p>
-                  <p className="text-xs">Vous devrez fournir vos documents (CNI, permis) pour validation avant de pouvoir livrer.</p>
+                <div className="space-y-3">
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4 text-sm border border-emerald-200 space-y-2">
+                    <p className="font-bold text-emerald-800 dark:text-emerald-300 text-base">📋 Inscription : 4 000 FCFA</p>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 text-sm border border-amber-200 space-y-2">
+                    <p className="font-medium text-amber-800 dark:text-amber-300">Paiement Orange Money :</p>
+                    <a href="tel:+22377163870" className="text-lg font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 77 16 38 70</a>
+                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement, puis envoyez la preuve via WhatsApp après inscription.</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
+                    <p>Vous devrez fournir vos documents (CNI, permis) et la preuve de paiement pour validation.</p>
+                  </div>
                 </div>
               )}
 

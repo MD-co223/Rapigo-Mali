@@ -1,18 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, Search, ClipboardList, Heart, User, MapPin, Clock, Star,
   Bell, Plus, Minus, Trash2, ShoppingBag, ChevronLeft, Store,
   Send, Wallet, HelpCircle, Package, Upload, Tag, X, Loader2,
   MoreHorizontal, StarOff, Copy, MessageSquare, Phone, Check,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -24,6 +26,7 @@ import {
   useAuthStore, useClientNav, useCartStore, useSpaceStore, apiFetch,
   formatPrice, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
   BUSINESS_TYPES, PAYMENT_METHODS, PAYMENT_STATUS_LABELS,
+  type AppliedCoupon,
 } from '@/lib/store';
 import { toast } from 'sonner';
 import { SupportContact } from '@/components/support-contact';
@@ -45,16 +48,89 @@ type Supplement = { name: string; price: number };
 const fade = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -12 }, transition: { duration: 0.3 } };
 const ease = [0, 0, 0.2, 1] as const;
 
-function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
-  return <span className="inline-flex items-center gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} size={size} className={i <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-gray-300'} />)}<span className="ml-1 text-xs text-muted-foreground">{rating.toFixed(1)}</span></span>;
+function Stars({ rating, size = 14, interactive, onRate }: { rating: number; size?: number; interactive?: boolean; onRate?: (r: number) => void }) {
+  return <span className="inline-flex items-center gap-0.5">{[1,2,3,4,5].map(i => {
+    const filled = i <= Math.round(rating);
+    return interactive ? (
+      <button key={i} type="button" onClick={() => onRate?.(i)} className="p-0.5 rounded-sm hover:scale-110 transition-transform focus:outline-none"><Star size={size} className={filled ? 'fill-amber-400 text-amber-400 drop-shadow-sm' : 'text-gray-300 dark:text-gray-600'} /></button>
+    ) : <Star key={i} size={size} className={filled ? 'fill-amber-400 text-amber-400 drop-shadow-sm' : 'text-gray-300 dark:text-gray-600'} />;
+  })}<span className="ml-1 text-xs text-muted-foreground">{rating.toFixed(1)}</span></span>;
 }
 
 function Spinner() {
   return <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-emerald-600" /></div>;
 }
+function SkeletonList({ count = 4 }: { count?: number }) {
+  return (
+    <div className="space-y-3 p-0 animate-in fade-in duration-300">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-card">
+          <Skeleton className="h-14 w-14 rounded-xl flex-shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-3/5" />
+            <Skeleton className="h-3 w-2/5" />
+            <Skeleton className="h-3 w-1/4" />
+          </div>
+          <Skeleton className="h-6 w-20 rounded-full flex-shrink-0" />
+        </div>
+      ))}
+    </div>
+  );
+}
+function SkeletonCards({ count = 4 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-300">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="space-y-3">
+          <Skeleton className="h-28 w-full rounded-xl" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
+          <Skeleton className="h-4 w-1/3" />
+        </div>
+      ))}
+    </div>
+  );
+}
+function SkeletonDetail() {
+  return (
+    <div className="space-y-6 p-4 animate-in fade-in duration-300">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-10 w-10 rounded-full" />
+        <div className="space-y-2 flex-1">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+      </div>
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-5/6" />
+      <Skeleton className="h-4 w-2/3" />
+      <div className="border-t pt-4 mt-4 space-y-3">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="h-12 w-12 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+            <Skeleton className="h-4 w-16" />
+          </div>
+        ))}
+      </div>
+      <Skeleton className="h-12 w-full rounded-xl" />
+    </div>
+  );
+}
 
-function Empty({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
-  return <div className="flex flex-col items-center justify-center py-16 text-muted-foreground"><Icon className="h-12 w-12 mb-3 opacity-40" /><p className="text-sm">{label}</p></div>;
+function Empty({ icon: Icon, label, description }: { icon: React.ElementType; label: string; description?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center animate-in fade-in duration-500">
+      <div className="w-16 h-16 rounded-full bg-muted/80 flex items-center justify-center mb-4">
+        <Icon className="h-8 w-8 text-muted-foreground/60" />
+      </div>
+      <p className="text-base font-medium text-muted-foreground mb-1">{label}</p>
+      {description && <p className="text-sm text-muted-foreground/70 max-w-xs">{description}</p>}
+    </div>
+  );
 }
 
 function parseSupplements(raw?: string): Supplement[] {
@@ -154,7 +230,7 @@ function HomeView() {
       </div>
       <div>
         <h2 className="text-sm font-semibold text-gray-700 mb-3">Commerçants à proximité</h2>
-        {loading ? <Spinner /> : merchants.length === 0 ? <Empty icon={Store} label="Aucun commerçant disponible" /> : (
+        {loading ? <SkeletonList /> : merchants.length === 0 ? <Empty icon={Store} label="Aucun commerçant disponible" description="Revenez plus tard pour découvrir de nouveaux commerçants." /> : (
           <div className="space-y-3">{merchants.map(m => (
             <Card key={m.id} className="overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('merchant-detail', { id: m.id })}>
               <CardContent className="p-4">
@@ -244,7 +320,7 @@ function CategoryView() {
   return (
     <div className="px-4 pt-4 space-y-4">
       <div className="flex items-center gap-3"><Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft size={20} /></Button><h1 className="text-lg font-bold">Catégorie</h1></div>
-      {loading ? <Spinner /> : products.length === 0 ? <Empty icon={Package} label="Aucun produit dans cette catégorie" /> : (
+      {loading ? <SkeletonCards /> : products.length === 0 ? <Empty icon={Package} label="Aucun produit dans cette catégorie" description="Essayez une autre catégorie ou revenez plus tard." /> : (
         <div className="grid grid-cols-2 gap-3">{products.map(p => (
           <Card key={p.id} className="overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('product-detail', { id: p.id })}>
             {p.image ? <img src={p.image} alt={p.name} className="h-28 w-full object-cover" /> : <div className="h-28 w-full bg-gray-100 flex items-center justify-center"><Package size={28} className="text-gray-300" /></div>}
@@ -274,7 +350,7 @@ function MerchantDetailView() {
     })();
   }, [data?.id]);
 
-  if (loading) return <Spinner />;
+  if (loading) return <SkeletonDetail />;
   if (!merchant) return <Empty icon={Store} label="Commerçant introuvable" />;
 
   return (
@@ -338,7 +414,7 @@ function ProductDetailView() {
     apiFetch<Product>(`/api/products/${data.id}`).then(r => { if (r.data) setProduct(r.data); setLoading(false); });
   }, [data?.id]);
 
-  if (loading) return <Spinner />;
+  if (loading) return <SkeletonDetail />;
   if (!product) return <Empty icon={Package} label="Produit introuvable" />;
 
   const supps = parseSupplements(product.supplements);
@@ -449,20 +525,44 @@ function CartView() {
 /* ── 7. Checkout ───────────────────────────── */
 function CheckoutView() {
   const { goBack, navigate } = useClientNav();
-  const { items, merchantId, merchantName, getTotal, clearCart } = useCartStore();
+  const { items, merchantId, merchantName, getTotal, clearCart, appliedCoupon, setAppliedCoupon } = useCartStore();
   const user = useAuthStore(s => s.user);
   const [address, setAddress] = useState('');
   const [quartier, setQuartier] = useState('');
   const [method, setMethod] = useState('CASH');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [cities, setCities] = useState<{ name: string; quartiers: string[] }[]>([]);
+  const [selectedCity, setSelectedCity] = useState('Bamako');
+
+  const quartiers = useMemo(() => {
+    const city = cities.find(c => c.name === selectedCity);
+    return city?.quartiers || [];
+  }, [selectedCity, cities]);
+
+  const handleCityChange = (city: string) => {
+    setSelectedCity(city);
+    setQuartier('');
+  };
+
+  useEffect(() => {
+    apiFetch<{ cities: { name: string; quartiers: string[] }[] }>('/api/cities').then(r => {
+      if (r.data?.cities) {
+        setCities(r.data.cities);
+        if (r.data.cities.length > 0) setSelectedCity(r.data.cities[0].name);
+      }
+    });
+  }, []);
 
   if (items.length === 0) { navigate('home'); return null; }
 
   const subtotal = getTotal();
+  const couponDiscount = appliedCoupon?.discount || 0;
+  const finalTotal = subtotal - couponDiscount;
 
   const handleSubmit = async () => {
     if (!address.trim()) { toast.error('Adresse de livraison requise'); return; }
+    if (!selectedCity.trim()) { toast.error('Ville de livraison requise'); return; }
     if (!merchantId) return;
     setSubmitting(true);
     const res = await apiFetch<Order>('/api/orders', {
@@ -471,10 +571,12 @@ function CheckoutView() {
         merchantId,
         items: items.map(i => ({ productId: i.productId, name: i.name, price: i.price, quantity: i.quantity, supplements: i.supplements })),
         deliveryAddress: address,
-        deliveryCity: 'Bamako',
+        deliveryCity: selectedCity,
         deliveryQuartier: quartier || undefined,
         paymentMethod: method,
         notes: notes || undefined,
+        couponId: appliedCoupon?.couponId || undefined,
+        couponDiscount: couponDiscount || undefined,
       }),
     });
     setSubmitting(false);
@@ -489,7 +591,20 @@ function CheckoutView() {
       <div className="flex items-center gap-3"><Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft size={20} /></Button><h1 className="text-lg font-bold">Confirmer la commande</h1></div>
       <div className="space-y-4">
         <div><Label className="text-sm font-medium">Adresse de livraison</Label><Input value={address} onChange={e => setAddress(e.target.value)} placeholder="Ex: Quartier Badalabougou, près de la mosquée" className="mt-1.5" /></div>
-        <div><Label className="text-sm font-medium">Quartier</Label><Input value={quartier} onChange={e => setQuartier(e.target.value)} placeholder="Ex: Badalabougou" className="mt-1.5" /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label className="text-sm font-medium">Ville</Label><Select value={selectedCity} onValueChange={handleCityChange}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent>
+            {cities.map(c => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+          </SelectContent></Select></div>
+          <div><Label className="text-sm font-medium">Quartier</Label>
+            {quartiers.length > 0 ? (
+              <Select value={quartier} onValueChange={setQuartier}><SelectTrigger className="mt-1.5"><SelectValue placeholder="Sélectionner..." /></SelectTrigger><SelectContent>
+                {quartiers.map(q => <SelectItem key={q} value={q}>{q}</SelectItem>)}
+              </SelectContent></Select>
+            ) : (
+              <Input value={quartier} onChange={e => setQuartier(e.target.value)} placeholder="Ex: Badalabougou" className="mt-1.5" />
+            )}
+          </div>
+        </div>
         <div><Label className="text-sm font-medium">Mode de paiement</Label><Select value={method} onValueChange={setMethod}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent>
           {Object.entries(PAYMENT_METHODS).filter(([k]) => k !== 'WALLET').map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
         </SelectContent></Select></div>
@@ -501,7 +616,9 @@ function CheckoutView() {
         <p className="text-sm text-muted-foreground">{merchantName}</p>
         {items.map(i => (<div key={i.productId} className="flex justify-between text-sm"><span className="text-muted-foreground">{i.name} × {i.quantity}</span><span>{formatPrice(i.price * i.quantity)}</span></div>))}
         <Separator />
-        <div className="flex justify-between font-semibold"><span>Total</span><span className="text-emerald-700">{formatPrice(subtotal)}</span></div>
+        {couponDiscount > 0 && <div className="flex items-center justify-between text-sm text-emerald-600"><span className="flex items-center gap-1"><Tag size={14} />Code promo ({appliedCoupon?.code})</span><span>-{formatPrice(couponDiscount)}</span></div>}
+        <div className="flex justify-between font-semibold"><span>Total</span><span className="text-emerald-700">{formatPrice(finalTotal)}</span></div>
+        {couponDiscount > 0 && <button type="button" className="text-xs text-red-500 hover:underline" onClick={() => setAppliedCoupon(null)}>Retirer le code promo</button>}
       </div>
       <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-30 mx-4 w-[calc(100%-2rem)] max-w-lg">
         <Button className="w-full bg-emerald-700 hover:bg-emerald-800 h-12 rounded-2xl shadow-lg text-base font-semibold" onClick={handleSubmit} disabled={submitting}>
@@ -525,7 +642,7 @@ function OrdersView() {
   return (
     <div className="px-4 pt-4 space-y-4">
       <h1 className="text-lg font-bold">Mes commandes</h1>
-      {loading ? <Spinner /> : orders.length === 0 ? <Empty icon={ClipboardList} label="Aucune commande" /> : (
+      {loading ? <SkeletonList /> : orders.length === 0 ? <Empty icon={ClipboardList} label="Aucune commande pour le moment" description="Vos commandes apparaîtront ici une fois passées." /> : (
         <div className="space-y-3">{orders.map(o => (
           <Card key={o.id} className="shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('order-detail', { id: o.id })}>
             <CardContent className="p-4">
@@ -550,14 +667,29 @@ function OrderDetailView() {
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [proofUrl, setProofUrl] = useState('');
   const [proofSubmitting, setProofSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [proofFileUploading, setProofFileUploading] = useState(false);
+
+  const fetchOrder = () => {
+    if (!data?.id) return;
+    apiFetch<Order>(`/api/orders/${data.id}`).then(r => {
+      if (r.data) setOrder(r.data as Order);
+      setLoading(false);
+    });
+  };
 
   useEffect(() => {
-    if (!data?.id) return;
-    const fetchOrder = () => apiFetch<Order>(`/api/orders/${data.id}`).then(r => { if (r.data) setOrder(r.data as Order); setLoading(false); });
     fetchOrder();
   }, [data?.id]);
 
-  if (loading) return <Spinner />;
+  // Poll every 10 seconds
+  useEffect(() => {
+    if (!data?.id) return;
+    const interval = setInterval(fetchOrder, 10000);
+    return () => clearInterval(interval);
+  }, [data?.id]);
+
+  if (loading) return <SkeletonDetail />;
   if (!order) return <Empty icon={Package} label="Commande introuvable" />;
 
   const statuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED'];
@@ -571,17 +703,42 @@ function OrderDetailView() {
     if (res.error) { toast.error(res.error); return; }
     toast.success('Merci pour votre évaluation !');
     setRatingOpen(false);
-    apiFetch<Order>(`/api/orders/${order.id}`).then(r => { if (r.data) setOrder(r.data as Order); });
+    fetchOrder();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Veuillez sélectionner une image'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image trop volumineuse (max 5 Mo)'); return; }
+
+    setProofFileUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target?.result as string;
+      const uploadRes = await apiFetch<{ url: string }>('/api/upload', {
+        method: 'POST',
+        body: JSON.stringify({ imageData: base64, fileName: file.name }),
+      });
+      setProofFileUploading(false);
+      if (uploadRes.error || !uploadRes.data) { toast.error(uploadRes.error || 'Erreur de téléchargement'); return; }
+      setProofUrl(uploadRes.data.url);
+      toast.success('Image téléchargée avec succès');
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = '';
   };
 
   const uploadProof = async () => {
-    if (!proofUrl.trim()) { toast.error('URL de la preuve requise'); return; }
+    if (!proofUrl.trim()) { toast.error('Veuillez d\'abord sélectionner une image ou entrer une URL'); return; }
     setProofSubmitting(true);
     const res = await apiFetch(`/api/orders/${order.id}/payment-proof`, { method: 'POST', body: JSON.stringify({ imageUrl: proofUrl }) });
     setProofSubmitting(false);
     if (res.error) { toast.error(res.error); return; }
     toast.success('Preuve de paiement envoyée');
-    apiFetch<Order>(`/api/orders/${order.id}`).then(r => { if (r.data) setOrder(r.data as Order); });
+    setProofUrl('');
+    fetchOrder();
   };
 
   return (
@@ -612,7 +769,26 @@ function OrderDetailView() {
         <div className="flex justify-between"><span className="text-muted-foreground">Statut</span><Badge variant="outline" className="text-xs">{PAYMENT_STATUS_LABELS[order.paymentStatus]}</Badge></div>
         {order.paymentProof && <div><p className="text-muted-foreground text-xs mb-1">Preuve :</p><img src={order.paymentProof} alt="Preuve" className="h-32 rounded-lg object-cover" /></div>}
         {order.paymentStatus === 'PENDING' && order.paymentMethod !== 'CASH' && (
-          <div className="space-y-2 pt-2"><Label className="text-xs">URL de la preuve de paiement</Label><Input value={proofUrl} onChange={e => setProofUrl(e.target.value)} placeholder="https://..." className="text-sm" /><Button size="sm" className="w-full bg-emerald-700 hover:bg-emerald-800" onClick={uploadProof} disabled={proofSubmitting}>{proofSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}Envoyer la preuve</Button></div>
+          <div className="space-y-2 pt-2">
+            <Label className="text-xs">Preuve de paiement</Label>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+            <Button type="button" variant="outline" size="sm" className="w-full border-dashed" onClick={() => fileInputRef.current?.click()} disabled={proofFileUploading}>
+              {proofFileUploading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}
+              {proofFileUploading ? 'Téléchargement...' : 'Choisir une image'}
+            </Button>
+            {proofUrl && (
+              <div className="flex items-center gap-2">
+                <img src={proofUrl} alt="Aperçu" className="h-16 w-16 object-cover rounded-lg border" />
+                <span className="text-xs text-emerald-600 flex items-center gap-1"><Check size={12} /> Image prête</span>
+              </div>
+            )}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
+              <div className="relative flex justify-center text-xs"><span className="bg-card px-2 text-muted-foreground">ou</span></div>
+            </div>
+            <Input value={proofUrl} onChange={e => setProofUrl(e.target.value)} placeholder="https://..." className="text-sm" />
+            <Button size="sm" className="w-full bg-emerald-700 hover:bg-emerald-800" onClick={uploadProof} disabled={proofSubmitting || !proofUrl.trim()}>{proofSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send size={14} className="mr-1" />}Envoyer la preuve</Button>
+          </div>
         )}
       </CardContent></Card>
       {order.status === 'DELIVERED' && (
@@ -621,7 +797,7 @@ function OrderDetailView() {
       <Dialog open={ratingOpen} onOpenChange={setRatingOpen}>
         <DialogContent><DialogHeader><DialogTitle>Évaluer la commande</DialogTitle><DialogDescription>Notez votre expérience</DialogDescription></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="flex items-center justify-center gap-2">{[1,2,3,4,5].map(i => (<button key={i} onClick={() => setScore(i)}><Star size={32} className={i <= score ? 'fill-amber-400 text-amber-400' : 'text-gray-300'} /></button>))}</div>
+            <div className="flex items-center justify-center gap-1">{[1,2,3,4,5].map(i => (<button key={i} type="button" onClick={() => setScore(i)} className="p-1 rounded-lg hover:scale-110 active:scale-95 transition-transform"><Star size={36} className={i <= score ? 'fill-amber-400 text-amber-400 drop-shadow-sm' : 'text-gray-300 dark:text-gray-600'} /></button>))}</div>
             <Textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Votre commentaire (optionnel)" rows={3} />
             <Button className="w-full bg-emerald-700 hover:bg-emerald-800" onClick={submitRating} disabled={ratingSubmitting}>{ratingSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Envoyer l&apos;évaluation</Button>
           </div>
@@ -647,7 +823,7 @@ function FavoritesView() {
   return (
     <div className="px-4 pt-4 space-y-4">
       <h1 className="text-lg font-bold">Mes favoris</h1>
-      {loading ? <Spinner /> : favs.length === 0 ? <Empty icon={Heart} label="Aucun favori" /> : (
+      {loading ? <SkeletonCards count={4} /> : favs.length === 0 ? <Empty icon={Heart} label="Aucun favori" description="Ajoutez des favoris en appuyant sur le cœur." /> : (
         <div className="space-y-2">{favs.map(f => (
           <Card key={f.id} className="shadow-sm">
             <CardContent className="p-3 flex items-center gap-3">
@@ -676,7 +852,7 @@ function WalletView() {
   return (
     <div className="px-4 pt-4 space-y-5">
       <h1 className="text-lg font-bold">Portefeuille</h1>
-      {loading ? <Spinner /> : wallet ? (
+      {loading ? <SkeletonDetail /> : wallet ? (
         <>
           <Card className="bg-emerald-700 text-white shadow-lg"><CardContent className="p-6 text-center">
             <p className="text-sm text-emerald-100">Solde disponible</p>
@@ -778,7 +954,7 @@ function NotificationsView() {
       <div className="flex items-center justify-between"><h1 className="text-lg font-bold">Notifications</h1>
         {notifs.some(n => !n.isRead) && <Button variant="ghost" size="sm" className="text-emerald-700 text-xs" onClick={markAllRead}>Tout marquer comme lu</Button>}
       </div>
-      {loading ? <Spinner /> : notifs.length === 0 ? <Empty icon={Bell} label="Aucune notification" /> : (
+      {loading ? <SkeletonList count={3} /> : notifs.length === 0 ? <Empty icon={Bell} label="Aucune notification" description="Vous n'avez pas encore de notifications." /> : (
         <div className="space-y-2">{notifs.map(n => (
           <Card key={n.id} className={`shadow-sm cursor-pointer transition-colors ${!n.isRead ? 'bg-emerald-50/50 border-emerald-200' : ''}`} onClick={() => { if (!n.isRead) markRead(n.id); }}>
             <CardContent className="p-3 flex items-start gap-3">
@@ -829,6 +1005,7 @@ function CouponsView() {
   const [code, setCode] = useState('');
   const [result, setResult] = useState<CouponValid | null>(null);
   const [checking, setChecking] = useState(false);
+  const { setAppliedCoupon, appliedCoupon, items, merchantId } = useCartStore();
 
   const checkCode = async () => {
     if (!code.trim()) return;
@@ -836,13 +1013,35 @@ function CouponsView() {
     const subtotal = useCartStore.getState().getTotal();
     const res = await apiFetch<CouponValid>('/api/coupons/validate', { method: 'POST', body: JSON.stringify({ code, orderTotal: subtotal, merchantId: useCartStore.getState().merchantId || undefined }) });
     setChecking(false);
-    if (res.data) setResult(res.data);
-    else setResult({ valid: false, error: res.error || 'Erreur' });
+    if (res.data) {
+      setResult(res.data);
+      if (res.data.valid && res.data.couponId && res.data.discount) {
+        setAppliedCoupon({ couponId: res.data.couponId, code: code.toUpperCase(), discount: res.data.discount, type: res.data.type || 'FIXED' });
+        toast.success('Code promo appliqué !');
+      }
+    } else {
+      setResult({ valid: false, error: res.error || 'Erreur' });
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setResult(null);
+    setCode('');
+    toast.success('Code promo retiré');
   };
 
   return (
     <div className="px-4 pt-4 space-y-5">
       <h1 className="text-lg font-bold">Codes promo</h1>
+      {appliedCoupon && (
+        <Card className="shadow-sm border-emerald-300 bg-emerald-50"><CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-emerald-700"><Check size={18} /><div><p className="font-semibold text-sm">Code actif : {appliedCoupon.code}</p><p className="text-xs mt-0.5">Remise : {formatPrice(appliedCoupon.discount)}</p></div></div>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={removeCoupon}><X size={16} /></Button>
+          </div>
+        </CardContent></Card>
+      )}
       <Card className="shadow-sm border-dashed border-2 border-emerald-200 bg-emerald-50/50"><CardContent className="p-6 text-center">
         <Tag className="h-10 w-10 text-emerald-600 mx-auto mb-2" />
         <p className="text-sm font-medium">Vous avez un code promo ?</p>
@@ -852,14 +1051,13 @@ function CouponsView() {
         <Input value={code} onChange={e => { setCode(e.target.value); setResult(null); }} placeholder="Ex: PROMO2025" className="uppercase" onKeyDown={e => e.key === 'Enter' && checkCode()} />
         <Button className="bg-emerald-700 hover:bg-emerald-800 flex-shrink-0" onClick={checkCode} disabled={checking}>{checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check size={16} />}</Button>
       </div>
-      {result && (
-        <Card className={`shadow-sm ${result.valid ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50'}`}><CardContent className="p-4">
-          {result.valid ? (
-            <div className="flex items-center gap-2 text-emerald-700"><Check size={18} className="flex-shrink-0" /><div><p className="font-semibold text-sm">Code valide !</p><p className="text-xs mt-0.5">Remise : {formatPrice(result.discount || 0)}</p></div></div>
-          ) : (
-            <div className="flex items-center gap-2 text-red-600"><X size={18} className="flex-shrink-0" /><p className="text-sm font-medium">{result.error || 'Code invalide'}</p></div>
-          )}
+      {result && !result.valid && (
+        <Card className={`shadow-sm border-red-300 bg-red-50`}><CardContent className="p-4">
+          <div className="flex items-center gap-2 text-red-600"><X size={18} className="flex-shrink-0" /><p className="text-sm font-medium">{result.error || 'Code invalide'}</p></div>
         </CardContent></Card>
+      )}
+      {items.length === 0 && (
+        <p className="text-xs text-muted-foreground text-center">Ajoutez des articles au panier pour utiliser un code promo.</p>
       )}
     </div>
   );

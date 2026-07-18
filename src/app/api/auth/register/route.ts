@@ -103,6 +103,18 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error('Register error:', error);
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+    if (error && typeof error === 'object' && 'code' in error) {
+      const prismaError = error as { code: string; meta?: Record<string, unknown> };
+      if (prismaError.code === 'P2002' && prismaError.meta?.target) {
+        const target = prismaError.meta.target as string[];
+        if (target.includes('email')) {
+          return NextResponse.json({ error: 'Cet email est déjà utilisé' }, { status: 409 });
+        }
+        if (target.includes('phone')) {
+          return NextResponse.json({ error: 'Ce numéro de téléphone est déjà utilisé' }, { status: 409 });
+        }
+      }
+    }
+    return NextResponse.json({ error: 'Erreur serveur, veuillez réessayer' }, { status: 500 });
   }
 }

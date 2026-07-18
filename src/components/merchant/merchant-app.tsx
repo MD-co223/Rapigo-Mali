@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, Package, ShoppingCart, MapPin, CreditCard, Crown, Tag,
   Headphones, User, Plus, Pencil, Trash2, Star, Upload, ChevronLeft,
-  Menu, LogOut, Bell, Loader2, CheckCircle2, Clock, Send, X
+  Menu, LogOut, Bell, Loader2, CheckCircle2, Clock, Send, X, RefreshCw, ClipboardList, Store, Grid3X3, Wallet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -20,9 +20,11 @@ import { SupportContact } from '@/components/support-contact';
 import { RapigoLogo } from '@/components/rapigo-logo';
 import {
   useMerchantNav, useAuthStore, useSpaceStore, apiFetch, formatPrice,
-  ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, BUSINESS_TYPES, PAYMENT_METHODS
+  ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, PAYMENT_STATUS_LABELS, BUSINESS_TYPES, PAYMENT_METHODS
 } from '@/lib/store';
 import type { MerchantView } from '@/lib/store';
+
+import { Skeleton } from '@/components/ui/skeleton';
 
 const EASE = [0, 0, 0.2, 1] as const;
 const TR = { duration: 0.3, ease: EASE };
@@ -44,7 +46,33 @@ const VL: Record<string, string> = {
 };
 
 function Sp() { return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>; }
-function Mt({ m }: { m: string }) { return <div className="text-center py-16 text-muted-foreground"><p>{m}</p></div>; }
+function Mt({ m, icon: Icon = Package, description }: { m: string; icon?: React.ElementType; description?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center animate-in fade-in duration-500">
+      <div className="w-16 h-16 rounded-full bg-muted/80 flex items-center justify-center mb-4">
+        <Icon className="h-8 w-8 text-muted-foreground/60" />
+      </div>
+      <p className="text-base font-medium text-muted-foreground mb-1">{m}</p>
+      {description && <p className="text-sm text-muted-foreground/70 max-w-xs">{description}</p>}
+    </div>
+  );
+}
+function SkList({ count = 4 }: { count?: number }) {
+  return <div className="space-y-3 p-0 animate-in fade-in duration-300">{Array.from({ length: count }).map((_, i) => (<div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-card"><Skeleton className="h-14 w-14 rounded-xl flex-shrink-0" /><div className="flex-1 space-y-2"><Skeleton className="h-4 w-3/5" /><Skeleton className="h-3 w-2/5" /></div><Skeleton className="h-6 w-20 rounded-full flex-shrink-0" /></div>))}</div>;
+}
+function SkCards({ count = 4 }: { count?: number }) {
+  return <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 animate-in fade-in duration-300">{Array.from({ length: count }).map((_, i) => (<div key={i} className="space-y-3"><Skeleton className="h-28 w-full rounded-xl" /><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>))}</div>;
+}
+function SkDetail() {
+  return (
+    <div className="space-y-6 p-4 animate-in fade-in duration-300">
+      <div className="flex items-center gap-3"><Skeleton className="h-10 w-10 rounded-full" /><div className="space-y-2 flex-1"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/2" /></div></div>
+      <Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" />
+      <div className="border-t pt-4 mt-4 space-y-3">{[1, 2, 3].map(i => (<div key={i} className="flex items-center gap-3"><Skeleton className="h-12 w-12 rounded-lg" /><div className="flex-1 space-y-2"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-3 w-1/3" /></div><Skeleton className="h-4 w-16" /></div>))}</div>
+      <Skeleton className="h-12 w-full rounded-xl" />
+    </div>
+  );
+}
 
 export default function MerchantApp() {
   const { view, data, navigate, goBack } = useMerchantNav();
@@ -65,7 +93,7 @@ export default function MerchantApp() {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [pf, setPf] = useState<Record<string, any>>({});
   const [supps, setSupps] = useState<{ name: string; price: string }[]>([]);
-  const [zf, setZf] = useState<Record<string, any>>({ city: '', neighborhood: '', fee: '' });
+  const [zf, setZf] = useState<Record<string, any>>({ city: '', quartier: '', fee: '' });
   const [cf, setCf] = useState<Record<string, any>>({ code: '', type: 'PERCENTAGE', value: '', minOrder: '', maxUses: '', endDate: '' });
   const [ticket, setTicket] = useState({ subject: '', message: '' });
   const [prof, setProf] = useState<Record<string, any>>({});
@@ -169,11 +197,11 @@ export default function MerchantApp() {
     setSaving(true);
     const r = await apiFetch<any>('/api/merchants/' + mid + '/delivery-zones', { method: 'POST', body: JSON.stringify({ ...zf, fee: Number(zf.fee) || 0 }) });
     setSaving(false);
-    if (r.data) { setZones(prev => [...prev, r.data.zone || r.data]); setZf({ city: '', neighborhood: '', fee: '' }); setDlg(''); }
+    if (r.data) { setZones(prev => [...prev, r.data.zone || r.data]); setZf({ city: '', quartier: '', fee: '' }); setDlg(''); }
   };
 
   const toggleZone = async (z: any) => {
-    await apiFetch('/api/merchants/' + mid + '/delivery-zones/' + z.id, { method: 'PUT', body: JSON.stringify({ isActive: !z.isActive }) });
+    await apiFetch('/api/merchants/' + mid + '/delivery-zones', { method: 'PUT', body: JSON.stringify({ zoneId: z.id, isActive: !z.isActive }) });
     setZones(prev => prev.map((zz: any) => zz.id === z.id ? { ...zz, isActive: !z.isActive } : zz));
   };
 
@@ -219,7 +247,7 @@ export default function MerchantApp() {
   };
 
   const markAllRead = async () => {
-    await apiFetch('/api/notifications/read-all', { method: 'PUT' });
+    await apiFetch('/api/notifications', { method: 'PUT' });
     setNotifs(prev => prev.map((n: any) => ({ ...n, isRead: true })));
   };
 
@@ -270,7 +298,7 @@ export default function MerchantApp() {
   // VIEWS
   const renderDashboard = () => (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">Bienvenue, {merchant.name || user?.firstName}</h2>
+      <h2 className="text-xl font-bold">Bienvenue, {merchant.businessName || user?.firstName}</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { l: 'Produits actifs', v: stats.totalProducts ?? stats.activeProducts ?? 0, i: Package, c: 'text-emerald-600 bg-emerald-50' },
@@ -292,7 +320,7 @@ export default function MerchantApp() {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Commandes récentes</CardTitle></CardHeader>
         <CardContent>
-          {!orders.length ? <Mt m="Aucune commande" /> : (
+          {!orders.length ? <Mt m="Aucune commande pour le moment" icon={ClipboardList} /> : (
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {orders.map((o: any) => (
                 <div key={o.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
@@ -303,7 +331,7 @@ export default function MerchantApp() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{formatPrice(o.total || 0)}</p>
-                    <Badge variant="secondary" className="text-[10px]">{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
+                    <Badge className={`text-[10px] ${ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-800'}`}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
                   </div>
                 </div>
               ))}
@@ -318,9 +346,9 @@ export default function MerchantApp() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Produits</h2>
-        <Button onClick={() => navigate('add-product')} className="gap-1"><Plus className="h-4 w-4" /> Ajouter</Button>
+        <Button onClick={() => navigate('add-product')} className="gap-1 active:scale-95 transition-transform"><Plus className="h-4 w-4" /> Ajouter</Button>
       </div>
-      {!products.length ? <Mt m="Aucun produit" /> : (
+      {!products.length ? <Mt m="Aucun produit trouvé" icon={Package} description="Ajoutez des produits pour commencer à vendre." /> : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {products.map((p: any) => (
             <Card key={p.id} className="overflow-hidden">
@@ -393,7 +421,7 @@ export default function MerchantApp() {
   const renderOrders = () => (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Commandes</h2>
-      {!orders.length ? <Mt m="Aucune commande" /> : (
+      {!orders.length ? <Mt m="Aucune commande pour le moment" icon={ClipboardList} /> : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -408,7 +436,7 @@ export default function MerchantApp() {
                     <td className="px-4 py-3 font-medium">#{o.orderNumber || o.id.slice(0, 8)}</td>
                     <td className="px-4 py-3 hidden sm:table-cell">{o.customerName || 'Client'}</td>
                     <td className="px-4 py-3">{formatPrice(o.total || 0)}</td>
-                    <td className="px-4 py-3"><Badge variant="secondary">{ORDER_STATUS_LABELS[o.status] || o.status}</Badge></td>
+                    <td className="px-4 py-3"><Badge className={ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-800'}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge></td>
                     <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{o.createdAt ? new Date(o.createdAt).toLocaleDateString('fr-FR') : ''}</td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       {o.status === 'PENDING' && <Button size="sm" className="gap-1" onClick={() => updateOrderStatus(o.id, 'CONFIRMED')}>Accepter</Button>}
@@ -437,7 +465,7 @@ export default function MerchantApp() {
         </div>
         <Card><CardContent className="p-4 space-y-4">
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
+            <Badge className={ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-800'}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge>
             {o.paymentStatus && <Badge variant="outline">{PAYMENT_STATUS_LABELS[o.paymentStatus] || o.paymentStatus}</Badge>}
           </div>
           <div className="flex gap-1">{M_STEPS.map((_, i) => (
@@ -485,7 +513,7 @@ export default function MerchantApp() {
         <h2 className="text-xl font-bold">Zones de livraison</h2>
         <Button className="gap-1" onClick={() => setDlg('zone')}><Plus className="h-4 w-4" /> Ajouter</Button>
       </div>
-      {!zones.length ? <Mt m="Aucune zone configurée" /> : (
+      {!zones.length ? <Mt m="Aucune zone configurée" icon={MapPin} /> : (
         <Card className="overflow-hidden"><div className="overflow-x-auto">
           <table className="w-full text-sm"><thead className="bg-gray-50 text-left"><tr>
             <th className="px-4 py-3 font-medium">Ville</th><th className="px-4 py-3 font-medium">Quartier</th>
@@ -493,7 +521,7 @@ export default function MerchantApp() {
           </tr></thead><tbody className="divide-y">
             {zones.map((z: any) => (
               <tr key={z.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3">{z.city}</td><td className="px-4 py-3">{z.neighborhood}</td>
+                <td className="px-4 py-3">{z.city}</td><td className="px-4 py-3">{z.quartier || '-'}</td>
                 <td className="px-4 py-3">{formatPrice(z.fee || 0)}</td>
                 <td className="px-4 py-3"><Switch checked={z.isActive ?? true} onCheckedChange={() => toggleZone(z)} /></td>
               </tr>
@@ -505,7 +533,7 @@ export default function MerchantApp() {
         <DialogContent><DialogHeader><DialogTitle>Nouvelle zone de livraison</DialogTitle><DialogDescription>Ajouter une zone avec ses frais de livraison</DialogDescription></DialogHeader>
           <div className="space-y-3 py-2">
             <div><Label>Ville</Label><Input value={zf.city} onChange={e => setZf(p => ({ ...p, city: e.target.value }))} /></div>
-            <div><Label>Quartier</Label><Input value={zf.neighborhood} onChange={e => setZf(p => ({ ...p, neighborhood: e.target.value }))} /></div>
+            <div><Label>Quartier</Label><Input value={zf.quartier} onChange={e => setZf(p => ({ ...p, quartier: e.target.value }))} /></div>
             <div><Label>Frais (FCFA)</Label><Input type="number" value={zf.fee} onChange={e => setZf(p => ({ ...p, fee: e.target.value }))} /></div>
           </div>
           <DialogFooter><Button onClick={saveZone} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enregistrer'}</Button></DialogFooter>
@@ -517,7 +545,7 @@ export default function MerchantApp() {
   const renderPaymentConfig = () => (
     <div className="space-y-4 max-w-2xl">
       <h2 className="text-xl font-bold">Moyens de paiement</h2>
-      {!payCfg.length ? <Mt m="Aucune méthode configurée" /> : (
+      {!payCfg.length ? <Mt m="Aucune méthode configurée" icon={CreditCard} /> : (
         <div className="space-y-3">
           {payCfg.map((m: any, i: number) => (
             <Card key={i}><CardContent className="p-4 space-y-3">
@@ -599,7 +627,7 @@ export default function MerchantApp() {
         <h2 className="text-xl font-bold">Coupons</h2>
         <Button className="gap-1" onClick={() => setDlg('coupon')}><Plus className="h-4 w-4" /> Créer</Button>
       </div>
-      {!coupons.length ? <Mt m="Aucun coupon" /> : (
+      {!coupons.length ? <Mt m="Aucun coupon disponible" icon={Tag} /> : (
         <div className="space-y-2">{coupons.map((c: any) => (
           <Card key={c.id}><CardContent className="p-3 flex items-center justify-between">
             <div>
@@ -657,7 +685,7 @@ export default function MerchantApp() {
         <h2 className="text-xl font-bold">Notifications</h2>
         {notifs.some((n: any) => !n.isRead) && <Button variant="outline" size="sm" onClick={markAllRead}>Tout marquer lu</Button>}
       </div>
-      {!notifs.length ? <Mt m="Aucune notification" /> : (
+      {!notifs.length ? <Mt m="Aucune notification" icon={Bell} /> : (
         <div className="space-y-2">{notifs.map((n: any) => (
           <Card key={n.id} className={`cursor-pointer transition-colors ${!n.isRead ? 'bg-emerald-50 border-emerald-200' : ''}`} onClick={() => markRead(n.id)}>
             <CardContent className="p-3 flex items-start gap-3">
@@ -680,15 +708,15 @@ export default function MerchantApp() {
       <Card><CardContent className="p-4 space-y-4">
         <div className="flex items-center gap-4">
           {prof.logo ? <img src={prof.logo} alt="Logo" className="h-16 w-16 rounded-full object-cover bg-gray-100" />
-            : <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xl">{(prof.name || '?')[0]}</div>}
+            : <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xl">{(prof.businessName || '?')[0]}</div>}
           <div>
             <input type="file" accept="image/*" className="hidden" ref={logoRef} onChange={e => readFile(e, v => setProf(p => ({ ...p, logo: v })))} />
             <Button variant="outline" size="sm" onClick={() => logoRef.current?.click()} className="gap-1"><Upload className="h-3 w-3" /> Changer le logo</Button>
           </div>
         </div>
-        <div><Label>Nom du commerce</Label><Input value={prof.name || ''} onChange={e => setProf(p => ({ ...p, name: e.target.value }))} /></div>
+        <div><Label>Nom du commerce</Label><Input value={prof.businessName || ''} onChange={e => setProf(p => ({ ...p, businessName: e.target.value }))} /></div>
         <div><Label>Type de commerce</Label>
-          <Select value={prof.type || ''} onValueChange={v => setProf(p => ({ ...p, type: v }))}>
+          <Select value={prof.businessType || ''} onValueChange={v => setProf(p => ({ ...p, businessType: v }))}>
             <SelectTrigger className="w-full"><SelectValue placeholder="Sélectionner" /></SelectTrigger>
             <SelectContent>{Object.entries(BUSINESS_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
           </Select>
@@ -741,7 +769,7 @@ export default function MerchantApp() {
         <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo variant="icon" height={32} /></div>
         {renderNav()}
         <div className="p-4 border-t border-emerald-600">
-          <p className="text-sm text-emerald-200 truncate">{merchant.name || user?.firstName}</p>
+          <p className="text-sm text-emerald-200 truncate">{merchant.businessName || user?.firstName}</p>
           {isPremium && <p className="text-xs text-yellow-300 flex items-center gap-1 mt-1"><Crown className="h-3 w-3" /> Premium</p>}
           <Button variant="ghost" className="text-white hover:bg-emerald-600 w-full justify-start mt-2 gap-2" onClick={handleLogout}><LogOut className="h-4 w-4" /> Déconnexion</Button>
         </div>
@@ -773,7 +801,7 @@ export default function MerchantApp() {
           <div className="flex items-center gap-3 px-4 h-16 border-b border-emerald-600"><RapigoLogo variant="icon" height={32} /></div>
           {renderNav(() => setMobileMenu(false))}
           <div className="p-4 border-t border-emerald-600">
-            <p className="text-sm text-emerald-200">{merchant.name || user?.firstName}</p>
+            <p className="text-sm text-emerald-200">{merchant.businessName || user?.firstName}</p>
             <Button variant="ghost" className="text-white hover:bg-emerald-600 w-full justify-start mt-2 gap-2" onClick={() => { handleLogout(); setMobileMenu(false); }}><LogOut className="h-4 w-4" /> Déconnexion</Button>
           </div>
         </SheetContent>

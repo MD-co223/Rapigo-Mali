@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { merchantId, items, deliveryAddress, deliveryCity, deliveryQuartier, paymentMethod, notes } = body;
+    const { merchantId, items, deliveryAddress, deliveryCity, deliveryQuartier, paymentMethod, notes, couponId } = body;
 
     if (!merchantId || !items || !items.length || !deliveryAddress) {
       return NextResponse.json({ error: 'Données de commande incomplètes' }, { status: 400 });
@@ -131,7 +131,54 @@ export async function POST(request: NextRequest) {
     const serviceFeePercent = serviceFeeSetting ? parseInt(serviceFeeSetting.value) : 0;
     const serviceFee = Math.round(subtotal * serviceFeePercent / 100);
 
-    const total = subtotal + deliveryFee + serviceFee;
+    // Apply coupon discount (server-side validation)
+    let discount = 0;
+    let validatedCouponId: string | null = null;
+    if (couponId) {
+      const coupon = await db.coupon.findUnique({ where: { id: couponId } });
+      if (!coupon) {
+        return NextResponse.json({ error: 'Code promo invalide' }, { status: 400 });
+      }
+      if (!coupon.isActive) {
+        return NextResponse.json({ error: 'Code promo inactif' }, { status: 400 });
+      }
+      const now = new Date();
+      if (coupon.startDate > now) {
+        return NextResponse.json({ error: 'Code promo pas encore valide' }, { status: 400 });
+      }
+      if (coupon.endDate < now) {
+        return NextResponse.json({ error: 'Code promo expiré' }, { status: 400 });
+      }
+      if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
+        return NextResponse.json({ error: 'Nombre maximum d\'utilisations atteint' }, { status: 400 });
+      }
+      if (coupon.minOrder && subtotal < coupon.minOrder) {
+        return NextResponse.json({ error: `Commande minimum de ${coupon.minOrder} FCFA requise pour ce code` }, { status: 400 });
+      }
+      if (coupon.merchantId && coupon.merchantId !== merchantId) {
+        return NextResponse.json({ error: 'Code promo non valide pour ce marchand' }, { status: 400 });
+      }
+      // Check if client already used this coupon
+      const alreadyUsed = await db.couponUsage.findFirst({
+        where: { couponId: coupon.id, clientId: client.id },
+      });
+      if (alreadyUsed) {
+        return NextResponse.json({ error: 'Code promo déjà utilisé' }, { status: 400 });
+      }
+
+      // Calculate discount server-side
+      if (coupon.type === 'PERCENTAGE') {
+        discount = Math.round(subtotal * coupon.value / 100);
+      } else if (coupon.type === 'FIXED') {
+        discount = coupon.value;
+      } else if (coupon.type === 'FREE_DELIVERY') {
+        discount = deliveryFee; // Free delivery = discount equals delivery fee
+      }
+      discount = Math.min(discount, subtotal);
+      validatedCouponId = coupon.id;
+    }
+
+    const total = subtotal + deliveryFee + serviceFee - discount;
     const orderNumber = generateOrderNumber();
     const status = paymentMethod === 'CASH' ? 'PENDING' : 'PAYMENT_PENDING';
 
@@ -166,7 +213,7 @@ export async function POST(request: NextRequest) {
           subtotal,
           deliveryFee,
           serviceFee,
-          discount: 0,
+          discount,
           total,
           paymentMethod: paymentMethod || 'CASH',
           deliveryAddress,
@@ -202,6 +249,12 @@ export async function POST(request: NextRequest) {
         data: { totalOrders: { increment: 1 } },
       });
 
+      // Record coupon usage inside transaction
+      if (discount > 0 && validatedCouponId) {
+        await tx.coupon.update({ where: { id: validatedCouponId }, data: { usedCount: { increment: 1 } } });
+        await tx.couponUsage.create({ data: { couponId: validatedCouponId, clientId: client.id, orderId: created.id, discount } });
+      }
+
       return created;
     });
 
@@ -219,9 +272,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
     console.error('Create order error:', error);
-    const message = error instanceof Error && !error.message.includes('Prisma')
-      ? error.message
-      : 'Erreur serveur';
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (error instanceof Error) {
+      const msg = error.message;
+      if (msg.includes('Stock insuffisant')) {
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+      if (msg.includes('non trouvé')) {
+        return NextResponse.json({ error: msg }, { status: 404 });
+      }
+      // Prisma unique constraint (race condition on email/phone, shouldn't happen in orders but just in case)
+      if (msg.includes('Prisma')) {
+        return NextResponse.json({ error: 'Erreur lors de la création de la commande' }, { status: 500 });
+      }
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Erreur serveur, veuillez réessayer' }, { status: 500 });
   }
 }

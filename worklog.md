@@ -710,3 +710,253 @@ Stage Summary:
 - Changes deployed to https://rapigo-mali.vercel.app
 - Banner will now show on both Android and iOS after 4 seconds
 - Old dismissed state is reset with new localStorage key
+
+---
+Task ID: 2c
+Agent: Merchant Fix Agent
+Task: Fix Merchant App Critical Bugs
+
+Work Log:
+- Read full merchant-app.tsx (783 lines) and identified all API calls
+- Read Prisma schema (Subscription, Payment, DeliveryZone, Merchant models)
+- Read all existing API routes for patterns (auth, error handling, etc.)
+- Verified /api/notifications PUT marks all as read (confirmed correct)
+- Verified /api/merchants/[id]/delivery-zones already has PUT and DELETE handlers
+- Verified /api/merchants/me PUT accepts businessName (not name)
+
+Bug 1 - Subscription API: Created POST /api/subscriptions/route.ts
+  - Requires MERCHANT auth
+  - Finds merchant by userId
+  - Checks for existing active subscription
+  - Finds PREMIUM_LIFETIME plan (or fallback to any active plan)
+  - Creates Subscription record with calculated end date (10 years for lifetime)
+  - Creates Notification with payment info in data field
+  - Note: Payment record not created because Payment model requires a valid Order FK
+
+Bug 2 - markAllRead: Changed /api/notifications/read-all to /api/notifications (line 222)
+
+Bug 3 - toggleZone: Changed URL from /api/merchants/{mid}/delivery-zones/{zoneId} to /api/merchants/{mid}/delivery-zones with zoneId in request body (line 176)
+
+Bug 4 - merchant.name: Changed 3 occurrences to merchant.businessName (lines 273, 744, 776)
+
+Bug 5 - Profile form: Changed prof.name → prof.businessName, prof.type → prof.businessType (lines 683, 689, 691)
+
+Bug 6 - Zone form: Changed neighborhood → quartier in zf state, form, reset, and display (lines 68, 172, 496, 508)
+
+Extra fix: Removed isActive:true filter from GET delivery-zones so merchant can see all zones to manage them
+
+Stage Summary:
+- 6 bugs fixed, 1 new API route created, 1 extra improvement
+- All changes pass ESLint (only pre-existing client-app.tsx error remains)
+- Merchant app now correctly communicates with all backend APIs
+
+---
+Task ID: 2b
+Agent: Driver Fix Agent
+Task: Fix Driver App Critical Bugs (6 bugs investigated)
+
+Work Log:
+- Read worklog, driver-app.tsx (574 lines), all relevant API routes
+- Investigated Bug 1 (Order Acceptance URL): READ the accept route. The API at `/api/drivers/[id]/accept` extracts `{ id: orderId }` from params and finds the driver from JWT auth. The driver app passes orderId in the URL. They match. **NOT a bug** — verified correct.
+- Fixed Bug 2 (isOnline Toggle): Added `toggleOnline()` async function that calls `PUT /api/drivers/me` with `{ isOnline: value }`. Both header Switch and home card Switch now use this function. Added `togglingOnline` loading state and `disabled` prop. Shows "Mise à jour..." during toggle. Also added `isOnline` to DriverData interface.
+- Investigated Bug 3 (History Fetching): READ the orders API. For DRIVER role, the server auto-adds `where.driverId = driver.id`. The driver call to `/api/orders?limit=50` is already filtered server-side. **NOT a bug** — verified correct.
+- Fixed Bug 4 (Polling Stops on Navigation): Removed `view !== 'home'` guard from the available-orders polling useEffect. Now depends only on `[isOnline]`. Kept the dots animation useEffect tied to `view === 'home'` so the visual animation only shows on home.
+- Investigated Bug 5 (markAllRead URL): READ the notifications API. `PUT /api/notifications` exists and marks all unread as read for the authenticated user. The driver app calls this correctly. **NOT a bug** — verified correct.
+- Fixed Bug 6 (Document Upload): Replaced the "Contact support" dialog with a real file upload mechanism. Added hidden `<input type="file" accept="image/*">`, `fileToBase64()` utility, `handleDocUploadClick()` and `handleFileSelected()` functions. Files are converted to base64 data URLs and sent via `PUT /api/drivers/me` with the corresponding field name (`idCardImage`, `licenseImage`, `vehicleImage`, `selfieImage`). Added file type validation (image/*) and size limit (5MB). Updated the dialog to show an upload dropzone UI with progress indicator. Enhanced the DOCS array with hint text for each document. Added upload status indicators (spinner) per document card.
+- Ran lint: 0 errors in driver-app.tsx (2 pre-existing errors in client-app.tsx unrelated to this task)
+
+Stage Summary:
+- 3 real bugs fixed (Bug 2: isOnline sync, Bug 4: polling, Bug 6: document upload)
+- 3 reported bugs verified as non-issues (Bug 1, 3, 5 — API and client already correct)
+- All text in French
+- No ESLint errors introduced
+
+
+---
+Task ID: 2d
+Agent: Client & Registration Fix Agent
+Task: Fix critical bugs (checkout city, coupon discount, order polling, payment proof upload) + merchant/driver registration payment info
+
+Work Log:
+- Created `/api/cities` public endpoint to fetch available cities with quartiers from DB settings
+- Created `/api/upload` endpoint to accept base64 images, decode and save to `public/uploads/`, return public URL
+- Added `AppliedCoupon` interface and `appliedCoupon`/`setAppliedCoupon` to cart store (Zustand)
+- Updated `clearCart` to also clear `appliedCoupon`
+- Fixed CheckoutView: replaced hardcoded 'Bamako' with dynamic city selector + quartier dropdown from API
+- Fixed CouponDiscount: CouponsView now stores validated coupon in cart store; CheckoutView shows discount and passes couponId/couponDiscount to order API
+- Updated `/api/orders` POST to accept couponId/couponDiscount, re-validate coupon, apply discount, record usage in transaction
+- Fixed OrderDetailView: added 10-second polling to refresh order data
+- Fixed Payment Proof: replaced URL-only input with file upload button (converts to base64, uploads via API) + URL fallback
+- Updated merchant registration: shows prominent "4 000 FCFA à vie" fee, Orange Money +223 77 16 38 70 payment info
+- Updated driver registration: shows "4 000 FCFA" fee, Orange Money +223 77 16 38 70 payment info
+- Updated WaitingApproval screen: shows payment info, EN ATTENTE de validation de paiement message, instructions to send proof
+- All text in French, emerald/green theme maintained
+- Lint passes with 0 errors
+
+Stage Summary:
+- Bug 1 (hardcoded city): FIXED — dynamic city selector with quartier dropdown
+- Bug 2 (coupon discount): FIXED — full flow: validate → store → display → apply → record
+- Bug 3 (order detail refresh): FIXED — 10-second polling
+- Bug 4 (payment proof): FIXED — file upload with preview + URL fallback
+- Task 2 (merchant payment info): DONE — fee display + OM number + waiting screen
+- Task 3 (driver payment info): DONE — fee display + OM number + waiting screen
+
+---
+Task ID: 2a
+Agent: Admin Fix Agent
+Task: Fix Admin App - Approve/Reject/Suspend/Reactivate/Delete
+
+Work Log:
+- Read and analyzed admin-app.tsx (1079 lines) and all 4 API routes
+- Created `src/app/api/drivers/[id]/route.ts` — DELETE endpoint for driver deletion (was missing)
+- Rewrote `src/components/admin/admin-app.tsx` with all 7 bug fixes:
+  - Bug 1: Merchant approve() now sends `{ action: 'approve' }` in POST body
+  - Bug 2: Driver approve() now sends `{ action: 'approve' }` in POST body
+  - Bug 3: Added "Refuser" (red) button for unapproved merchants and drivers, calling approve API with `{ action: 'reject' }`
+  - Bug 4: Added DropdownMenu (⋯) on every merchant/driver row with Suspendre/Réactiver/Supprimer actions
+  - Bug 5 & 7: Added `<DialogDescription>` to ALL Dialog components (merchant detail, order detail, category form, coupon form, confirm dialog)
+  - Bug 6: All actions now call `refresh()` to re-fetch data from API instead of only updating local state
+  - Bonus: Fixed UsersView `action()` to also send `{ action: 'block'|'unblock'|'suspend'|'reactivate' }` body (was also broken)
+  - Added `ConfirmDialog` reusable component with loading state for destructive actions (reject, suspend, delete)
+  - Added confirmation dialogs before all destructive actions
+  - Added suspend status badge display on merchant/driver rows
+  - Imported DialogDescription, DropdownMenu components, new icons (MoreVertical, Trash2, ShieldOff, ShieldCheck, XCircle)
+  - Used `useCallback` for refresh functions to prevent stale closures
+  - Lint passes cleanly with zero errors
+
+Stage Summary:
+- All 7 bugs fixed
+- 1 new API route created (DELETE /api/drivers/[id])
+- Full admin control: approve, reject, suspend, reactivate, delete for merchants and drivers
+- Accessible: all dialogs have proper DialogDescription
+- Data always refreshes after any action
+- Confirmation dialogs prevent accidental destructive actions
+---
+
+---
+Task ID: icon-gen
+Agent: Icon Generation Agent
+Task: Generate ALL correct PWA/App icons from source app-icon.png
+
+Work Log:
+- Checked existing icons: all were present but some were incorrect sizes (app-icon.png was 600x600, maskable lacked safe zone padding)
+- Installed sharp@0.35.3 for image processing
+- Created and ran generate-icons.mjs script to resize from source
+- Generated all required PNG icons at exact pixel dimensions
+- Built multi-size favicon.ico (16, 32, 48) using raw ICO binary format
+- Created maskable-icon.png with 80% safe zone (410x410 icon on 512x512 canvas, 51px padding, #059669 background)
+- Fixed manifest.json: replaced duplicate app-icon.png entries with proper android-chrome-192.png and android-chrome-512.png
+- Verified layout.tsx icon meta tags — already correct, no changes needed
+
+Stage Summary:
+- app-icon.png: 512x512 (18KB) — regenerated from 600x600
+- favicon-16.png: 16x16 (423B)
+- favicon-32.png: 32x32 (845B)
+- favicon.ico: multi-size 16+32+48 (2.3KB)
+- apple-touch-icon.png: 180x180 (3.8KB)
+- android-chrome-192.png: 192x192 (4.3KB)
+- android-chrome-512.png: 512x512 (18KB)
+- maskable-icon.png: 512x512 with safe zone (14.7KB)
+- manifest.json updated with correct icon src references
+- All icons maintain square aspect ratio with fit:cover
+- Lint passes cleanly
+
+---
+Task ID: general-fix
+Agent: General Fix Agent
+Task: Logo usage, isApproved init, error messages, payment verification, coupon discount
+
+Work Log:
+- TASK 1 — Logo Usage Audit:
+  - Searched all .tsx files for `<img` tags referencing logo files
+  - RapigoLogo component already uses `object-contain` ✓
+  - Found `<img>` in pwa-install-prompt.tsx missing `object-contain` → added it
+  - Merchant profile logo uses `object-cover` (intentional: circular avatar)
+  - No CSS overflow:hidden issues found on logo containers
+- TASK 2 — isApproved Initialization Fix:
+  - Changed `isApproved` from `useState(true)` to a derived computed value
+  - Replaced `isApproved` state with `merchantDriverApproved` state (null initially)
+  - `isApproved` is now computed: CLIENT/ADMIN always true, MERCHANT/DRIVER checked via API
+  - On session restore, MERCHANT/DRIVER call `/api/auth/me` to verify approval before showing dashboard
+  - Avoids flash of unapproved dashboard on page refresh
+- TASK 3 — Improved Generic Error Messages:
+  - `api/auth/login/route.ts`: Added Prisma P2021 (table not found) handling with French message
+  - `api/auth/register/route.ts`: Added P2002 (unique constraint) handling → distinguishes email vs phone duplicates
+  - `api/orders/route.ts` POST: Improved catch block with proper status codes (400 for stock, 404 for not found, 400 for business errors, 500 for server errors)
+- TASK 4 — Payment Verification API:
+  - Created `src/app/api/orders/[id]/verify-payment/route.ts` (PATCH endpoint)
+  - Auth: MERCHANT (owner of order) or ADMIN
+  - Sets paymentStatus to 'PAID' (or 'REJECTED' if reject=true)
+  - If order status was 'PAYMENT_PENDING' and approving, changes to 'PENDING'
+  - Creates notification for the client (confirm or reject message)
+  - Returns updated order with full includes
+- TASK 5 — Coupon Discount Server-Side Validation:
+  - Replaced weak client-trusted coupon validation with full server-side validation
+  - Now validates: coupon exists, active, date range, max uses, min order, merchant-specific, already used
+  - Discount calculated server-side from coupon type (PERCENTAGE, FIXED, FREE_DELIVERY)
+  - Removed `couponDiscount` from client body (no longer trusted)
+  - CouponUsage now records the actual calculated discount amount
+  - Uses `validatedCouponId` internally instead of raw client-provided ID
+
+Stage Summary:
+- 1 logo fix (pwa-install-prompt.tsx)
+- isApproved flash-on-refresh bug fixed
+- 3 API routes with improved French error messages
+- 1 new API endpoint for payment proof verification
+- Order creation now validates coupons server-side (security fix)
+- Lint passes cleanly, dev server compiles successfully
+
+---
+Task ID: uiux
+Agent: UI/UX Agent
+Task: UI/UX Modernization — Premium feel (Uber Eats / Glovo / Bolt Food)
+
+Work Log:
+- Created shared UI helpers component (`src/components/shared/ui-helpers.tsx`) with DataSkeleton, EmptyState, RefreshButton, RatingStars
+- Updated ORDER_STATUS_COLORS in `src/lib/store.ts` to match spec: PENDING=amber, PAYMENT_PENDING=orange, CONFIRMED=blue, PREPARING=purple, READY=indigo, ASSIGNED=cyan, PICKED_UP=teal, IN_TRANSIT=emerald, DELIVERED=green, CANCELLED=red, REFUNDED=gray
+- Updated client-app.tsx:
+  - Replaced Spinner with SkeletonList, SkeletonCards, SkeletonDetail for all loading states
+  - Enhanced Empty component with rounded icon container, description prop, fade-in animation
+  - Enhanced Stars component with drop-shadow, interactive mode, dark mode support
+  - Updated rating dialog stars (larger, hover/active scale effects, drop-shadow)
+  - Added Skeleton import
+  - Added RefreshCw import
+  - All empty states now have friendly French descriptions
+- Updated merchant-app.tsx:
+  - Added Skeleton import, ORDER_STATUS_COLORS import
+  - Created SkList, SkCards, SkDetail skeleton components
+  - Enhanced Mt empty state with icon prop and description
+  - Applied ORDER_STATUS_COLORS to all order status badges (dashboard, orders list, order detail)
+  - All empty states now use relevant Lucide icons
+  - Added active:scale-95 to Add Product button
+- Updated driver-app.tsx:
+  - Added Skeleton, ORDER_STATUS_COLORS, ClipboardList imports
+  - Created Empty and SkList components
+  - Replaced all plain text empty states with Empty component (with icons + descriptions)
+  - Replaced manual sColor badge logic with ORDER_STATUS_COLORS
+  - Added active:scale-95 to Accept Course button
+  - Star rating display with drop-shadow
+- Updated admin-app.tsx:
+  - Added Skeleton, Bell, ClipboardList, Wallet imports
+  - Created Em component with icon prop (rounded container, fade animation)
+  - Created SkList and SkTable skeleton components
+  - Enhanced Sb status badge to use ORDER_STATUS_COLORS automatically
+  - All 10+ empty states now use relevant Lucide icons
+- Updated page.tsx:
+  - Added smooth fade transition (opacity 0→1) when switching between authenticated spaces
+  - Added active:scale-95 transition-transform to all CTA buttons on landing page
+- Fixed PWA install banner:
+  - Changed from fixed overlay (z-9999) to relative positioning with height animation
+  - Moved PwaInstallPrompt before children in layout.tsx
+  - Banner now pushes content down instead of overlapping the header
+  - Smooth height animation on show/dismiss
+
+Stage Summary:
+- All 4 apps now show animated skeleton loaders during data fetching
+- All empty states display relevant icons with friendly French messages
+- Order status badges use consistent, distinct colors across all apps
+- Page transitions are smooth with fade-in/out
+- PWA banner no longer overlaps header content
+- Rating stars have professional appearance with shadows
+- All action buttons have press feedback (active:scale-95)
+- Zero lint errors

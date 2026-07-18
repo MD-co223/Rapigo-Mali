@@ -1,23 +1,29 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   LayoutDashboard, Users, Store, Truck, ShoppingCart, Grid3X3,
   Package, Tag, Settings, FileText, Headphones, User, LogOut,
-  Menu, Search, Plus, Ban, CheckCircle, X, Eye, Pencil, TrendingUp
+  Menu, Search, Plus, Ban, CheckCircle, X, Eye, Pencil, TrendingUp,
+  MoreVertical, Trash2, ShieldOff, ShieldCheck, XCircle, Bell, ClipboardList, Wallet
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SupportContact } from '@/components/support-contact';
 import { RapigoLogo } from '@/components/rapigo-logo';
 import {
@@ -50,11 +56,79 @@ const BN = NAV.slice(0, 7);
 function Sp() {
   return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" /></div>;
 }
-function Em({ m }: { m: string }) {
-  return <p className="text-center py-16 text-muted-foreground">{m}</p>;
+function Em({ m, icon: Icon = Package }: { m: string; icon?: React.ElementType }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center animate-in fade-in duration-500">
+      <div className="w-16 h-16 rounded-full bg-muted/80 flex items-center justify-center mb-4">
+        <Icon className="h-8 w-8 text-muted-foreground/60" />
+      </div>
+      <p className="text-base font-medium text-muted-foreground mb-1">{m}</p>
+    </div>
+  );
+}
+function SkList({ count = 5 }: { count?: number }) {
+  return <div className="space-y-3 p-0 animate-in fade-in duration-300">{Array.from({ length: count }).map((_, i) => (<div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-card"><Skeleton className="h-10 w-10 rounded-lg flex-shrink-0" /><div className="flex-1 space-y-2"><Skeleton className="h-4 w-3/5" /><Skeleton className="h-3 w-2/5" /></div><Skeleton className="h-6 w-20 rounded-full flex-shrink-0" /></div>))}</div>;
+}
+function SkTable({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
+  return (
+    <div className="animate-in fade-in duration-300 space-y-0">
+      <div className="flex gap-4 px-4 py-3 bg-muted/50 border-b text-sm">
+        {Array.from({ length: cols }).map((_, i) => <Skeleton key={i} className="h-4 flex-1" />)}
+      </div>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex gap-4 px-4 py-3 border-b">
+          {Array.from({ length: cols }).map((_, j) => <Skeleton key={j} className="h-4 flex-1" />)}
+        </div>
+      ))}
+    </div>
+  );
 }
 function Sb({ s, cls }: { s: string; cls?: string }) {
-  return <Badge variant="secondary" className={cls ?? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'}>{ORDER_STATUS_LABELS[s] ?? PAYMENT_STATUS_LABELS[s] ?? s}</Badge>;
+  const color = cls ?? ORDER_STATUS_COLORS[s] ?? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+  return <Badge className={color}>{ORDER_STATUS_LABELS[s] ?? PAYMENT_STATUS_LABELS[s] ?? s}</Badge>;
+}
+
+/* ── Confirm Dialog ── */
+function ConfirmDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel,
+  variant = 'destructive',
+  onConfirm,
+  loading,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  variant?: 'destructive' | 'default';
+  onConfirm: () => void;
+  loading?: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Annuler</Button>
+          <Button
+            variant={variant === 'destructive' ? 'destructive' : 'default'}
+            className={variant === 'destructive' ? '' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? <span className="flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />Chargement…</span> : confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 /* ── Sidebar ── */
@@ -222,7 +296,7 @@ function DashboardView() {
               </tbody>
             </table>
           </div>
-          {orders.length === 0 && <Em m="Aucune commande récente" />}
+          {orders.length === 0 && <Em m="Aucune commande récente" icon={ClipboardList} />}
         </CardContent>
       </Card>
     </div>
@@ -236,13 +310,13 @@ function UsersView() {
   const [role, setRole] = useState('all');
   const [loading, setLoading] = useState(true);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const q = new URLSearchParams();
     if (role !== 'all') q.set('role', role);
     const { data } = await apiFetch<any>(`/api/users?${q}`);
     const arr = Array.isArray(data) ? data : (data?.users && Array.isArray(data.users) ? data.users : []);
     setUsers(arr);
-  };
+  }, [role]);
 
   useEffect(() => {
     let active = true;
@@ -264,9 +338,17 @@ function UsersView() {
   const isSA = (u: any) => u.email === SA;
 
   const action = async (id: string, actionType: 'block' | 'suspend') => {
-    const { error } = await apiFetch(`/api/users/${id}/${actionType}`, { method: 'POST' });
+    const isBlock = actionType === 'block';
+    const targetUser = users.find((u: any) => u.id === id);
+    if (!targetUser) return;
+    const subAction = isBlock
+      ? (targetUser.isBlocked ? 'unblock' : 'block')
+      : (targetUser.isSuspended ? 'reactivate' : 'suspend');
+    const { error } = await apiFetch(`/api/users/${id}/${actionType}`, { method: 'POST', body: JSON.stringify({ action: subAction }) });
     if (error) return toast.error(error);
-    toast.success(`Utilisateur ${actionType === 'block' ? 'bloqué' : 'suspendu'}`);
+    toast.success(isBlock
+      ? (targetUser.isBlocked ? 'Utilisateur débloqué' : 'Utilisateur bloqué')
+      : (targetUser.isSuspended ? 'Utilisateur réactivé' : 'Utilisateur suspendu'));
     refresh();
   };
 
@@ -326,7 +408,7 @@ function UsersView() {
               </tbody>
             </table>
           </div>
-          {filtered.length === 0 && <Em m="Aucun utilisateur trouvé" />}
+          {filtered.length === 0 && <Em m="Aucun utilisateur trouvé" icon={Users} />}
         </CardContent></Card>
       )}
     </div>
@@ -338,21 +420,86 @@ function MerchantsView() {
   const [merchants, setMerchants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<any>(null);
+  const [confirm, setConfirm] = useState<{ open: boolean; type: string; id: string; name: string }>({ open: false, type: '', id: '', name: '' });
+  const [acting, setActing] = useState(false);
+
+  const refresh = useCallback(async () => {
+    const { data } = await apiFetch<any>('/api/merchants?all=true');
+    const arr = Array.isArray(data) ? data : (data?.merchants && Array.isArray(data.merchants) ? data.merchants : []);
+    setMerchants(arr);
+  }, []);
 
   useEffect(() => {
     (async () => {
-      const { data } = await apiFetch<any>('/api/merchants?all=true');
-      const arr = Array.isArray(data) ? data : (data?.merchants && Array.isArray(data.merchants) ? data.merchants : []);
-      setMerchants(arr);
+      await refresh();
       setLoading(false);
     })();
-  }, []);
+  }, [refresh]);
 
   const approve = async (id: string) => {
-    const { error } = await apiFetch(`/api/merchants/${id}/approve`, { method: 'POST' });
+    const { error } = await apiFetch(`/api/merchants/${id}/approve`, { method: 'POST', body: JSON.stringify({ action: 'approve' }) });
     if (error) return toast.error(error);
     toast.success('Commerçant approuvé');
-    setMerchants(prev => prev.map((m: any) => m.id === id ? { ...m, isApproved: true } : m));
+    refresh();
+  };
+
+  const requestReject = (id: string, name: string) => {
+    setConfirm({ open: true, type: 'reject-merchant', id, name });
+  };
+
+  const requestSuspend = (id: string, name: string, isActive: boolean) => {
+    setConfirm({ open: true, type: isActive ? 'suspend' : 'reactivate', id, name });
+  };
+
+  const requestDelete = (id: string, name: string) => {
+    setConfirm({ open: true, type: 'delete-merchant', id, name });
+  };
+
+  const handleConfirm = async () => {
+    setActing(true);
+    const { type, id } = confirm;
+    let error: string | null = null;
+    let successMsg = '';
+
+    switch (type) {
+      case 'reject-merchant':
+        ({ error } = await apiFetch(`/api/merchants/${id}/approve`, { method: 'POST', body: JSON.stringify({ action: 'reject' }) }));
+        successMsg = 'Commerçant refusé';
+        break;
+      case 'suspend':
+        ({ error } = await apiFetch(`/api/users/${id}/suspend`, { method: 'POST', body: JSON.stringify({ action: 'suspend' }) }));
+        successMsg = 'Utilisateur suspendu';
+        break;
+      case 'reactivate':
+        ({ error } = await apiFetch(`/api/users/${id}/suspend`, { method: 'POST', body: JSON.stringify({ action: 'reactivate' }) }));
+        successMsg = 'Utilisateur réactivé';
+        break;
+      case 'delete-merchant':
+        ({ error } = await apiFetch(`/api/merchants/${id}`, { method: 'DELETE' }));
+        successMsg = 'Commerçant supprimé';
+        break;
+    }
+
+    setActing(false);
+    setConfirm({ open: false, type: '', id: '', name: '' });
+    if (error) return toast.error(error);
+    toast.success(successMsg);
+    refresh();
+  };
+
+  const getConfirmProps = () => {
+    switch (confirm.type) {
+      case 'reject-merchant':
+        return { title: 'Refuser le commerçant', description: `Voulez-vous vraiment refuser la demande de "${confirm.name}" ?`, confirmLabel: 'Refuser', variant: 'destructive' as const };
+      case 'suspend':
+        return { title: 'Suspendre l\'utilisateur', description: `Voulez-vous vraiment suspendre "${confirm.name}" ? Il ne pourra plus se connecter.`, confirmLabel: 'Suspendre', variant: 'destructive' as const };
+      case 'reactivate':
+        return { title: 'Réactiver l\'utilisateur', description: `Voulez-vous réactiver le compte de "${confirm.name}" ?`, confirmLabel: 'Réactiver', variant: 'default' as const };
+      case 'delete-merchant':
+        return { title: 'Supprimer le commerçant', description: `Voulez-vous vraiment supprimer définitivement "${confirm.name}" ? Cette action est irréversible.`, confirmLabel: 'Supprimer', variant: 'destructive' as const };
+      default:
+        return { title: '', description: '', confirmLabel: '', variant: 'destructive' as const };
+    }
   };
 
   if (loading) return <Sp />;
@@ -372,30 +519,71 @@ function MerchantsView() {
               <th className="text-left p-3 font-medium">Actions</th>
             </tr></thead>
             <tbody>
-              {merchants.map((m: any) => (
-                <tr key={m.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
-                  <td className="p-3 font-medium">{m.businessName ?? m.firstName + ' ' + m.lastName}</td>
-                  <td className="p-3 hidden md:table-cell">{BUSINESS_TYPES[m.businessType] ?? m.businessType ?? '—'}</td>
-                  <td className="p-3 hidden lg:table-cell">{m.city ?? '—'}</td>
-                  <td className="p-3"><Badge variant="secondary" className={m.isApproved ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}>{m.isApproved ? 'Approuvé' : 'En attente'}</Badge></td>
-                  <td className="p-3 hidden lg:table-cell">{m.rating ?? '—'}</td>
-                  <td className="p-3">
-                    <div className="flex gap-1">
-                      {!m.isApproved && <Button size="sm" className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => approve(m.id)}><CheckCircle className="h-3 w-3" />Approuver</Button>}
-                      <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => setDetail(m)}><Eye className="h-3 w-3" />Détails</Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {merchants.map((m: any) => {
+                const displayName = m.businessName ?? m.firstName + ' ' + m.lastName;
+                return (
+                  <tr key={m.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
+                    <td className="p-3 font-medium">{displayName}</td>
+                    <td className="p-3 hidden md:table-cell">{BUSINESS_TYPES[m.businessType] ?? m.businessType ?? '—'}</td>
+                    <td className="p-3 hidden lg:table-cell">{m.city ?? '—'}</td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="secondary" className={m.isApproved ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}>{m.isApproved ? 'Approuvé' : 'En attente'}</Badge>
+                        {m.user?.isActive === false && <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Suspendu</Badge>}
+                      </div>
+                    </td>
+                    <td className="p-3 hidden lg:table-cell">{m.rating ?? '—'}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-1">
+                        {!m.isApproved && (
+                          <>
+                            <Button size="sm" className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => approve(m.id)}><CheckCircle className="h-3 w-3" />Approuver</Button>
+                            <Button size="sm" variant="outline" className="h-8 text-xs gap-1 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => requestReject(m.id, displayName)}><XCircle className="h-3 w-3" />Refuser</Button>
+                          </>
+                        )}
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => setDetail(m)}><Eye className="h-3 w-3" />Détails</Button>
+                        {m.userId && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="sm" variant="outline" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {m.user?.isActive !== false ? (
+                                <DropdownMenuItem className="text-amber-600 cursor-pointer" onClick={() => requestSuspend(m.userId, displayName, true)}>
+                                  <ShieldOff className="h-4 w-4 mr-2" />Suspendre
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem className="text-emerald-600 cursor-pointer" onClick={() => requestSuspend(m.userId, displayName, false)}>
+                                  <ShieldCheck className="h-4 w-4 mr-2" />Réactiver
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600 cursor-pointer" onClick={() => requestDelete(m.id, displayName)}>
+                                <Trash2 className="h-4 w-4 mr-2" />Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        {merchants.length === 0 && <Em m="Aucun commerçant" />}
+        {merchants.length === 0 && <Em m="Aucun commerçant trouvé" icon={Store} />}
       </CardContent></Card>
 
+      {/* Merchant Detail Dialog */}
       <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Détails du commerçant</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Détails du commerçant</DialogTitle>
+            <DialogDescription>Informations détaillées du compte commerçant.</DialogDescription>
+          </DialogHeader>
           {detail && (
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2">
@@ -412,6 +600,18 @@ function MerchantsView() {
           <DialogFooter><Button variant="outline" onClick={() => setDetail(null)}>Fermer</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirm.open}
+        onOpenChange={(v) => setConfirm(p => ({ ...p, open: v }))}
+        title={getConfirmProps().title}
+        description={getConfirmProps().description}
+        confirmLabel={getConfirmProps().confirmLabel}
+        variant={getConfirmProps().variant}
+        onConfirm={handleConfirm}
+        loading={acting}
+      />
     </div>
   );
 }
@@ -420,21 +620,86 @@ function MerchantsView() {
 function DriversView() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirm, setConfirm] = useState<{ open: boolean; type: string; id: string; name: string }>({ open: false, type: '', id: '', name: '' });
+  const [acting, setActing] = useState(false);
+
+  const refresh = useCallback(async () => {
+    const { data } = await apiFetch<any>('/api/drivers');
+    const arr = Array.isArray(data) ? data : (data?.drivers && Array.isArray(data.drivers) ? data.drivers : []);
+    setDrivers(arr);
+  }, []);
 
   useEffect(() => {
     (async () => {
-      const { data } = await apiFetch<any>('/api/drivers');
-      const arr = Array.isArray(data) ? data : (data?.drivers && Array.isArray(data.drivers) ? data.drivers : []);
-      setDrivers(arr);
+      await refresh();
       setLoading(false);
     })();
-  }, []);
+  }, [refresh]);
 
   const approve = async (id: string) => {
-    const { error } = await apiFetch(`/api/drivers/${id}/approve`, { method: 'POST' });
+    const { error } = await apiFetch(`/api/drivers/${id}/approve`, { method: 'POST', body: JSON.stringify({ action: 'approve' }) });
     if (error) return toast.error(error);
     toast.success('Livreur approuvé');
-    setDrivers(prev => prev.map((d: any) => d.id === id ? { ...d, isApproved: true } : d));
+    refresh();
+  };
+
+  const requestReject = (id: string, name: string) => {
+    setConfirm({ open: true, type: 'reject-driver', id, name });
+  };
+
+  const requestSuspend = (id: string, name: string, isActive: boolean) => {
+    setConfirm({ open: true, type: isActive ? 'suspend' : 'reactivate', id, name });
+  };
+
+  const requestDelete = (id: string, name: string) => {
+    setConfirm({ open: true, type: 'delete-driver', id, name });
+  };
+
+  const handleConfirm = async () => {
+    setActing(true);
+    const { type, id } = confirm;
+    let error: string | null = null;
+    let successMsg = '';
+
+    switch (type) {
+      case 'reject-driver':
+        ({ error } = await apiFetch(`/api/drivers/${id}/approve`, { method: 'POST', body: JSON.stringify({ action: 'reject' }) }));
+        successMsg = 'Livreur refusé';
+        break;
+      case 'suspend':
+        ({ error } = await apiFetch(`/api/users/${id}/suspend`, { method: 'POST', body: JSON.stringify({ action: 'suspend' }) }));
+        successMsg = 'Utilisateur suspendu';
+        break;
+      case 'reactivate':
+        ({ error } = await apiFetch(`/api/users/${id}/suspend`, { method: 'POST', body: JSON.stringify({ action: 'reactivate' }) }));
+        successMsg = 'Utilisateur réactivé';
+        break;
+      case 'delete-driver':
+        ({ error } = await apiFetch(`/api/drivers/${id}`, { method: 'DELETE' }));
+        successMsg = 'Livreur supprimé';
+        break;
+    }
+
+    setActing(false);
+    setConfirm({ open: false, type: '', id: '', name: '' });
+    if (error) return toast.error(error);
+    toast.success(successMsg);
+    refresh();
+  };
+
+  const getConfirmProps = () => {
+    switch (confirm.type) {
+      case 'reject-driver':
+        return { title: 'Refuser le livreur', description: `Voulez-vous vraiment refuser la demande de "${confirm.name}" ?`, confirmLabel: 'Refuser', variant: 'destructive' as const };
+      case 'suspend':
+        return { title: 'Suspendre l\'utilisateur', description: `Voulez-vous vraiment suspendre "${confirm.name}" ? Il ne pourra plus se connecter.`, confirmLabel: 'Suspendre', variant: 'destructive' as const };
+      case 'reactivate':
+        return { title: 'Réactiver l\'utilisateur', description: `Voulez-vous réactiver le compte de "${confirm.name}" ?`, confirmLabel: 'Réactiver', variant: 'default' as const };
+      case 'delete-driver':
+        return { title: 'Supprimer le livreur', description: `Voulez-vous vraiment supprimer définitivement "${confirm.name}" ? Cette action est irréversible.`, confirmLabel: 'Supprimer', variant: 'destructive' as const };
+      default:
+        return { title: '', description: '', confirmLabel: '', variant: 'destructive' as const };
+    }
   };
 
   if (loading) return <Sp />;
@@ -454,23 +719,74 @@ function DriversView() {
               <th className="text-left p-3 font-medium">Actions</th>
             </tr></thead>
             <tbody>
-              {drivers.map((d: any) => (
-                <tr key={d.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
-                  <td className="p-3 font-medium">{d.firstName} {d.lastName}</td>
-                  <td className="p-3 hidden md:table-cell">{d.vehicleType ?? d.vehicle ?? '—'}</td>
-                  <td className="p-3"><Badge variant="secondary" className={d.isApproved ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}>{d.isApproved ? 'Approuvé' : 'En attente'}</Badge></td>
-                  <td className="p-3 hidden lg:table-cell">{d.rating ?? '—'}</td>
-                  <td className="p-3 hidden lg:table-cell">{d.completedDeliveries ?? d.deliveryCount ?? 0}</td>
-                  <td className="p-3">
-                    {!d.isApproved && <Button size="sm" className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => approve(d.id)}><CheckCircle className="h-3 w-3" />Approuver</Button>}
-                  </td>
-                </tr>
-              ))}
+              {drivers.map((d: any) => {
+                const displayName = d.firstName + ' ' + d.lastName;
+                return (
+                  <tr key={d.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
+                    <td className="p-3 font-medium">{displayName}</td>
+                    <td className="p-3 hidden md:table-cell">{d.vehicleType ?? d.vehicle ?? '—'}</td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="secondary" className={d.isApproved ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}>{d.isApproved ? 'Approuvé' : 'En attente'}</Badge>
+                        {d.user?.isActive === false && <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Suspendu</Badge>}
+                      </div>
+                    </td>
+                    <td className="p-3 hidden lg:table-cell">{d.rating ?? '—'}</td>
+                    <td className="p-3 hidden lg:table-cell">{d.completedDeliveries ?? d.deliveryCount ?? 0}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-1">
+                        {!d.isApproved && (
+                          <>
+                            <Button size="sm" className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => approve(d.id)}><CheckCircle className="h-3 w-3" />Approuver</Button>
+                            <Button size="sm" variant="outline" className="h-8 text-xs gap-1 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => requestReject(d.id, displayName)}><XCircle className="h-3 w-3" />Refuser</Button>
+                          </>
+                        )}
+                        {d.userId && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="sm" variant="outline" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {d.user?.isActive !== false ? (
+                                <DropdownMenuItem className="text-amber-600 cursor-pointer" onClick={() => requestSuspend(d.userId, displayName, true)}>
+                                  <ShieldOff className="h-4 w-4 mr-2" />Suspendre
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem className="text-emerald-600 cursor-pointer" onClick={() => requestSuspend(d.userId, displayName, false)}>
+                                  <ShieldCheck className="h-4 w-4 mr-2" />Réactiver
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600 cursor-pointer" onClick={() => requestDelete(d.id, displayName)}>
+                                <Trash2 className="h-4 w-4 mr-2" />Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        {drivers.length === 0 && <Em m="Aucun livreur" />}
+        {drivers.length === 0 && <Em m="Aucun livreur trouvé" icon={Truck} />}
       </CardContent></Card>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirm.open}
+        onOpenChange={(v) => setConfirm(p => ({ ...p, open: v }))}
+        title={getConfirmProps().title}
+        description={getConfirmProps().description}
+        confirmLabel={getConfirmProps().confirmLabel}
+        variant={getConfirmProps().variant}
+        onConfirm={handleConfirm}
+        loading={acting}
+      />
     </div>
   );
 }
@@ -532,12 +848,15 @@ function OrdersView() {
             </tbody>
           </table>
         </div>
-        {orders.length === 0 && <Em m="Aucune commande" />}
+        {orders.length === 0 && <Em m="Aucune commande" icon={ShoppingCart} />}
       </CardContent></Card>
 
       <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Détails de la commande</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Détails de la commande</DialogTitle>
+            <DialogDescription>Informations détaillées de la commande.</DialogDescription>
+          </DialogHeader>
           {detail && (
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2">
@@ -649,12 +968,15 @@ function CategoriesView() {
             </tbody>
           </table>
         </div>
-        {items.length === 0 && <Em m="Aucune catégorie" />}
+        {items.length === 0 && <Em m="Aucune catégorie" icon={Grid3X3} />}
       </CardContent></Card>
 
       <Dialog open={dlg} onOpenChange={setDlg}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editing ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</DialogTitle>
+            <DialogDescription>{editing ? 'Modifiez les informations de la catégorie.' : 'Renseignez les informations de la nouvelle catégorie.'}</DialogDescription>
+          </DialogHeader>
           <div className="space-y-3">
             <div><Label>Nom</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex : Restaurants" /></div>
             <div><Label>Slug</Label><Input value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} placeholder="ex : restaurants" /></div>
@@ -723,7 +1045,7 @@ function ProductsView() {
             </tbody>
           </table>
         </div>
-        {products.length === 0 && <Em m="Aucun produit" />}
+        {products.length === 0 && <Em m="Aucun produit" icon={Package} />}
       </CardContent></Card>
     </div>
   );
@@ -800,12 +1122,15 @@ function CouponsView() {
             </tbody>
           </table>
         </div>
-        {coupons.length === 0 && <Em m="Aucun coupon" />}
+        {coupons.length === 0 && <Em m="Aucun coupon" icon={Tag} />}
       </CardContent></Card>
 
       <Dialog open={dlg} onOpenChange={setDlg}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Nouveau coupon</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Nouveau coupon</DialogTitle>
+            <DialogDescription>Créez un nouveau code de réduction.</DialogDescription>
+          </DialogHeader>
           <div className="space-y-3">
             <div><Label>Code</Label><Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="Ex : PROMO2025" /></div>
             <div><Label>Type</Label>
@@ -941,7 +1266,7 @@ function AuditLogsView() {
             </tbody>
           </table>
         </div>
-        {logs.length === 0 && <Em m="Aucun journal" />}
+        {logs.length === 0 && <Em m="Aucun journal d'audit" icon={FileText} />}
       </CardContent></Card>
     </div>
   );
@@ -992,7 +1317,7 @@ function SupportView() {
             </tbody>
           </table>
         </div>
-        {tickets.length === 0 && <Em m="Aucun ticket de support" />}
+        {tickets.length === 0 && <Em m="Aucun ticket de support" icon={Headphones} />}
       </CardContent></Card>
     </div>
   );

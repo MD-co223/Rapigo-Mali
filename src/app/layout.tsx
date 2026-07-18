@@ -155,8 +155,8 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ServiceWorkerRegistration />
-          {children}
           <PwaInstallPrompt />
+          {children}
           <Toaster
             position="top-center"
             richColors

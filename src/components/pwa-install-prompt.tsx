@@ -130,11 +130,10 @@ export function PwaInstallPrompt() {
     <AnimatePresence>
       {visible && (
         <motion.div
-          initial={{ y: -80, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -80, opacity: 0 }}
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="fixed top-0 left-0 right-0 z-[9999]"
         >
           {/* Main Banner */}
           <div className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-600/20">
@@ -144,7 +143,7 @@ export function PwaInstallPrompt() {
                 <img
                   src="/app-icon.png"
                   alt="Rapigo Mali"
-                  className="w-9 h-9 rounded-xl"
+                  className="w-9 h-9 rounded-xl object-contain"
                   width={36}
                   height={36}
                 />

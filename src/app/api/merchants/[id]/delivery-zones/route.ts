@@ -10,7 +10,7 @@ export async function GET(
     const { id } = await params;
 
     const zones = await db.deliveryZone.findMany({
-      where: { merchantId: id, isActive: true },
+      where: { merchantId: id },
       orderBy: { city: 'asc' },
     });
 
