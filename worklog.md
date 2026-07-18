@@ -668,3 +668,45 @@ Stage Summary:
 - deploy.sh automates: GitHub push, Supabase config, Prisma migrate/seed, Vercel deploy
 - Manual push required: sandbox has no GitHub/Vercel credentials
 - User must run deploy.sh on their local machine OR manually configure credentials
+---
+Task ID: 1
+Agent: Main Agent
+Task: Analyze PWA install banner screenshots and fix banner not showing on Vercel deployment
+
+Work Log:
+- Analyzed 3 uploaded screenshots using VLM:
+  - Screenshot 1: Native Chrome mini-infobar (icon + text only, no buttons)
+  - Screenshot 2: Main landing page on mobile - NO PWA install banner visible
+  - Screenshot 3: Contact page on mobile - NO PWA install banner visible
+- Identified root causes:
+  1. Old localStorage key `rapigo-pwa-dismissed` was blocking the banner
+  2. No fallback timer for iOS (which doesn't fire beforeinstallprompt)
+  3. Banner was too small/inconspicuous (bottom card style)
+- Completely redesigned PWA install prompt component:
+  - Prominent green gradient top bar (fixed, z-9999)
+  - App icon + "Installer Rapigo Mali" + "App gratuite" badge
+  - White "Installer" button with Download icon
+  - Dismiss X button
+  - iOS: Additional instruction panel below with share button guidance
+  - Framer Motion slide-in animation
+  - 4-second fallback timer (shows even without beforeinstallprompt)
+  - New localStorage key `rapigo-pwa-dismissed-v2` (resets old dismissed state)
+- Improved Service Worker registration:
+  - Wait for page load before registering
+  - Retry on failure after 5 seconds
+  - Update check every 30 minutes
+- Updated manifest.json:
+  - Fixed `id` to `/` (was `rapigo-mali`)
+  - Added `dir`, `prefer_related_applications: false`
+- Updated Service Worker to v2.8:
+  - Cache-first for static assets
+  - Network-first for navigation (HTML pages)
+  - Graceful failure for missing cached assets
+- Committed and pushed to GitHub
+- Vercel auto-deployed successfully (READY state)
+
+Stage Summary:
+- PWA install banner completely redesigned as professional top bar
+- Changes deployed to https://rapigo-mali.vercel.app
+- Banner will now show on both Android and iOS after 4 seconds
+- Old dismissed state is reset with new localStorage key
