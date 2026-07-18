@@ -1,1 +1,0 @@
-{"prisma":{"seed":"bun run prisma/seed.ts"}}
