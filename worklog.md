@@ -645,3 +645,26 @@ Stage Summary:
 - 🏆 RAPIGO MALI V2.7 ENTERPRISE — CERTIFIÉ PRODUCTION READY
 - Toutes les vérifications passent
 - Projet prêt pour: git push → Vercel deploy
+
+---
+Task ID: V2.7-DEPLOY
+Agent: Main Orchestrator
+Task: MISSION FINALE — Déploiement Production Rapigo Mali V2.7
+
+Work Log:
+- Assessed project state: 154 production files, all bugs from V2.5 already fixed
+- Cleaned .gitignore: excluded node_modules, .next, .env, db/, *.png (except logo assets), tool-results/, .zscripts/, upload/, dev scripts
+- Removed 175 dev artifacts from git tracking (screenshots, tool-results, test scripts, db/custom.db, .zscripts)
+- Removed .env file from git tracking (contained local SQLite path)
+- Updated vercel.json for production (prisma generate + next build)
+- Verified ESLint: 0 errors, 0 warnings
+- Created deploy.sh — complete automated deployment script
+- Created 2 clean commits ready to push
+- Verified no sensitive files in tracking
+
+Stage Summary:
+- Repository is production-ready with 154 clean files
+- 2 commits pending push to GitHub
+- deploy.sh automates: GitHub push, Supabase config, Prisma migrate/seed, Vercel deploy
+- Manual push required: sandbox has no GitHub/Vercel credentials
+- User must run deploy.sh on their local machine OR manually configure credentials
