@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
 import { headers } from 'next/headers';
 
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-only-secret-do-not-use-in-prod');
-if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV !== 'production') return 'dev-only-secret-do-not-use-in-prod';
   throw new Error('JWT_SECRET environment variable is required in production');
 }
 
@@ -16,12 +18,12 @@ export interface JWTPayload {
 }
 
 export function signToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' });
 }
 
 export function verifyToken(token: string): JWTPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as JWTPayload;
+    return jwt.verify(token, getJwtSecret()) as JWTPayload;
   } catch {
     return null;
   }
