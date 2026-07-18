@@ -1257,3 +1257,25 @@ Stage Summary:
 - Store updated with PAID payment status label
 - Version corrected to 3.0.0 Enterprise
 - Zero lint errors, dev server compiles cleanly
+
+---
+Task ID: super-admin-fix
+Agent: Main Orchestrator
+Task: Fix super admin login credentials not working
+
+Work Log:
+- Diagnosed issue: database was completely empty (0 users)
+- Root cause: seed.ts was written for Supabase PostgreSQL but local DB is SQLite; seed was never run
+- Created super admin user: diarramoussaka7@gmail.com / pispa2026 (bcrypt hash, 12 rounds)
+- Set role to 'ADMIN' (not 'SUPER_ADMIN') to match frontend routing logic
+- Set isSuperAdmin=true, isActive=true, isBlocked=false, isSuspended=false
+- Created wallet for super admin (balance: 0)
+- Seeded 24 system settings, 8 categories, 5 cities, 1 premium lifetime plan
+- Verified password comparison passes: bcrypt.compare('pispa2026', hash) = true
+- Fixed seed.ts to be idempotent (upsert pattern) and use 'ADMIN' role
+- Verified app compiles and serves 200 OK
+
+Stage Summary:
+- Super admin credentials now work: diarramoussaka7@gmail.com / pispa2026
+- Database fully seeded with essential data
+- seed.ts updated for future use (idempotent, correct role)

@@ -4,47 +4,37 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seed Rapigo Mali V2.7 — Supabase PostgreSQL...');
-
-  // ============================================
-  // NETTOYAGE COMPLET
-  // ============================================
-  const tableNames = [
-    'auditLog', 'driverLocation', 'transaction', 'wallet', 'message', 'chat',
-    'notification', 'rating', 'delivery', 'payment', 'orderItem', 'order',
-    'couponUsage', 'coupon', 'referral', 'favorite', 'product', 'deliveryZone',
-    'merchantPaymentConfig', 'subscription', 'advertisement', 'supportTicket',
-    'report', 'client', 'driver', 'merchant', 'category', 'plan', 'setting', 'user',
-  ];
-
-  for (const table of tableNames) {
-    await (prisma as unknown as Record<string, { deleteMany: () => Promise<unknown> }>)[table].deleteMany();
-  }
-  console.log('✅ Données nettoyées');
+  console.log('🌱 Seed Rapigo Mali V3 — SQLite Local...');
 
   // ============================================
   // SUPER ADMINISTRATEUR - Mr. Diarra Moussa
   // Impossible à supprimer, bloquer ou désactiver
   // ============================================
-  const adminPassword = await bcrypt.hash('pispa2026', 12);
-  const admin = await prisma.user.create({
-    data: {
-      email: 'diarramoussaka7@gmail.com',
-      phone: '+22377163862',
-      password: adminPassword,
-      firstName: 'Diarra',
-      lastName: 'Moussa',
-      role: 'SUPER_ADMIN',
-      isSuperAdmin: true,
-      isVerified: true,
-      isActive: true,
-    },
-  });
+  const adminExists = await prisma.user.findUnique({ where: { email: 'diarramoussaka7@gmail.com' } });
 
-  await prisma.wallet.create({
-    data: { userId: admin.id, balance: 0 },
-  });
-  console.log('✅ Super Admin créé :', admin.email);
+  let adminId: string;
+  if (adminExists) {
+    adminId = adminExists.id;
+    console.log('✅ Super Admin existe déjà :', adminExists.email);
+  } else {
+    const adminPassword = await bcrypt.hash('pispa2026', 12);
+    const admin = await prisma.user.create({
+      data: {
+        email: 'diarramoussaka7@gmail.com',
+        phone: '+22377163862',
+        password: adminPassword,
+        firstName: 'Diarra',
+        lastName: 'Moussa',
+        role: 'ADMIN',
+        isSuperAdmin: true,
+        isVerified: true,
+        isActive: true,
+      },
+    });
+    adminId = admin.id;
+    await prisma.wallet.create({ data: { userId: admin.id, balance: 0 } });
+    console.log('✅ Super Admin créé :', admin.email);
+  }
 
   // ============================================
   // PARAMÈTRES SYSTÈME
