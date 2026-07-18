@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://rapigo.ml';
 
 export const metadata: Metadata = {
-  title: "Rapigo Mali — Rapide, Fiable, Partout au Mali",
+  title: "Rapigo Mali V3.0 — Rapide, Fiable, Partout au Mali",
   description:
     "Votre plateforme de livraison N°1 au Mali. Restaurants, supermarchés, pharmacies, boutiques - tout livré chez vous en quelques minutes.",
   keywords: [
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     startupImage: "/logo-transparent.png",
   },
   openGraph: {
-    title: "Rapigo Mali — Rapide, Fiable, Partout au Mali",
+    title: "Rapigo Mali V3.0 — Rapide, Fiable, Partout au Mali",
     description:
       "Votre plateforme de livraison N°1 au Mali. Restaurants, supermarchés, pharmacies, boutiques - tout livré chez vous en quelques minutes.",
     url: APP_URL,
@@ -78,7 +78,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Rapigo Mali — Rapide, Fiable, Partout au Mali",
+    title: "Rapigo Mali V3.0 — Rapide, Fiable, Partout au Mali",
     description:
       "Votre plateforme de livraison N°1 au Mali. Restaurants, supermarchés, pharmacies, boutiques - tout livré chez vous en quelques minutes.",
     images: ["/logo-transparent.png"],
@@ -137,7 +137,7 @@ export default function RootLayout({
               },
               contactPoint: {
                 "@type": "ContactPoint",
-                telephone: "+223-00-00-00-00",
+                telephone: "+223 77 16 38 70",
                 contactType: "customer service",
                 availableLanguage: ["fr"],
               },

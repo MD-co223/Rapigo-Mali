@@ -33,7 +33,31 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
       login: (user, token) => set({ user, token, isAuthenticated: true }),
-      logout: () => set({ user: null, token: null, isAuthenticated: false }),
+      logout: () => {
+        // Clear all Zustand stores
+        useAuthStore.setState({ user: null, token: null, isAuthenticated: false }, false);
+        useSpaceStore.setState({ currentSpace: 'landing', previousSpace: null }, false);
+        useCartStore.setState({ items: [], appliedCoupon: null, merchantId: null, merchantName: null }, false);
+        // Clear all client nav stores
+        useClientNav.setState({ view: 'home', data: undefined, history: [] }, false);
+        useMerchantNav.setState({ view: 'dashboard', data: undefined, history: [] }, false);
+        useDriverNav.setState({ view: 'home', data: undefined, history: [] }, false);
+        useAdminNav.setState({ view: 'dashboard', data: undefined, history: [] }, false);
+
+        // Clear all browser storage
+        if (typeof window !== 'undefined') {
+          localStorage.clear();
+          sessionStorage.clear();
+          document.cookie.split(';').forEach(c => {
+            document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
+          });
+        }
+
+        // Navigate to landing
+        if (typeof window !== 'undefined') {
+          window.location.href = '/';
+        }
+      },
       updateUser: (data) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...data } : null,
@@ -264,6 +288,7 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
 export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   PENDING: 'En attente',
   UPLOADED: 'Preuve envoyée',
+  PAID: 'Payé',
   ACCEPTED: 'Accepté',
   REJECTED: 'Refusé',
   FAILED: 'Échoué',

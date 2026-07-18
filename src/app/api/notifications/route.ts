@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
+import { parsePagination } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,8 +12,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const unread = searchParams.get('unread');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const { limit, offset } = parsePagination(searchParams);
 
     const where: Record<string, unknown> = { userId: auth.userId };
     if (unread === 'true') where.isRead = false;

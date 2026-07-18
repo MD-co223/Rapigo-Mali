@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export function ServiceWorkerRegistration() {
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!('serviceWorker' in navigator)) return;
@@ -26,7 +28,7 @@ export function ServiceWorkerRegistration() {
         });
 
         // Check for updates every 30 minutes
-        setInterval(() => {
+        intervalRef.current = setInterval(() => {
           registration.update();
         }, 30 * 60 * 1000);
 
@@ -49,6 +51,10 @@ export function ServiceWorkerRegistration() {
 
     return () => {
       window.removeEventListener('load', registerSW);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, []);
 

@@ -18,6 +18,14 @@ const VARIANT_SRC: Record<RapigoLogoProps['variant'], string> = {
   transparent: '/logo-transparent.png',
 };
 
+const VARIANT_ASPECT: Record<RapigoLogoProps['variant'], string> = {
+  horizontal: '3 / 1',
+  vertical: '1 / 1',
+  icon: '1 / 1',
+  white: '3 / 1',
+  transparent: '3 / 1',
+};
+
 export function RapigoLogo({
   variant,
   height = 36,
@@ -27,15 +35,14 @@ export function RapigoLogo({
 }: RapigoLogoProps) {
   return (
     <div
-      style={{ height, maxHeight: height, minHeight: height }}
-      className={`relative overflow-visible flex-shrink-0 ${className}`}
+      style={{ height, maxHeight: height, minHeight: height, aspectRatio: VARIANT_ASPECT[variant] }}
+      className={`relative overflow-hidden flex-shrink-0 ${className}`}
     >
       <Image
         src={VARIANT_SRC[variant]}
         alt={alt}
         fill
-        sizes={`${height * 5}px`}
-        className="!relative !h-full !w-auto object-contain object-left"
+        className="!relative !h-full !w-auto object-contain object-center"
         unoptimized
         priority={priority}
       />

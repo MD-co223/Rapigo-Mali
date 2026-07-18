@@ -60,7 +60,7 @@ async function main() {
     { key: 'support_phone', value: '+223 77 16 38 62', type: 'STRING', group: 'GENERAL' },
     { key: 'support_whatsapp', value: '+22377163862', type: 'STRING', group: 'GENERAL' },
     { key: 'support_developer', value: 'Mr. Diarra Moussa', type: 'STRING', group: 'GENERAL' },
-    { key: 'version', value: '2.7.0', type: 'STRING', group: 'GENERAL' },
+    { key: 'version', value: '3.0.0', type: 'STRING', group: 'GENERAL' },
 
     // Commission
     { key: 'default_commission_rate', value: '10', type: 'NUMBER', group: 'COMMISSION' },

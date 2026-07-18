@@ -7,7 +7,7 @@ import {
   Bell, Plus, Minus, Trash2, ShoppingBag, ChevronLeft, Store,
   Send, Wallet, HelpCircle, Package, Upload, Tag, X, Loader2,
   MoreHorizontal, StarOff, Copy, MessageSquare, Phone, Check,
-  RefreshCw,
+  RefreshCw, FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,7 +39,7 @@ interface Order { id: string; orderNumber: string; status: string; subtotal: num
 interface OrderItem { id: string; name: string; price: number; quantity: number; supplements?: string }
 interface Category { id: string; name: string; icon?: string; image?: string; _count?: { products: number } }
 interface Favorite { id: string; productId: string; product: Product & { merchant: { id: string; businessName: string; logo?: string }; category: { name: string; icon?: string; id: string } } }
-interface Notification { id: string; title: string; message: string; type: string; isRead: boolean; createdAt: string }
+interface AppNotification { id: string; title: string; message: string; type: string; isRead: boolean; createdAt: string }
 interface WalletData { id: string; balance: number; transactions: { id: string; type: string; amount: number; description: string; createdAt: string }[] }
 interface CouponValid { valid: boolean; discount?: number; type?: string; couponId?: string; error?: string }
 type Supplement = { name: string; price: number };
@@ -160,7 +160,7 @@ function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-white/95 backdrop-blur-md safe-area-bottom">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-white/95 dark:bg-gray-950/95 backdrop-blur-md safe-area-bottom">
         <div className="mx-auto flex max-w-lg items-center justify-around h-16 px-2">
           {tabs.map(t => {
             const active = view === t.key;
@@ -204,9 +204,9 @@ function HomeView() {
 
   useEffect(() => {
     (async () => {
-      const [c, m] = await Promise.all([apiFetch<Category[]>('/api/categories'), apiFetch<Merchant[]>('/api/merchants?isApproved=true')]);
+      const [c, m] = await Promise.all([apiFetch<Category[]>('/api/categories'), apiFetch<Merchant[]>('/api/merchants?approved=true')]);
       if (c.data) setCats(c.data);
-      if (m.data) setMerchants(m.data);
+      if (m.data) setMerchants(Array.isArray(m.data) ? m.data : m.data.merchants || []);
       setLoading(false);
     })();
   }, []);
@@ -218,18 +218,18 @@ function HomeView() {
       </div>
       <div className="relative" onClick={() => navigate('search', { q: query })}>
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="Rechercher un commerçant ou produit..." className="pl-9 bg-gray-50 border-0 focus-visible:ring-emerald-600" readOnly />
+        <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="Rechercher un commerçant ou produit..." className="pl-9 bg-gray-50 dark:bg-gray-800 border-0 focus-visible:ring-emerald-600" readOnly />
       </div>
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Catégories</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Catégories</h2>
         <ScrollArea className="w-full"><div className="flex gap-2 pb-2">
           {cats.map(c => (
-            <button key={c.id} onClick={() => navigate('category', { id: c.id })} className="flex-shrink-0 rounded-full border bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:border-emerald-300 transition-colors shadow-sm">{c.icon && <span className="mr-1">{c.icon}</span>}{c.name}</button>
+            <button key={c.id} onClick={() => navigate('category', { id: c.id })} className="flex-shrink-0 rounded-full border bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-emerald-50 hover:border-emerald-300 transition-colors shadow-sm">{c.icon && <span className="mr-1">{c.icon}</span>}{c.name}</button>
           ))}
         </div></ScrollArea>
       </div>
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Commerçants à proximité</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Commerçants à proximité</h2>
         {loading ? <SkeletonList /> : merchants.length === 0 ? <Empty icon={Store} label="Aucun commerçant disponible" description="Revenez plus tard pour découvrir de nouveaux commerçants." /> : (
           <div className="space-y-3">{merchants.map(m => (
             <Card key={m.id} className="overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('merchant-detail', { id: m.id })}>
@@ -269,11 +269,11 @@ function SearchView() {
     if (!q.trim()) return;
     setSearched(true);
     const [mRes, pRes] = await Promise.all([
-      apiFetch<Merchant[]>(`/api/merchants?search=${encodeURIComponent(q)}&isApproved=true`),
+      apiFetch<Merchant[]>(`/api/merchants?search=${encodeURIComponent(q)}&approved=true`),
       apiFetch<Product[]>(`/api/products?search=${encodeURIComponent(q)}&isAvailable=true`),
     ]);
-    if (mRes.data) setMerchants(mRes.data);
-    if (pRes.data) setProducts(pRes.data);
+    if (mRes.data) setMerchants(Array.isArray(mRes.data) ? mRes.data : mRes.data.merchants || []);
+    if (pRes.data) setProducts(Array.isArray(pRes.data) ? pRes.data : pRes.data.products || []);
   };
 
   useEffect(() => { if (q) doSearch(); }, []); // eslint-disable-line
@@ -285,7 +285,7 @@ function SearchView() {
         <h1 className="text-lg font-bold">Recherche</h1>
       </div>
       <div className="flex gap-2">
-        <Input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()} placeholder="Rechercher..." className="bg-gray-50" autoFocus />
+        <Input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()} placeholder="Rechercher..." className="bg-gray-50 dark:bg-gray-800" autoFocus />
         <Button onClick={doSearch} className="bg-emerald-700 hover:bg-emerald-800"><Search size={16} /></Button>
       </div>
       {!searched ? <Empty icon={Search} label="Tapez pour rechercher" /> : merchants.length + products.length === 0 ? <Empty icon={Search} label="Aucun résultat trouvé" /> : (
@@ -297,7 +297,7 @@ function SearchView() {
           ))}</div>)}
           {products.length > 0 && (<div className="space-y-2"><h3 className="text-sm font-semibold text-gray-600">Produits</h3>{products.map(p => (
             <Card key={p.id} className="shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('product-detail', { id: p.id })}>
-              <CardContent className="p-3 flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500"><Package size={18} /></div><div className="flex-1 min-w-0"><p className="font-medium text-sm truncate">{p.name}</p><p className="text-xs text-muted-foreground">{p.merchant?.businessName}</p></div><span className="font-semibold text-sm text-emerald-700">{formatPrice(p.price)}</span></CardContent>
+              <CardContent className="p-3 flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400"><Package size={18} /></div><div className="flex-1 min-w-0"><p className="font-medium text-sm truncate">{p.name}</p><p className="text-xs text-muted-foreground">{p.merchant?.businessName}</p></div><span className="font-semibold text-sm text-emerald-700">{formatPrice(p.price)}</span></CardContent>
             </Card>
           ))}</div>)}
         </div>
@@ -314,7 +314,7 @@ function CategoryView() {
 
   useEffect(() => {
     if (!data?.id) return;
-    apiFetch<Product[]>(`/api/products?categoryId=${data.id}&isAvailable=true`).then(r => { if (r.data) setProducts(r.data); setLoading(false); });
+    apiFetch<Product[]>(`/api/products?categoryId=${data.id}&isAvailable=true`).then(r => { if (r.data) setProducts(Array.isArray(r.data) ? r.data : r.data.products || []); setLoading(false); });
   }, [data?.id]);
 
   return (
@@ -323,7 +323,7 @@ function CategoryView() {
       {loading ? <SkeletonCards /> : products.length === 0 ? <Empty icon={Package} label="Aucun produit dans cette catégorie" description="Essayez une autre catégorie ou revenez plus tard." /> : (
         <div className="grid grid-cols-2 gap-3">{products.map(p => (
           <Card key={p.id} className="overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('product-detail', { id: p.id })}>
-            {p.image ? <img src={p.image} alt={p.name} className="h-28 w-full object-cover" /> : <div className="h-28 w-full bg-gray-100 flex items-center justify-center"><Package size={28} className="text-gray-300" /></div>}
+            {p.image ? <img src={p.image} alt={p.name} className="h-28 w-full object-cover" /> : <div className="h-28 w-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center"><Package size={28} className="text-gray-300" /></div>}
             <CardContent className="p-3"><p className="font-medium text-sm line-clamp-1">{p.name}</p><p className="text-emerald-700 font-semibold text-sm mt-1">{formatPrice(p.price)}</p></CardContent>
           </Card>
         ))}</div>
@@ -345,7 +345,7 @@ function MerchantDetailView() {
     (async () => {
       const [mRes, pRes] = await Promise.all([apiFetch<Merchant>(`/api/merchants/${data.id}`), apiFetch<Product[]>(`/api/products?merchantId=${data.id}&isAvailable=true`)]);
       if (mRes.data) setMerchant(mRes.data);
-      if (pRes.data) setProducts(pRes.data);
+      if (pRes.data) setProducts(Array.isArray(pRes.data) ? pRes.data : pRes.data.products || []);
       setLoading(false);
     })();
   }, [data?.id]);
@@ -372,12 +372,12 @@ function MerchantDetailView() {
         </div>
       </div>
       <div className="px-4">
-        <h2 className="font-semibold text-sm text-gray-700 mb-3">Produits ({products.length})</h2>
+        <h2 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-3">Produits ({products.length})</h2>
         {products.length === 0 ? <Empty icon={Package} label="Aucun produit disponible" /> : (
           <div className="space-y-2">{products.map(p => (
             <Card key={p.id} className="shadow-sm overflow-hidden">
               <CardContent className="p-3 flex items-center gap-3">
-                {p.image ? <img src={p.image} alt={p.name} className="h-14 w-14 rounded-lg object-cover flex-shrink-0 cursor-pointer" onClick={() => navigate('product-detail', { id: p.id })} /> : <div className="h-14 w-14 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 cursor-pointer" onClick={() => navigate('product-detail', { id: p.id })}><Package size={20} className="text-gray-300" /></div>}
+                {p.image ? <img src={p.image} alt={p.name} className="h-14 w-14 rounded-lg object-cover flex-shrink-0 cursor-pointer" onClick={() => navigate('product-detail', { id: p.id })} /> : <div className="h-14 w-14 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 cursor-pointer" onClick={() => navigate('product-detail', { id: p.id })}><Package size={20} className="text-gray-300" /></div>}
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate('product-detail', { id: p.id })}>
                   <p className="font-medium text-sm truncate">{p.name}</p>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{p.shortDescription}</p>
@@ -438,7 +438,7 @@ function ProductDetailView() {
   return (
     <div className="space-y-4 pb-28">
       <div className="relative">
-        {product.image ? <img src={product.image} alt={product.name} className="h-56 w-full object-cover" /> : <div className="h-56 w-full bg-gray-100 flex items-center justify-center"><Package size={48} className="text-gray-300" /></div>}
+        {product.image ? <img src={product.image} alt={product.name} className="h-56 w-full object-cover" /> : <div className="h-56 w-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center"><Package size={48} className="text-gray-300" /></div>}
         <Button variant="ghost" size="icon" className="absolute top-4 left-4 bg-white/90 rounded-full shadow" onClick={goBack}><ChevronLeft size={20} /></Button>
       </div>
       <div className="px-4 space-y-4">
@@ -457,7 +457,7 @@ function ProductDetailView() {
         {supps.length > 0 && (
           <div><h3 className="text-sm font-semibold mb-2">Suppléments</h3><div className="space-y-2">{supps.map(s => {
             const sel = selectedSupps.find(x => x.name === s.name);
-            return <button key={s.name} onClick={() => toggleSupp(s)} className={`w-full flex items-center justify-between rounded-xl border p-3 text-left transition-colors ${sel ? 'border-emerald-500 bg-emerald-50' : 'hover:bg-gray-50'}`}>
+            return <button key={s.name} onClick={() => toggleSupp(s)} className={`w-full flex items-center justify-between rounded-xl border p-3 text-left transition-colors ${sel ? 'border-emerald-500 bg-emerald-50' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
               <span className="text-sm font-medium">{s.name}</span><span className="text-sm font-semibold text-emerald-700">+{formatPrice(s.price)}</span>
             </button>;
           })}</div></div>
@@ -498,7 +498,7 @@ function CartView() {
       <div className="space-y-2">{items.map(item => (
         <Card key={item.productId} className="shadow-sm">
           <CardContent className="p-3 flex items-center gap-3">
-            {item.image ? <img src={item.image} alt={item.name} className="h-12 w-12 rounded-lg object-cover flex-shrink-0" /> : <div className="h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><Package size={18} className="text-gray-300" /></div>}
+            {item.image ? <img src={item.image} alt={item.name} className="h-12 w-12 rounded-lg object-cover flex-shrink-0" /> : <div className="h-12 w-12 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0"><Package size={18} className="text-gray-300" /></div>}
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">{item.name}</p>
               <p className="text-emerald-700 font-semibold text-sm">{formatPrice(item.price * item.quantity + (item.supplements?.reduce((s, sp) => s + sp.price, 0) || 0) * item.quantity)}</p>
@@ -646,7 +646,7 @@ function OrdersView() {
         <div className="space-y-3">{orders.map(o => (
           <Card key={o.id} className="shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('order-detail', { id: o.id })}>
             <CardContent className="p-4">
-              <div className="flex items-start justify-between"><div><p className="font-semibold text-sm">{o.orderNumber}</p><p className="text-xs text-muted-foreground mt-0.5">{o.merchant.businessName}</p></div><Badge className={`text-[10px] ${ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-800'}`}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge></div>
+              <div className="flex items-start justify-between"><div><p className="font-semibold text-sm">{o.orderNumber}</p><p className="text-xs text-muted-foreground mt-0.5">{o.merchant.businessName}</p></div><Badge className={`text-[10px] ${ORDER_STATUS_COLORS[o.status] || 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'}`}>{ORDER_STATUS_LABELS[o.status] || o.status}</Badge></div>
               <div className="flex items-center justify-between mt-3"><span className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString('fr-FR')}</span><span className="font-semibold text-sm text-emerald-700">{formatPrice(o.total)}</span></div>
             </CardContent>
           </Card>
@@ -745,9 +745,9 @@ function OrderDetailView() {
     <div className="px-4 pt-4 space-y-5 pb-8">
       <div className="flex items-center gap-3"><Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft size={20} /></Button><div><h1 className="text-lg font-bold">{order.orderNumber}</h1><p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleString('fr-FR')}</p></div></div>
       <div className="space-y-2">
-        <div className="flex items-center justify-between"><Badge className={`${ORDER_STATUS_COLORS[order.status] || 'bg-gray-100'}`}>{ORDER_STATUS_LABELS[order.status] || order.status}</Badge><Badge variant="outline" className="text-xs">{PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod}</Badge></div>
+        <div className="flex items-center justify-between"><Badge className={`${ORDER_STATUS_COLORS[order.status] || 'bg-gray-100 dark:bg-gray-800'}`}>{ORDER_STATUS_LABELS[order.status] || order.status}</Badge><Badge variant="outline" className="text-xs">{PAYMENT_METHODS[order.paymentMethod] || order.paymentMethod}</Badge></div>
         {order.status !== 'CANCELLED' && order.status !== 'REFUNDED' && (
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2"><div className="bg-emerald-600 h-2.5 rounded-full transition-all" style={{ width: `${progress}%` }} /></div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-2"><div className="bg-emerald-600 h-2.5 rounded-full transition-all" style={{ width: `${progress}%` }} /></div>
         )}
       </div>
       <Card className="shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Articles</CardTitle></CardHeader><CardContent className="space-y-2">
@@ -767,7 +767,7 @@ function OrderDetailView() {
       <Card className="shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Paiement</CardTitle></CardHeader><CardContent className="text-sm space-y-2">
         <div className="flex justify-between"><span className="text-muted-foreground">Méthode</span><span>{PAYMENT_METHODS[order.paymentMethod]}</span></div>
         <div className="flex justify-between"><span className="text-muted-foreground">Statut</span><Badge variant="outline" className="text-xs">{PAYMENT_STATUS_LABELS[order.paymentStatus]}</Badge></div>
-        {order.paymentProof && <div><p className="text-muted-foreground text-xs mb-1">Preuve :</p><img src={order.paymentProof} alt="Preuve" className="h-32 rounded-lg object-cover" /></div>}
+        {order.paymentProof && <div><p className="text-muted-foreground text-xs mb-1">Preuve :</p><img src={order.paymentProof} alt="Preuve" className="max-h-48 w-full rounded-lg object-contain bg-gray-50 dark:bg-gray-800" /></div>}
         {order.paymentStatus === 'PENDING' && order.paymentMethod !== 'CASH' && (
           <div className="space-y-2 pt-2">
             <Label className="text-xs">Preuve de paiement</Label>
@@ -792,11 +792,14 @@ function OrderDetailView() {
         )}
       </CardContent></Card>
       {order.status === 'DELIVERED' && (
-        <Button className="w-full bg-amber-500 hover:bg-amber-600" onClick={() => setRatingOpen(true)}><Star size={16} className="mr-2" />Évaluer la commande</Button>
+        <div className="space-y-2">
+          <Button className="w-full bg-amber-500 hover:bg-amber-600" onClick={() => setRatingOpen(true)}><Star size={16} className="mr-2" />Évaluer la commande</Button>
+          <Button className="w-full" variant="outline" onClick={() => window.open(`/api/orders/${order.id}/invoice`, '_blank')}><FileText size={16} className="mr-2" />Télécharger la facture</Button>
+        </div>
       )}
       <Dialog open={ratingOpen} onOpenChange={setRatingOpen}>
-        <DialogContent><DialogHeader><DialogTitle>Évaluer la commande</DialogTitle><DialogDescription>Notez votre expérience</DialogDescription></DialogHeader>
-          <div className="space-y-4 py-2">
+        <DialogContent className="max-h-[90dvh] flex flex-col"><DialogHeader><DialogTitle>Évaluer la commande</DialogTitle><DialogDescription>Notez votre expérience</DialogDescription></DialogHeader>
+          <div className="overflow-y-auto flex-1 pr-1 space-y-4 py-2">
             <div className="flex items-center justify-center gap-1">{[1,2,3,4,5].map(i => (<button key={i} type="button" onClick={() => setScore(i)} className="p-1 rounded-lg hover:scale-110 active:scale-95 transition-transform"><Star size={36} className={i <= score ? 'fill-amber-400 text-amber-400 drop-shadow-sm' : 'text-gray-300 dark:text-gray-600'} /></button>))}</div>
             <Textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Votre commentaire (optionnel)" rows={3} />
             <Button className="w-full bg-emerald-700 hover:bg-emerald-800" onClick={submitRating} disabled={ratingSubmitting}>{ratingSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Envoyer l&apos;évaluation</Button>
@@ -827,7 +830,7 @@ function FavoritesView() {
         <div className="space-y-2">{favs.map(f => (
           <Card key={f.id} className="shadow-sm">
             <CardContent className="p-3 flex items-center gap-3">
-              {f.product.image ? <img src={f.product.image} alt={f.product.name} className="h-14 w-14 rounded-lg object-cover flex-shrink-0 cursor-pointer" onClick={() => navigate('product-detail', { id: f.product.id })} /> : <div className="h-14 w-14 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 cursor-pointer" onClick={() => navigate('product-detail', { id: f.product.id })}><Package size={20} className="text-gray-300" /></div>}
+              {f.product.image ? <img src={f.product.image} alt={f.product.name} className="h-14 w-14 rounded-lg object-cover flex-shrink-0 cursor-pointer" onClick={() => navigate('product-detail', { id: f.product.id })} /> : <div className="h-14 w-14 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 cursor-pointer" onClick={() => navigate('product-detail', { id: f.product.id })}><Package size={20} className="text-gray-300" /></div>}
               <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate('product-detail', { id: f.product.id })}>
                 <p className="font-medium text-sm truncate">{f.product.name}</p>
                 <p className="text-xs text-muted-foreground">{f.product.merchant?.businessName}</p>
@@ -862,9 +865,9 @@ function WalletView() {
             {wallet.transactions.length === 0 ? <Empty icon={Wallet} label="Aucune transaction" /> : (
               <div className="space-y-2">{wallet.transactions.map(t => (
                 <Card key={t.id} className="shadow-sm"><CardContent className="p-3 flex items-center gap-3">
-                  <div className={`h-9 w-9 rounded-full flex items-center justify-center ${t.amount >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{t.amount >= 0 ? <Check size={16} /> : <X size={16} />}</div>
+                  <div className={`h-9 w-9 rounded-full flex items-center justify-center ${t.type === 'CREDIT' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{t.type === 'CREDIT' ? <Check size={16} /> : <X size={16} />}</div>
                   <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{t.description}</p><p className="text-xs text-muted-foreground">{new Date(t.createdAt).toLocaleDateString('fr-FR')}</p></div>
-                  <span className={`text-sm font-semibold ${t.amount >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{t.amount >= 0 ? '+' : ''}{formatPrice(Math.abs(t.amount))}</span>
+                  <span className={`text-sm font-semibold ${t.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-500'}`}>{t.type === 'CREDIT' ? '+' : '-'}{formatPrice(t.amount)}</span>
                 </CardContent></Card>
               ))}</div>
             )}
@@ -929,10 +932,10 @@ function ProfileView() {
 
 /* ── 13. Notifications ─────────────────────── */
 function NotificationsView() {
-  const [notifs, setNotifs] = useState<Notification[]>([]);
+  const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { (async () => { const r = await apiFetch<{ notifications: Notification[] }>('/api/notifications'); if (r.data) setNotifs(r.data.notifications); setLoading(false); })(); }, []);
+  useEffect(() => { (async () => { const r = await apiFetch<{ notifications: AppNotification[] }>('/api/notifications'); if (r.data) setNotifs(r.data.notifications); setLoading(false); })(); }, []);
 
   const markRead = async (id: string) => {
     await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
@@ -958,7 +961,7 @@ function NotificationsView() {
         <div className="space-y-2">{notifs.map(n => (
           <Card key={n.id} className={`shadow-sm cursor-pointer transition-colors ${!n.isRead ? 'bg-emerald-50/50 border-emerald-200' : ''}`} onClick={() => { if (!n.isRead) markRead(n.id); }}>
             <CardContent className="p-3 flex items-start gap-3">
-              <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${!n.isRead ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{typeIcon(n.type)}</div>
+              <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${!n.isRead ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>{typeIcon(n.type)}</div>
               <div className="flex-1 min-w-0"><p className="text-sm font-medium">{n.title}</p><p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p><p className="text-[10px] text-muted-foreground mt-1">{new Date(n.createdAt).toLocaleString('fr-FR')}</p></div>
               {!n.isRead && <div className="h-2.5 w-2.5 rounded-full bg-emerald-600 flex-shrink-0 mt-1.5" />}
             </CardContent>
@@ -1089,7 +1092,7 @@ export default function ClientApp() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       <main className="mx-auto max-w-lg pb-20">
         <AnimatePresence mode="wait">
           <motion.div key={view} {...fade} transition={{ duration: 0.3, ease }}>

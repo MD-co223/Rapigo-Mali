@@ -25,6 +25,7 @@ import {
 import type { MerchantView } from '@/lib/store';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { ImageUpload } from '@/components/shared/image-upload';
 
 const EASE = [0, 0, 0.2, 1] as const;
 const TR = { duration: 0.3, ease: EASE };
@@ -323,7 +324,7 @@ export default function MerchantApp() {
           {!orders.length ? <Mt m="Aucune commande pour le moment" icon={ClipboardList} /> : (
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {orders.map((o: any) => (
-                <div key={o.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                <div key={o.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                   onClick={() => navigate('order-detail', { id: o.id })}>
                   <div>
                     <p className="text-sm font-medium">#{o.orderNumber || o.id.slice(0, 8)}</p>
@@ -395,7 +396,12 @@ export default function MerchantApp() {
         </div>
         <div><Label>Description courte</Label><Textarea value={pf.shortDescription || ''} onChange={e => setPf(p => ({ ...p, shortDescription: e.target.value }))} rows={2} /></div>
         <div><Label>Description longue</Label><Textarea value={pf.longDescription || ''} onChange={e => setPf(p => ({ ...p, longDescription: e.target.value }))} rows={3} /></div>
-        <div><Label>URL de l&apos;image</Label><Input value={pf.image || ''} onChange={e => setPf(p => ({ ...p, image: e.target.value }))} placeholder="https://..." /></div>
+        <ImageUpload 
+          images={pf.image ? [pf.image] : []}
+          onImagesChange={(imgs) => setPf(p => ({ ...p, image: imgs[0] || '' }))}
+          maxImages={1}
+          label="Photo du produit"
+        />
         <div className="flex items-center gap-6">
           <label className="flex items-center gap-2 text-sm"><Switch checked={pf.isAvailable ?? true} onCheckedChange={v => setPf(p => ({ ...p, isAvailable: v }))} /> Disponible</label>
           <label className="flex items-center gap-2 text-sm"><Switch checked={pf.isFeatured ?? false} onCheckedChange={v => setPf(p => ({ ...p, isFeatured: v }))} /> Mis en avant</label>
@@ -493,7 +499,7 @@ export default function MerchantApp() {
         </CardContent></Card>
         {o.paymentProof && (
           <Card><CardHeader className="pb-3"><CardTitle className="text-base">Preuve de paiement</CardTitle></CardHeader><CardContent className="space-y-3">
-            {o.paymentProof.startsWith('data:') ? <img src={o.paymentProof} alt="Preuve" className="max-h-48 rounded-lg border" />
+            {o.paymentProof.startsWith('data:') ? <img src={o.paymentProof} alt="Preuve" className="max-h-48 w-full object-contain rounded-lg border bg-gray-50 dark:bg-gray-800" />
               : <a href={o.paymentProof} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline text-sm">Voir la preuve</a>}
             {o.paymentStatus === 'UPLOADED' && (
               <div className="flex gap-2">
@@ -530,8 +536,8 @@ export default function MerchantApp() {
         </div></Card>
       )}
       <Dialog open={dlg === 'zone'} onOpenChange={() => setDlg('')}>
-        <DialogContent><DialogHeader><DialogTitle>Nouvelle zone de livraison</DialogTitle><DialogDescription>Ajouter une zone avec ses frais de livraison</DialogDescription></DialogHeader>
-          <div className="space-y-3 py-2">
+        <DialogContent className="max-h-[90dvh] flex flex-col"><DialogHeader><DialogTitle>Nouvelle zone de livraison</DialogTitle><DialogDescription>Ajouter une zone avec ses frais de livraison</DialogDescription></DialogHeader>
+          <div className="overflow-y-auto flex-1 pr-1 space-y-3 py-2">
             <div><Label>Ville</Label><Input value={zf.city} onChange={e => setZf(p => ({ ...p, city: e.target.value }))} /></div>
             <div><Label>Quartier</Label><Input value={zf.quartier} onChange={e => setZf(p => ({ ...p, quartier: e.target.value }))} /></div>
             <div><Label>Frais (FCFA)</Label><Input type="number" value={zf.fee} onChange={e => setZf(p => ({ ...p, fee: e.target.value }))} /></div>
@@ -605,7 +611,7 @@ export default function MerchantApp() {
                 <p className="text-xs text-muted-foreground">puis téléchargez la capture d&apos;écran de votre paiement ci-dessous.</p>
               </div>
               <input type="file" accept="image/*" className="hidden" ref={proofRef} onChange={e => readFile(e, setSubProof)} />
-              {subProof ? <div className="relative"><img src={subProof} alt="Preuve" className="max-h-40 rounded-lg border" />
+              {subProof ? <div className="relative"><img src={subProof} alt="Preuve" className="max-h-40 w-full object-contain rounded-lg border bg-gray-50 dark:bg-gray-800" />
                 <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6" onClick={() => setSubProof('')}><X className="h-3 w-3" /></Button></div>
                 : <Button variant="outline" className="w-full gap-2" onClick={() => proofRef.current?.click()}><Upload className="h-4 w-4" /> Télécharger la preuve</Button>}
               <div className="flex gap-2">
@@ -639,8 +645,8 @@ export default function MerchantApp() {
         ))}</div>
       )}
       <Dialog open={dlg === 'coupon'} onOpenChange={() => setDlg('')}>
-        <DialogContent><DialogHeader><DialogTitle>Nouveau coupon</DialogTitle><DialogDescription>Créer un code promo pour vos clients</DialogDescription></DialogHeader>
-          <div className="space-y-3 py-2">
+        <DialogContent className="max-h-[90dvh] flex flex-col"><DialogHeader><DialogTitle>Nouveau coupon</DialogTitle><DialogDescription>Créer un code promo pour vos clients</DialogDescription></DialogHeader>
+          <div className="overflow-y-auto flex-1 pr-1 space-y-3 py-2">
             <div><Label>Code</Label><Input value={cf.code} onChange={e => setCf(p => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="PROMO2025" /></div>
             <div><Label>Type</Label>
               <Select value={cf.type} onValueChange={v => setCf(p => ({ ...p, type: v }))}>
@@ -707,7 +713,7 @@ export default function MerchantApp() {
       <h2 className="text-xl font-bold">Mon profil</h2>
       <Card><CardContent className="p-4 space-y-4">
         <div className="flex items-center gap-4">
-          {prof.logo ? <img src={prof.logo} alt="Logo" className="h-16 w-16 rounded-full object-cover bg-gray-100" />
+          {prof.logo ? <img src={prof.logo} alt="Logo" className="h-16 w-16 rounded-full object-contain bg-gray-100" />
             : <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xl">{(prof.businessName || '?')[0]}</div>}
           <div>
             <input type="file" accept="image/*" className="hidden" ref={logoRef} onChange={e => readFile(e, v => setProf(p => ({ ...p, logo: v })))} />

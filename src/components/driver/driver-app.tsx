@@ -321,18 +321,21 @@ export default function DriverApp() {
   };
 
   if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>;
-  if (!driver) return <div className="flex items-center justify-center min-h-screen"><p className="text-gray-500">Profil non trouvé</p></div>;
+  if (!driver) return <div className="flex items-center justify-center min-h-screen"><p className="text-gray-500 dark:text-gray-400">Profil non trouvé</p></div>;
 
   if (!driver.isApproved) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4, ease: [0, 0, 0.2, 1] as const }} className="text-center space-y-5 max-w-sm">
           <div className="mx-auto w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center">
             <Shield className="h-10 w-10 text-amber-500" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Compte en attente de validation</h1>
-          <p className="text-sm text-gray-500">Votre profil livreur est en cours de vérification par notre équipe. Vous recevrez une notification une fois approuvé.</p>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Compte en attente de validation</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Votre profil livreur est en cours de vérification par notre équipe. Vous recevrez une notification une fois approuvé.</p>
           <SupportContact variant="compact" />
+          <Button variant="outline" onClick={() => { logout(); }} className="mt-2">
+            <LogOut className="h-4 w-4 mr-2" /> Se déconnecter
+          </Button>
         </motion.div>
       </div>
     );
@@ -345,7 +348,7 @@ export default function DriverApp() {
   const pendingDoc = DOCS.find(d => d.key === pendingDocKey);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 max-w-lg mx-auto">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 max-w-lg mx-auto">
       {/* Hidden file input for document upload */}
       <input
         ref={fileInputRef}
@@ -476,7 +479,7 @@ export default function DriverApp() {
                       <CardContent className="p-4 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="font-mono text-xs text-gray-400">{ord.orderNumber}</span>
-                          <Badge className={ORDER_STATUS_COLORS[ord.status as string] || 'bg-gray-100 text-gray-800'}>{ORDER_STATUS_LABELS[ord.status as string] || ord.status}</Badge>
+                          <Badge className={ORDER_STATUS_COLORS[ord.status as string] || 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'}>{ORDER_STATUS_LABELS[ord.status as string] || ord.status}</Badge>
                         </div>
                         <p className="text-sm font-medium">{merchant?.businessName || '—'}</p>
                         <div className="flex justify-between text-xs text-gray-400">
@@ -534,7 +537,7 @@ export default function DriverApp() {
                   {[5, 4, 3, 2, 1].map(n => (
                     <div key={n} className="flex items-center gap-2 text-sm">
                       <span className="w-3">{n}</span><Star className="h-3 w-3 text-amber-400 fill-amber-400 drop-shadow-sm" />
-                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: n === 5 ? '70%' : n === 4 ? '20%' : n === 3 ? '7%' : n === 2 ? '2%' : '1%' }} /></div>
+                      <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: n === 5 ? '70%' : n === 4 ? '20%' : n === 3 ? '7%' : n === 2 ? '2%' : '1%' }} /></div>
                     </div>
                   ))}
                 </CardContent></Card>
@@ -617,7 +620,7 @@ export default function DriverApp() {
                     { label: 'Documents', icon: Upload, view: 'documents' as DriverView },
                     { label: 'Support', icon: Send, view: 'support' as DriverView },
                   ].map(l => (
-                    <button key={l.view} onClick={() => navigate(l.view)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left">
+                    <button key={l.view} onClick={() => navigate(l.view)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                       <l.icon className="h-4 w-4 text-gray-400" /><span className="text-sm flex-1">{l.label}</span><ChevronLeft className="h-4 w-4 text-gray-300 rotate-180" />
                     </button>
                   ))}
@@ -682,7 +685,7 @@ export default function DriverApp() {
       </main>
 
       {/* Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-700 z-50">
         <div className="max-w-lg mx-auto flex">
           {NAV.map(n => {
             const active = view === n.view || (n.view === 'ride' && view === 'navigation');
@@ -697,7 +700,7 @@ export default function DriverApp() {
 
       {/* Dialog */}
       <Dialog open={!!dialog} onOpenChange={() => setDialog(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90dvh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {dialog?.type === 'withdraw'
@@ -714,11 +717,12 @@ export default function DriverApp() {
                   : 'Veuillez contacter notre support.'}
             </DialogDescription>
           </DialogHeader>
+          <div className="overflow-y-auto flex-1 pr-1">
           {dialog?.type === 'document' ? (
             <div className="space-y-4">
-              <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
+              <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center">
                 <Upload className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-sm text-gray-500 mb-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
                   {uploadingDoc ? 'Téléchargement en cours...' : 'Sélectionnez une image à télécharger'}
                 </p>
                 <p className="text-xs text-gray-400">JPG, PNG — max 5 Mo</p>
@@ -741,6 +745,7 @@ export default function DriverApp() {
               <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialog(null); navigate('support'); }}>Contacter le support</Button>
             </>
           )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

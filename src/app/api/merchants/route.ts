@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
+import { parsePagination } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,6 +12,7 @@ export async function GET(request: NextRequest) {
     const approved = searchParams.get('approved') !== 'false';
     const featured = searchParams.get('featured');
     const showAll = searchParams.get('all') === 'true';
+    const { limit, offset } = parsePagination(searchParams);
 
     // For admin all=true, auth is required
     if (showAll) {
@@ -41,16 +43,21 @@ export async function GET(request: NextRequest) {
       where.isFeatured = true;
     }
 
-    const merchants = await db.merchant.findMany({
-      where,
-      include: {
-        user: { select: { firstName: true, lastName: true, avatar: true } },
-        _count: { select: { products: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [merchants, total] = await Promise.all([
+      db.merchant.findMany({
+        where,
+        include: {
+          user: { select: { firstName: true, lastName: true, avatar: true, email: true, phone: true, isActive: true } },
+          _count: { select: { products: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.merchant.count({ where }),
+    ]);
 
-    return NextResponse.json(merchants);
+    return NextResponse.json({ merchants, total, limit, offset });
   } catch (error) {
     console.error('List merchants error:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

@@ -13,10 +13,15 @@ export async function POST(
     }
 
     const { id } = await params;
-    const { action } = await request.json();
+    const { action, reason } = await request.json();
 
     if (!action || !['block', 'unblock'].includes(action)) {
       return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
+    }
+
+    // Prevent admin from blocking themselves or the super admin
+    if (id === auth.userId) {
+      return NextResponse.json({ error: 'Impossible de se bloquer soi-même' }, { status: 403 });
     }
 
     const user = await db.user.findUnique({ where: { id } });
@@ -28,28 +33,48 @@ export async function POST(
       return NextResponse.json({ error: 'Impossible de bloquer un super administrateur' }, { status: 403 });
     }
 
-    const isActive = action === 'unblock';
+    if (action === 'block') {
+      await db.user.update({
+        where: { id },
+        data: {
+          isBlocked: true,
+          blockedAt: new Date(),
+          blockedReason: reason || null,
+          isActive: false,
+        },
+      });
 
-    await db.user.update({
-      where: { id },
-      data: { isActive },
-    });
+      await db.notification.create({
+        data: {
+          userId: id,
+          title: 'Compte bloqué',
+          message: `Votre compte a été bloqué. Contactez le support pour plus d'informations. Raison : ${reason || 'Non spécifiée'}`,
+          type: 'SYSTEM',
+        },
+      });
 
-    await db.notification.create({
-      data: {
-        userId: id,
-        title: isActive ? 'Compte débloqué' : 'Compte bloqué',
-        message: isActive
-          ? 'Votre compte a été débloqué. Vous pouvez maintenant vous connecter.'
-          : 'Votre compte a été bloqué. Contactez le support pour plus d\'informations.',
-        type: 'SYSTEM',
-      },
-    });
+      return NextResponse.json({ message: 'Utilisateur bloqué', isBlocked: true });
+    } else {
+      await db.user.update({
+        where: { id },
+        data: {
+          isBlocked: false,
+          blockedAt: null,
+          blockedReason: null,
+        },
+      });
 
-    return NextResponse.json({
-      message: isActive ? 'Utilisateur débloqué' : 'Utilisateur bloqué',
-      isActive,
-    });
+      await db.notification.create({
+        data: {
+          userId: id,
+          title: 'Compte débloqué',
+          message: 'Votre compte a été débloqué. Vous pouvez maintenant vous connecter.',
+          type: 'SYSTEM',
+        },
+      });
+
+      return NextResponse.json({ message: 'Utilisateur débloqué', isBlocked: false });
+    }
   } catch (error) {
     console.error('Block user error:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

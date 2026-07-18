@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
+import { parsePagination } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const featured = searchParams.get('featured');
     const available = searchParams.get('available');
+    const { limit, offset } = parsePagination(searchParams);
 
     const where: Record<string, unknown> = {};
 
@@ -32,16 +34,21 @@ export async function GET(request: NextRequest) {
       where.isAvailable = true;
     }
 
-    const products = await db.product.findMany({
-      where,
-      include: {
-        merchant: { select: { id: true, businessName: true, logo: true, isApproved: true } },
-        category: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [products, total] = await Promise.all([
+      db.product.findMany({
+        where,
+        include: {
+          merchant: { select: { id: true, businessName: true, logo: true, isApproved: true } },
+          category: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.product.count({ where }),
+    ]);
 
-    return NextResponse.json(products);
+    return NextResponse.json({ products, total, limit, offset });
   } catch (error) {
     console.error('List products error:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

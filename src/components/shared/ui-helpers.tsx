@@ -4,7 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Package, ShoppingCart, Bell, Heart, Store, ClipboardList,
   Wallet, TrendingUp, Users, Truck, Tag, Grid3X3, Search,
-  Star, StarOff
+  Star,
 } from 'lucide-react';
 
 /* ─── DataSkeleton: Reusable animated skeleton loader ────────── */
@@ -181,7 +181,7 @@ export function RatingStars({
     <div className="inline-flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map(i => {
         const filled = i <= Math.round(rating);
-        const Icon = filled ? Star : StarOff;
+        const Icon = Star;
         return interactive ? (
           <button
             key={i}

@@ -1,4 +1,4 @@
-// Rapigo Mali V2.7 Enterprise - Database Schema (Supabase PostgreSQL)
+// Rapigo Mali V3.0.0 Enterprise - Database Schema
 // Delivery Platform for Mali/West Africa
 
 generator client {
@@ -6,9 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 // ============================================
@@ -26,10 +25,16 @@ model User {
   role          String    @default("CLIENT") // CLIENT, MERCHANT, DRIVER, ADMIN
   isSuperAdmin  Boolean   @default(false)
   isVerified    Boolean   @default(false)
-  isActive      Boolean   @default(true)
-  lastLogin     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  isActive        Boolean   @default(true)
+  isBlocked       Boolean   @default(false)
+  isSuspended     Boolean   @default(false)
+  suspendedAt     DateTime?
+  suspendedReason String?
+  blockedAt       DateTime?
+  blockedReason   String?
+  lastLogin       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   client         Client?
   merchant       Merchant?
@@ -98,6 +103,8 @@ model Merchant {
   totalRatings    Int       @default(0)
   commissionRate  Float     @default(0.10)
   minOrderAmount  Int       @default(0)
+  paymentProof    String?
+  paymentProofAt  DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -141,6 +148,8 @@ model Driver {
   currentLat      Float?
   currentLng      Float?
   bonus           Int       @default(0)
+  paymentProof    String?
+  paymentProofAt  DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -559,7 +568,7 @@ model Rating {
   client   Client   @relation("ClientReview", fields: [clientId], references: [id])
   driver   Driver?  @relation("DriverReview", fields: [driverId], references: [id])
   merchant Merchant? @relation(fields: [merchantId], references: [id])
-  user     User     @relation("RatingGiven", fields: [clientId], references: [id], map: "Rating_client_rating_giver_fkey")
+  user     User     @relation("RatingGiven", fields: [clientId], references: [id])
 
   @@index([orderId])
   @@index([clientId])
@@ -575,10 +584,12 @@ model Wallet {
   id         String  @id @default(cuid())
   userId     String  @unique
   balance    Int     @default(0)
-  currency   String  @default("XOF")
-  isActive   Boolean @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  currency          String  @default("XOF")
+  isActive         Boolean @default(true)
+  paymentMethod    String?
+  paymentReference String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
@@ -593,7 +604,9 @@ model Transaction {
   amount      Int
   currency    String   @default("XOF")
   description String
+  status      String   @default("COMPLETED") // PENDING, COMPLETED, FAILED
   reference   String?  @unique
+  method      String?  // ORANGE_MONEY, WAVE, CARD, QR_CODE
   metadata    String?  // JSON
   createdAt   DateTime @default(now())
 
@@ -601,6 +614,7 @@ model Transaction {
 
   @@index([walletId])
   @@index([type])
+  @@index([status])
   @@index([createdAt])
 }
 

@@ -13,10 +13,15 @@ export async function POST(
     }
 
     const { id } = await params;
-    const { action } = await request.json();
+    const { action, reason } = await request.json();
 
     if (!action || !['suspend', 'reactivate'].includes(action)) {
       return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
+    }
+
+    // Prevent admin from suspending themselves or the super admin
+    if (id === auth.userId) {
+      return NextResponse.json({ error: 'Impossible de se suspendre soi-même' }, { status: 403 });
     }
 
     const user = await db.user.findUnique({ where: { id } });
@@ -28,28 +33,47 @@ export async function POST(
       return NextResponse.json({ error: 'Impossible de suspendre un super administrateur' }, { status: 403 });
     }
 
-    const isActive = action === 'reactivate';
+    if (action === 'suspend') {
+      await db.user.update({
+        where: { id },
+        data: {
+          isSuspended: true,
+          suspendedAt: new Date(),
+          suspendedReason: reason || null,
+        },
+      });
 
-    await db.user.update({
-      where: { id },
-      data: { isActive },
-    });
+      await db.notification.create({
+        data: {
+          userId: id,
+          title: 'Compte suspendu',
+          message: `Votre compte a été suspendu temporairement. Raison : ${reason || 'Non spécifiée'}`,
+          type: 'SYSTEM',
+        },
+      });
 
-    await db.notification.create({
-      data: {
-        userId: id,
-        title: isActive ? 'Compte réactivé' : 'Compte suspendu',
-        message: isActive
-          ? 'Votre compte a été réactivé.'
-          : 'Votre compte a été suspendu temporairement.',
-        type: 'SYSTEM',
-      },
-    });
+      return NextResponse.json({ message: 'Utilisateur suspendu', isSuspended: true });
+    } else {
+      await db.user.update({
+        where: { id },
+        data: {
+          isSuspended: false,
+          suspendedAt: null,
+          suspendedReason: null,
+        },
+      });
 
-    return NextResponse.json({
-      message: isActive ? 'Utilisateur réactivé' : 'Utilisateur suspendu',
-      isActive,
-    });
+      await db.notification.create({
+        data: {
+          userId: id,
+          title: 'Compte réactivé',
+          message: 'Votre compte a été réactivé.',
+          type: 'SYSTEM',
+        },
+      });
+
+      return NextResponse.json({ message: 'Utilisateur réactivé', isSuspended: false });
+    }
   } catch (error) {
     console.error('Suspend user error:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

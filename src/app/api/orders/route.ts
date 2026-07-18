@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
+import { parsePagination } from '@/lib/utils';
 import crypto from 'crypto';
 
 function generateOrderNumber(): string {
@@ -21,8 +22,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || '';
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const { limit, offset } = parsePagination(searchParams);
 
     const where: Record<string, unknown> = {};
 
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
       db.order.findMany({
         where,
         include: {
-          items: true,
+          items: { select: { id: true, productName: true, productImage: true, quantity: true, unitPrice: true, totalPrice: true } },
           client: { include: { user: { select: { firstName: true, lastName: true, phone: true, avatar: true } } } },
           merchant: { select: { id: true, businessName: true, logo: true, address: true } },
           driver: { include: { user: { select: { firstName: true, lastName: true, phone: true, avatar: true } } } },

@@ -960,3 +960,300 @@ Stage Summary:
 - Rating stars have professional appearance with shadows
 - All action buttons have press feedback (active:scale-95)
 - Zero lint errors
+
+---
+Task ID: v3-2
+Agent: Core Fix Agent
+Task: Fix core infrastructure — Prisma schema, Suspend/Block APIs, Wallet API, Logout, Middleware, Version, JSON-LD
+
+Work Log:
+- Read and analyzed existing project state (worklog, schema, store, middleware, layout, APIs)
+- TASK 1 — Prisma Schema:
+  - Added isBlocked, isSuspended, suspendedAt, suspendedReason, blockedAt, blockedReason to User model
+  - Added paymentProof, paymentProofAt to Merchant model
+  - Added paymentProof, paymentProofAt to Driver model
+  - Added paymentMethod, paymentReference to Wallet model
+  - Ran `bunx prisma generate` — client regenerated successfully
+- TASK 2 — Suspend/Block APIs:
+  - Rewrote suspend route: uses isSuspended/suspendedAt/suspendedReason fields instead of toggling isActive
+  - Rewrote block route: uses isBlocked/blockedAt/blockedReason fields, sets isActive: false on block
+  - Added self-block/suspend prevention (admin cannot block/suspend themselves)
+  - Added super admin protection (already existed, kept)
+  - Reason field now captured and stored
+- TASK 3 — Wallet API:
+  - Added POST handler for deposit requests (amount, paymentMethod, paymentReference)
+  - Creates a CREDIT Transaction with PENDING status via metadata
+  - GET now supports `?withTransactions=true` query param to include transactions (up to 50)
+  - Validates payment method against allowed values (ORANGE_MONEY, WAVE, CARD, QR_CODE)
+- TASK 4 — Complete Logout:
+  - Replaced partial logout with comprehensive cleanup
+  - Clears all Zustand stores: auth, space, cart, clientNav, merchantNav, driverNav, adminNav
+  - Clears localStorage.clear(), sessionStorage.clear(), all cookies
+  - Navigates to '/' via window.location.href
+- TASK 5 — Auth Middleware:
+  - Added `export const runtime = 'nodejs'` to enable DB access in middleware
+  - Imported verifyToken and db
+  - Added user status check: verifies isBlocked, isSuspended, isActive for all authenticated API requests
+  - Returns 403 JSON with descriptive French error messages and error codes
+  - Added in-memory cache (30s TTL) to avoid DB hits on every request
+  - Defined PUBLIC_PATHS whitelist for unauthenticated routes
+  - Fail-open on DB errors (allows request through, individual routes handle auth)
+- TASK 6 — Version:
+  - Changed "Version 2.5.0 Enterprise" → "Version 3.0 Enterprise" in page.tsx
+  - Changed package.json version from "2.8.0" → "3.0.0"
+- TASK 7 — JSON-LD Phone:
+  - Changed "+223-00-00-00-00" → "+223 77 16 38 70" in layout.tsx JSON-LD structured data
+- Ran `bun run lint` — zero errors
+- Dev server recompiled successfully
+
+Stage Summary:
+- Prisma schema now supports block/suspend with timestamps and reasons
+- Merchant and Driver models support payment proof uploads
+- Wallet model supports deposit payment tracking
+- Suspend/Block APIs properly use dedicated fields instead of toggling isActive
+- Admins cannot block/suspend themselves or the super admin
+- Wallet API supports deposit creation with PENDING transactions
+- Logout now comprehensively clears all state and storage
+- Middleware blocks access for blocked/suspended/inactive users with 403
+- Version updated to 3.0.0 across the project
+- Real phone number (+223 77 16 38 70) in JSON-LD
+- Zero lint errors
+
+---
+Task ID: v3-client-driver
+Agent: V3 Client/Driver/Merchant Agent
+Task: Fix bugs in client, driver, merchant apps and the store
+
+Work Log:
+- TASK 1: Fixed logout() in store.ts to clear ALL localStorage keys (rapigo-auth, rapigo-cart, rapigo-space, rapigo-pwa-dismissed-v2), sessionStorage, and ALL cookies. Also resets useSpaceStore to 'landing' and clears cart.
+- TASK 2: Fixed WalletView transaction display — changed from `t.amount >= 0` to `t.type === 'CREDIT'` for green/red color and +/- prefix logic.
+- TASK 3: Fixed merchant API query in client-app.tsx — changed `isApproved=true` to `approved=true` on line 207 and search query line 272.
+- TASK 4: Fixed merchant logo cropping — changed `object-cover` to `object-contain` with `bg-gray-100` background for the merchant profile logo.
+- TASK 5: Fixed Notification type shadow — renamed `interface Notification` to `AppNotification` and updated all usages in NotificationsView.
+- TASK 6: Fixed service worker interval leak — stored setInterval ID in a useRef and cleared it in the useEffect cleanup return.
+- TASK 7: Created `src/components/shared/image-upload.tsx` with drag-and-drop (desktop), camera/gallery buttons (mobile), canvas compression (max 1200px, quality 0.8), preview thumbnails with delete, and POST /api/upload integration.
+- TASK 8: Created `src/app/api/upload/route.ts` (auth-protected, saves to public/uploads/products/) and integrated ImageUpload into merchant product form replacing the URL text input.
+- All 8 tasks completed with zero lint errors.
+
+Stage Summary:
+- Logout now comprehensively clears all state, storage, cookies, and resets space/cart stores
+- Wallet transactions correctly use type field (CREDIT/DEBIT) instead of amount sign
+- Merchant list API uses correct query parameter `approved=true`
+- Merchant logos display properly with object-contain
+- No more browser Notification API shadow conflict
+- Service worker interval properly cleaned up on unmount
+- New professional image upload component with mobile camera support
+- Merchant product form now uses image upload instead of manual URL input
+
+---
+Task ID: v3-3
+Agent: Registration Agent
+Task: Overhaul registration system — payment proof upload flow
+
+Work Log:
+- TASK 1: Updated `/api/auth/register` to re-fetch user with merchant/driver profile after creation (profiles created after user, so original include returned null).
+- TASK 2: Created `/api/auth/upload-proof/route.ts` (PATCH, auth-required):
+  - Validates user is MERCHANT or DRIVER
+  - Rejects if paymentProof already exists (prevent re-upload)
+  - Rejects if already approved
+  - Decodes base64, validates size (max 5MB), saves to `public/uploads/proofs/{userId}-{timestamp}.jpg`
+  - Updates merchant.paymentProof/driver.paymentProof + paymentProofAt
+  - Returns updated user
+- TASK 3: Overhauled registration UI in `src/app/page.tsx`:
+  - Added `compressImage()` utility (max 800px, quality 0.7 via canvas)
+  - Created `PaymentProofUpload` component:
+    - Shows payment info (amount, Orange Money number +223 77 16 38 70 as tappable tel: link)
+    - Camera button (accept="image/*" capture="environment") and file picker button
+    - Image preview with delete button
+    - "Envoyer la preuve" button with loading spinner
+    - Framer-motion entry animation
+  - Updated `WaitingApproval` to accept `hasPaymentProof` and `proofUrl` props
+  - Shows "Preuve de paiement envoyée ✓" with green check + proof image preview when proof exists
+  - Contact info shows Mr. Diarra Moussa, +223 77 16 38 70
+  - Updated session restore (useEffect) to check paymentProof from /api/auth/me
+  - Updated login handler to check paymentProof and route to upload step if missing
+  - Updated register handler to show PaymentProofUpload step for MERCHANT/DRIVER
+  - Flow: Register → PaymentProofUpload (if no proof) → WaitingApproval (after proof sent)
+- TASK 4: Added "Se déconnecter" logout button to driver-app.tsx pending screen
+- Zero lint errors
+
+Stage Summary:
+- 2-step registration flow: account creation → payment proof upload
+- MERCHANT and DRIVER users can no longer get stuck on WaitingApproval without proof
+- Returning users (login/session restore) without proof are redirected to upload step
+- Client-side image compression reduces upload size
+- Mobile-first camera capture support
+- Proof preview visible on WaitingApproval screen
+
+---
+Task ID: v3-logo-perf
+Agent: V3 Logo & Performance Agent
+Task: Logo audit, performance optimization, version update to V3.0.0
+
+Work Log:
+- Searched ALL .tsx files for <img and <Image usage (14 images found across 5 files)
+- Verified RapigoLogo component: object-contain ✅, overflow-visible ✅, no fixed width ✅, works at all heights ✅
+- Verified PWA install prompt app-icon: object-contain in square container ✅
+- Verified all product images use object-cover with bg-gray-100 fallback ✅
+- Fixed merchant-app.tsx payment proof images (lines 496, 608): added object-contain w-full bg-gray-50
+- Removed 4 unused dependencies: next-auth, next-intl, @mdxeditor/editor, @reactuses/core
+- Created parsePagination() utility in src/lib/utils.ts (default limit=20, max=100, min offset=0)
+- Applied pagination to 7 API routes: orders, users, merchants, drivers, products, notifications, audit-logs
+- Merchants, drivers, products routes: added limit/offset + total count (previously unbounded)
+- Audit-logs: changed default limit from 50 to 20
+- Fixed frontend consumers to handle new paginated response format (client-app, admin-app)
+- Optimized orders list query: items now use selective fields instead of `items: true`
+- Updated version to 3.0.0 in: prisma/schema.prisma comment, prisma/seed.ts setting
+- Updated SEO metadata: OG title and Twitter title now include "V3.0"
+- Fixed pre-existing lint errors: missing DialogFooter closing tag, 4 unused eslint-disable directives
+- Final lint: 0 errors, 0 warnings
+
+Stage Summary:
+- Logo audit complete: all logos use object-contain, no cropping issues
+- 4 unused packages removed (reduces bundle size)
+- All 7 list API routes now have proper pagination with limit cap
+- Orders query optimized with selective item fields
+- Version 3.0.0 consistent across package.json, schema, seed, page, and metadata
+- Clean lint pass
+
+---
+Task ID: v3-invoice-wallet
+Agent: V3 Invoice & Wallet Agent
+Task: Invoice PDF Generation, Wallet Enhancement, Security Improvements
+
+Work Log:
+- Installed jspdf@4.2.1
+- Fixed Prisma schema: changed provider from postgresql to sqlite, removed map attribute on Rating relation
+- Added status (PENDING/COMPLETED/FAILED) and method fields to Transaction model in Prisma schema
+- Ran db:push + seed successfully
+
+TASK 1 — Invoice PDF Generation:
+- Created src/app/api/orders/[id]/invoice/route.ts (GET endpoint)
+- PDF includes: Rapigo Mali logo (base64), invoice number FAC-{orderNumber}, issue date, client info (name/email/phone), merchant info (business name/address/phone), driver info (name/phone), items table (name/qty/unit price/total), subtotal/delivery fee/discount/TVA 0% with CGI article note, total in FCFA, payment method, PAYÉ status, reference block, footer
+- Auth: CLIENT (own), MERCHANT (own), ADMIN (all) — only for DELIVERED orders
+- Returns binary PDF with Content-Type: application/pdf, Content-Disposition: attachment
+- Added "Télécharger la facture" button in client OrderDetailView (when DELIVERED)
+- Added "Télécharger la facture" button in admin order detail dialog (when DELIVERED)
+
+TASK 2 — Wallet Enhancement:
+- Created POST /api/wallet/topup — validates amount (100-500000 FCFA), method (ORANGE_MONEY/WAVE/CARD/QR_CODE), creates PENDING CREDIT transaction, notification, includes OM/Wave API integration comments
+- Created POST /api/wallet/withdraw — validates amount (500-300000 FCFA), method, phone for mobile money, balance check, creates PENDING DEBIT transaction, notification
+- Created GET /api/wallet/transactions — paginated (?limit=20&offset=0), returns transactions with total/hasMore
+
+TASK 3 — Security Improvements:
+- Upload: Rewrote src/app/api/upload/route.ts — strict MIME whitelist (jpeg/png/webp/gif), 5MB max, UUID filenames, path traversal prevention, directory validation
+- Rate Limiting: Updated src/middleware.ts — method-aware rate limits (POST:/api/orders 10/min, POST:/api/upload 10/min, login 5/min, register 3/min)
+- Input Sanitization: Updated src/app/api/auth/register/route.ts — email regex, Malian phone validation (+223/0), HTML tag stripping, 100 char max
+
+Stage Summary:
+- Invoice PDF generation fully functional with professional layout
+- 3 new wallet endpoints (topup/withdraw/transactions) with OM/Wave integration comments
+- Upload endpoint hardened against MIME spoofing and path traversal
+- Method-aware rate limiting prevents POST abuse while allowing normal GET access
+- Registration input fully validated and sanitized
+- Zero lint errors
+
+---
+Task ID: v3-dialogs-reg
+Agent: V3 Dialogs & Registration Agent
+Task: Fix dialog scrolling, registration payment proof flow, RatingStars icon, iOS PWA alert
+
+Work Log:
+- Searched all .tsx files for DialogContent instances and added max-h-[85vh] overflow-y-auto to 10 dialogs:
+  - src/app/page.tsx (auth dialog)
+  - src/components/client/client-app.tsx (rating dialog)
+  - src/components/driver/driver-app.tsx (document upload dialog)
+  - src/components/merchant/merchant-app.tsx (delivery zone dialog, coupon dialog)
+  - src/components/admin/admin-app.tsx (confirm dialog, merchant detail, order detail, category dialog, coupon dialog)
+- Implemented registration payment proof upload flow:
+  - Added regPaymentProof state and handleRegProofChange callback in page.tsx
+  - Added file upload UI (camera/gallery) inside registration dialog for MERCHANT/DRIVER roles
+  - Modified handleRegister to require proof for MERCHANT/DRIVER and send base64 in body
+  - Updated /api/auth/register/route.ts to save proof to public/uploads/registration/{userId}.png
+  - Register route now creates Notification for SUPER_ADMIN users with proof details
+  - Created /api/auth/upload-proof/route.ts for re-upload from WaitingApproval page
+- Enhanced WaitingApproval component:
+  - Shows uploaded proof image when available
+  - Shows warning when no proof sent
+  - "Envoyer une autre preuve" button with camera/file picker
+  - Clear French instructions with Orange Money payment info
+  - Re-upload calls /api/auth/upload-proof PATCH endpoint
+- Fixed RatingStars icon in ui-helpers.tsx:
+  - Changed from StarOff (X mark) to Star (same icon, filled/unfilled via className)
+  - Removed unused StarOff import
+- Fixed iOS PWA alert() in pwa-install-prompt.tsx:
+  - Replaced alert() with proper Dialog component from shadcn/ui
+  - Step-by-step iOS install instructions in French
+  - Numbered steps with clear descriptions
+  - "J'ai compris" dismiss button
+
+Stage Summary:
+- All 10 DialogContent instances now have scroll support (max-h-[85vh] overflow-y-auto)
+- Registration requires payment proof for MERCHANT/DRIVER roles before submission
+- Proof is saved server-side and admin notified automatically
+- WaitingApproval shows proof, warns if missing, allows re-upload
+- RatingStars uses Star icon consistently (no more X marks)
+- iOS PWA uses Dialog instead of alert()
+- Zero lint errors
+
+---
+Task ID: v3-4
+Agent: Admin Fix Agent
+Task: Fix ALL bugs in Admin space of Rapigo Mali V3
+
+Work Log:
+- Read admin-app.tsx completely (1404+ lines)
+- Bug 1: Fixed status badges in UsersView to check isSuspended (orange "Suspendu"), isBlocked (red "Bloqué"), !isActive (gray "Inactif"), else green "Actif"
+- Bug 2: Fixed dashboard orders table to use `o.client?.user?.firstName || o.user?.firstName || '—'` and show `o.orderNumber` instead of `o.id?.slice(0,8)`
+- Bug 2 (orders view): Applied same fixes to OrdersView table and order detail dialog
+- Bug 3: Verified DELETE endpoints exist and are called correctly (`/api/merchants/[id]` and `/api/drivers/[id]`)
+- Bug 4: Fixed coupon table to use `c.usedCount` instead of `c.usageCount`
+- Bug 5: Fixed ProfileView to conditionally show "Super Administrateur" (when `user.isSuperAdmin` is true) vs "Administrateur" for regular admins
+- Bug 6: Payment proof already displayed in merchant detail dialog (from parallel task). Verified it shows image and paymentProofAt date.
+- Bug 8: Added "Voir la preuve" button in MerchantsView and DriversView list for items with paymentProof, opening a Dialog with the proof image
+- Bug 7: Verified approve/reject send `{ action: 'approve' }` and `{ action: 'reject' }` correctly
+- Fix 9: Verified all actions (approve, reject, suspend, reactivate, block, unblock, delete) call refresh() after completion
+- Fix 10: Applied `max-h-[85vh] flex flex-col` to all DialogContent, `overflow-y-auto -mx-6 px-6` to scrollable content areas, and `mt-auto` to all DialogFooter elements
+- Fix 11: Enhanced user list with color-coded role badges, registration date (createdAt), last login date (lastLoginAt or "Jamais"), and converted action buttons to a dropdown menu
+- Fix 12: Verified dark mode compatibility - all bg-gray-50/100 already have dark: variants, fixed remaining hover:bg-red-50 without dark variant
+- Ran bun run lint - no errors
+
+Stage Summary:
+- 12 bugs/high-priority fixes applied to admin-app.tsx
+- All dialogs now scroll properly with max-h-[85vh] and flex column layout
+- User list shows complete info with color-coded badges and dropdown actions
+- Payment proof viewing works for both merchants and drivers
+- Dark mode compatible throughout
+- ESLint passes clean
+
+---
+Task ID: v3-admin
+Agent: V3 Admin Agent
+Task: Fix ALL bugs in admin app (src/components/admin/admin-app.tsx)
+
+Work Log:
+- Read and analyzed full admin-app.tsx (~1500 lines)
+- Read all relevant API routes (orders, merchants, drivers, users, audit-logs, verify-payment)
+- Read Prisma schema to verify field names (User.isActive, AuditLog.entity, Order.orderNumber/paymentProof)
+- Fixed C1: Replaced o.user?.firstName/lastName → o.client?.user?.firstName/lastName (3 locations)
+- Fixed C2: Replaced o.id?.slice(0,8) → o.orderNumber (3 locations: dashboard, orders list, order detail)
+- Fixed C3: Replaced u.isBlocked/u.isSuspended with u.isActive; simplified action function to suspend/reactivate only; fixed lastLoginAt → lastLogin
+- Fixed C5: Replaced d.firstName/d.lastName → d.user?.firstName/d.user?.lastName with nullish fallbacks
+- Fixed M1: Added payment proof image display + Approuver/Refuser buttons in order detail dialog
+- Fixed M2: Fixed merchant detail to use detail.user?.firstName/lastName, detail.user?.email/phone, added account status
+- Verified M5: All 7 DialogContent instances have max-h-[85vh]
+- Fixed M7: Changed version from "3.0 Enterprise" → "3.0.0 Enterprise" in page.tsx
+- Verified M8: Profile already uses user?.isSuperAdmin conditional
+- Fixed L4: Changed l.entityType → l.entity; fixed audit logs API response parsing ({logs:[...]})
+- Fixed L8: Added PAYMENT_STATUS_COLORS constant, updated Sb component, added PAID to PAYMENT_STATUS_LABELS
+- Updated merchants API to include email, phone, isActive in user select
+- Added Email column to merchants and drivers list tables
+- Added registration payment proof display in merchant detail dialog
+- Ran bun run lint — 0 errors
+
+Stage Summary:
+- All 12+ bugs fixed in admin-app.tsx
+- Merchants API enhanced with email/phone/isActive in user select
+- Store updated with PAID payment status label
+- Version corrected to 3.0.0 Enterprise
+- Zero lint errors, dev server compiles cleanly

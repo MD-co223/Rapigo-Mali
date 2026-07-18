@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Truck, ShoppingBag, Store, Smartphone, Shield, Zap, Star,
   ChevronRight, Menu, X, UtensilsCrossed, Pill, ShoppingCart,
   Package, Shirt, Sparkles, ArrowRight, Phone, Mail, MessageCircle,
-  MapPin, Eye, EyeOff, CheckCircle2, Clock, Users, TrendingUp, LogOut
+  MapPin, Eye, EyeOff, CheckCircle2, Clock, Users, TrendingUp, LogOut,
+  Camera, Upload as UploadIcon, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,13 +59,224 @@ const FEATURES = [
 ];
 
 // =============================================
+// COMPRESSOR IMAGE CLIENT-SIDE
+// =============================================
+
+function compressImage(base64: string, maxW = 800, quality = 0.7): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width;
+      let h = img.height;
+      if (w > maxW) {
+        h = Math.round((h * maxW) / w);
+        w = maxW;
+      }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(base64);
+    img.src = base64;
+  });
+}
+
+// =============================================
+// PAGE ENVOI PREUVE DE PAIEMENT
+// =============================================
+
+function PaymentProofUpload({ role, onProofSent }: { role: 'MERCHANT' | 'DRIVER'; onProofSent: (proofUrl: string) => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const amountLabel = role === 'MERCHANT' ? '4 000 FCFA à vie' : '4 000 FCFA';
+  const roleLabel = role === 'MERCHANT' ? 'commerçant' : 'livreur';
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      const compressed = await compressImage(base64);
+      setSelectedImage(compressed);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleUpload = useCallback(async () => {
+    if (!selectedImage) {
+      toast.error('Veuillez d\'abord sélectionner une image');
+      return;
+    }
+    setUploading(true);
+    const { data, error } = await apiFetch<{ user: { merchant?: { paymentProof?: string | null }; driver?: { paymentProof?: string | null } } }>('/api/auth/upload-proof', {
+      method: 'PATCH',
+      body: JSON.stringify({ proofImage: selectedImage }),
+    });
+    setUploading(false);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    toast.success('Preuve de paiement envoyée avec succès !');
+    const proof = data?.user?.merchant?.paymentProof || data?.user?.driver?.paymentProof || '';
+    onProofSent(proof);
+  }, [selectedImage, onProofSent]);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: EASE_OUT }}
+        className="max-w-md w-full space-y-6"
+      >
+        <div className="mx-auto w-32">
+          <RapigoLogo variant="vertical" height={64} className="mx-auto" priority />
+        </div>
+
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">📋 Frais d&apos;inscription</h1>
+          <p className="text-muted-foreground">
+            Bienvenue {roleLabel} ! Pour activer votre compte, veuillez effectuer le paiement d&apos;inscription.
+          </p>
+        </div>
+
+        <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-5 space-y-3 border border-emerald-200">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">Montant</span>
+            <span className="text-lg font-bold text-emerald-800 dark:text-emerald-200">{amountLabel}</span>
+          </div>
+          <div className="border-t border-emerald-200 dark:border-emerald-700/50" />
+          <div className="space-y-2">
+            <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">Méthode : Orange Money</p>
+            <a
+              href="tel:+22377163870"
+              className="flex items-center justify-center gap-2 text-2xl font-bold text-emerald-800 dark:text-emerald-200 hover:underline py-2"
+            >
+              <Phone className="h-6 w-6" />
+              +223 77 16 38 70
+            </a>
+          </div>
+          <div className="border-t border-emerald-200 dark:border-emerald-700/50" />
+          <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+            Effectuez le paiement, puis prenez une capture d&apos;écran de la confirmation.
+          </p>
+        </div>
+
+        {/* Image upload */}
+        <div className="space-y-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          {selectedImage ? (
+            <div className="space-y-3">
+              <div className="relative rounded-xl overflow-hidden border-2 border-emerald-200 dark:border-emerald-700">
+                <img src={selectedImage} alt="Aperçu" className="w-full max-h-64 object-contain bg-muted/30" />
+                <button
+                  type="button"
+                  onClick={() => { setSelectedImage(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
+                onClick={handleUpload}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Envoi en cours...</>
+                ) : (
+                  <><UploadIcon className="h-4 w-4 mr-2" /> Envoyer la preuve</>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                className="h-20 flex-col gap-1"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera className="h-5 w-5" />
+                <span className="text-xs">📷 Prendre une photo</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-20 flex-col gap-1"
+                onClick={() => {
+                  const input = fileInputRef.current;
+                  if (input) {
+                    input.removeAttribute('capture');
+                    input.click();
+                  }
+                }}
+              >
+                <UploadIcon className="h-5 w-5" />
+                <span className="text-xs">📎 Choisir un fichier</span>
+              </Button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// =============================================
 // PAGE EN ATTENTE DE VALIDATION
 // =============================================
 
-function WaitingApproval({ role }: { role: 'MERCHANT' | 'DRIVER' }) {
-  const { logout } = useAuthStore();
+function WaitingApproval({ role, hasPaymentProof, proofUrl }: { role: 'MERCHANT' | 'DRIVER'; hasPaymentProof: boolean; proofUrl?: string | null }) {
+  const { logout, user } = useAuthStore();
   const { setSpace } = useSpaceStore();
+  const [reUploading, setReUploading] = useState(false);
+  const [reProof, setReProof] = useState<string | null>(null);
+  const reProofRef = useRef<HTMLInputElement>(null);
+
+  const handleReProofChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      const compressed = await compressImage(base64);
+      setReProof(compressed);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleReUpload = useCallback(async () => {
+    if (!reProof || !user) return;
+    setReUploading(true);
+    const { error } = await apiFetch('/api/auth/upload-proof', {
+      method: 'PATCH',
+      body: JSON.stringify({ proofImage: reProof }),
+    });
+    setReUploading(false);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    toast.success('Nouvelle preuve de paiement envoyée !');
+    setReProof(null);
+    window.location.reload();
+  }, [reProof, user]);
+
   const roleLabel = role === 'MERCHANT' ? 'commerçant' : 'livreur';
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
       <motion.div
@@ -82,27 +294,91 @@ function WaitingApproval({ role }: { role: 'MERCHANT' | 'DRIVER' }) {
           </div>
           <h1 className="text-2xl font-bold mb-2">Compte en attente</h1>
           <p className="text-amber-700 dark:text-amber-400 font-medium">
-            Votre compte est <strong>EN ATTENTE</strong> de validation de paiement.
+            Votre inscription comme {roleLabel} est <strong>EN ATTENTE</strong> de validation de paiement.
           </p>
-          <p className="text-muted-foreground mt-2">
-            Effectuez le dépôt, faites une capture d&apos;écran et envoyez la preuve de paiement.
+          <p className="text-muted-foreground text-sm mt-2">
+            Notre équipe va vérifier votre preuve de paiement et activer votre compte sous peu.
           </p>
         </div>
-        <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 space-y-3 text-sm border border-emerald-200">
+
+        {hasPaymentProof && proofUrl && (
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 space-y-3 border border-emerald-200">
+            <div className="flex items-center justify-center gap-2 text-emerald-700 dark:text-emerald-300 font-semibold">
+              <CheckCircle2 className="h-5 w-5" />
+              Preuve de paiement envoyée ✓
+            </div>
+            <div className="mx-auto max-w-[200px]">
+              <img src={proofUrl} alt="Preuve de paiement" className="w-full rounded-lg border border-emerald-200" />
+            </div>
+          </div>
+        )}
+
+        {!hasPaymentProof && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 space-y-3 border border-amber-200">
+            <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
+              ⚠️ Aucune preuve de paiement envoyée. Veuillez en envoyer une pour activer votre compte.
+            </p>
+          </div>
+        )}
+
+        {/* Re-upload section */}
+        <div className="space-y-3">
+          <input
+            ref={reProofRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleReProofChange}
+          />
+          {reProof ? (
+            <div className="space-y-2">
+              <div className="relative rounded-xl overflow-hidden border-2 border-emerald-200 dark:border-emerald-700">
+                <img src={reProof} alt="Nouvelle preuve" className="w-full max-h-48 object-contain bg-muted/30" />
+                <button
+                  type="button"
+                  onClick={() => setReProof(null)}
+                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700"
+                onClick={handleReUpload}
+                disabled={reUploading}
+              >
+                {reUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Envoi en cours...</> : <><UploadIcon className="h-4 w-4 mr-2" /> Envoyer la nouvelle preuve</>}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => reProofRef.current?.click()}
+            >
+              <UploadIcon className="h-4 w-4" />
+              Envoyer une autre preuve
+            </Button>
+          )}
+        </div>
+
+        <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 space-y-2 text-sm border border-emerald-200">
           <p className="font-semibold text-emerald-800 dark:text-emerald-300">📋 Inscription : 4 000 FCFA</p>
-          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-center justify-center gap-2 text-emerald-700 dark:text-emerald-400">
             <span className="font-medium">Paiement Orange Money :</span>
             <a href="tel:+22377163870" className="font-bold text-lg hover:underline">+223 77 16 38 70</a>
           </div>
         </div>
+
         <div className="bg-muted/50 rounded-xl p-4 space-y-2 text-sm">
           <p className="font-medium">Besoin d&apos;aide ?</p>
           <p className="text-muted-foreground">
             Contactez Mr. Diarra Moussa pour accélérer la validation.
           </p>
           <div className="flex flex-col gap-2 pt-2">
-            <a href="tel:+22377163862" className="inline-flex items-center justify-center gap-2 text-emerald-600 hover:underline font-medium">
-              <Phone className="h-4 w-4" /> +223 77 16 38 62
+            <a href="tel:+22377163870" className="inline-flex items-center justify-center gap-2 text-emerald-600 hover:underline font-medium">
+              <Phone className="h-4 w-4" /> +223 77 16 38 70
             </a>
             <a href="https://wa.me/22377163862" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 text-emerald-600 hover:underline font-medium">
               <MessageCircle className="h-4 w-4" /> WhatsApp
@@ -134,6 +410,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [merchantDriverApproved, setMerchantDriverApproved] = useState<boolean | null>(null);
+  const [proofUploadRole, setProofUploadRole] = useState<'MERCHANT' | 'DRIVER' | null>(null);
+  const [hasPaymentProof, setHasPaymentProof] = useState(false);
+  const [proofUrl, setProofUrl] = useState<string | null>(null);
 
   // Statut d'approbation effectif : CLIENT/ADMIN toujours approuvés, MERCHANT/DRIVER vérifié via API
   const isApproved = user?.role === 'CLIENT' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
@@ -151,6 +430,20 @@ export default function HomePage() {
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState('CLIENT');
+  const [regPaymentProof, setRegPaymentProof] = useState<string | null>(null);
+  const regProofRef = useRef<HTMLInputElement>(null);
+
+  const handleRegProofChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      const compressed = await compressImage(base64);
+      setRegPaymentProof(compressed);
+    };
+    reader.readAsDataURL(file);
+  }, []);
 
   // Restauration de session : vérifier l'approbation + routage vers l'espace
   useEffect(() => {
@@ -169,14 +462,18 @@ export default function HomePage() {
 
       // MERCHANT / DRIVER : vérifier l'approbation via l'API
       setSpace(targetSpace);
-      apiFetch<{ merchant?: { isApproved: boolean }; driver?: { isApproved: boolean } }>('/api/auth/me').then(({ data }) => {
+      apiFetch<{ merchant?: { isApproved: boolean; paymentProof?: string | null }; driver?: { isApproved: boolean; paymentProof?: string | null } }>('/api/auth/me').then(({ data }) => {
         if (data) {
-          const approved = data.merchant
-            ? data.merchant.isApproved
-            : data.driver
-              ? data.driver.isApproved
-              : true;
+          const profile = data.merchant || data.driver;
+          const approved = profile ? profile.isApproved : true;
+          const proof = profile?.paymentProof || null;
           setMerchantDriverApproved(approved);
+          setHasPaymentProof(!!proof);
+          setProofUrl(proof);
+          // If not approved and no proof, show upload step
+          if (!approved && !proof) {
+            setProofUploadRole(user.role as 'MERCHANT' | 'DRIVER');
+          }
         }
       });
     }
@@ -188,7 +485,7 @@ export default function HomePage() {
       return;
     }
     setLoading(true);
-    const { data, error } = await apiFetch<{ user: AuthUser; token: string; merchant?: { isApproved: boolean }; driver?: { isApproved: boolean } }>('/api/auth/login', {
+    const { data, error } = await apiFetch<{ user: AuthUser; token: string; merchant?: { isApproved: boolean; paymentProof?: string | null }; driver?: { isApproved: boolean; paymentProof?: string | null } }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email: loginEmail, password: loginPassword }),
     });
@@ -196,13 +493,16 @@ export default function HomePage() {
     if (error) { toast.error(error); return; }
     if (data) {
       login(data.user, data.token);
-      const approved = data.merchant
-        ? data.merchant.isApproved
-        : data.driver
-          ? data.driver.isApproved
-          : true;
+      const profile = data.merchant || data.driver;
+      const approved = profile ? profile.isApproved : true;
+      const proof = profile?.paymentProof || null;
       setMerchantDriverApproved(approved);
+      setHasPaymentProof(!!proof);
+      setProofUrl(proof);
       setShowAuth(false);
+      if (!approved && !proof && (data.user.role === 'MERCHANT' || data.user.role === 'DRIVER')) {
+        setProofUploadRole(data.user.role as 'MERCHANT' | 'DRIVER');
+      }
       toast.success(`Bienvenue ${data.user.firstName} !`);
     }
   }, [loginEmail, loginPassword, login]);
@@ -216,12 +516,17 @@ export default function HomePage() {
       toast.error('Le mot de passe doit contenir au moins 6 caractères');
       return;
     }
+    if ((regRole === 'MERCHANT' || regRole === 'DRIVER') && !regPaymentProof) {
+      toast.error('Veuillez télécharger la preuve de paiement');
+      return;
+    }
     setLoading(true);
     const { data, error } = await apiFetch<{ user: AuthUser; token: string }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({
         firstName: regFirstName, lastName: regLastName,
         email: regEmail, phone: regPhone, password: regPassword, role: regRole,
+        paymentProof: (regRole === 'MERCHANT' || regRole === 'DRIVER') ? regPaymentProof : undefined,
       }),
     });
     setLoading(false);
@@ -231,11 +536,28 @@ export default function HomePage() {
       setShowAuth(false);
       if (regRole === 'MERCHANT' || regRole === 'DRIVER') {
         setMerchantDriverApproved(false);
+        const constructedProofUrl = `/uploads/registration/${data.user.id}.png`;
+        setHasPaymentProof(true);
+        setProofUrl(constructedProofUrl);
+        setProofUploadRole(null);
+        // Reset registration form
+        setRegPaymentProof(null);
+        setRegFirstName('');
+        setRegLastName('');
+        setRegEmail('');
+        setRegPhone('');
+        setRegPassword('');
       }
       const roleLabel = regRole === 'CLIENT' ? 'client' : regRole === 'MERCHANT' ? 'commerçant' : 'livreur';
       toast.success(`Bienvenue ! Votre compte ${roleLabel} a été créé.`);
     }
-  }, [regFirstName, regLastName, regEmail, regPhone, regPassword, regRole, login]);
+  }, [regFirstName, regLastName, regEmail, regPhone, regPassword, regRole, regPaymentProof, login]);
+
+  const handleProofSent = useCallback((sentProofUrl: string) => {
+    setHasPaymentProof(true);
+    setProofUrl(sentProofUrl);
+    setProofUploadRole(null);
+  }, []);
 
   // =============================================
   // ESPACE AUTHENTIFIÉ
@@ -243,7 +565,24 @@ export default function HomePage() {
   if (isAuthenticated && user) {
     // Commerçant ou livreur non approuvé
     if ((user.role === 'MERCHANT' || user.role === 'DRIVER') && !isApproved) {
-      return <WaitingApproval role={user.role as 'MERCHANT' | 'DRIVER'} />;
+      // Show proof upload step if no proof yet
+      if (proofUploadRole && !hasPaymentProof) {
+        return (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="proof-upload"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25, ease: EASE_OUT }}
+            >
+              <PaymentProofUpload role={proofUploadRole} onProofSent={handleProofSent} />
+            </motion.div>
+          </AnimatePresence>
+        );
+      }
+      // Show waiting approval (proof was sent or already existed)
+      return <WaitingApproval role={user.role as 'MERCHANT' | 'DRIVER'} hasPaymentProof={hasPaymentProof} proofUrl={proofUrl} />;
     }
 
     let SpaceComponent: React.LazyExoticComponent<React.ComponentType> | null = null;
@@ -522,7 +861,7 @@ export default function HomePage() {
 
           <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
             <p>© 2025 Rapigo Mali. Tous droits réservés.</p>
-            <p>Version 2.5.0 Enterprise</p>
+            <p>Version 3.0.0 Enterprise</p>
           </div>
         </div>
       </footer>
@@ -531,7 +870,7 @@ export default function HomePage() {
           BOÎTE DE DIALOGUE D'AUTHENTIFICATION
           ============================================= */}
       <Dialog open={showAuth} onOpenChange={setShowAuth}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90dvh] flex flex-col">
           <DialogHeader>
             <div className="mx-auto mb-2">
               <RapigoLogo variant="vertical" height={40} className="mx-auto" />
@@ -545,7 +884,7 @@ export default function HomePage() {
                 : 'Rejoignez Rapigo Mali dès maintenant'}
             </DialogDescription>
           </DialogHeader>
-
+          <div className="overflow-y-auto flex-1 pr-1">
           {authTab === 'login' ? (
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
@@ -628,7 +967,64 @@ export default function HomePage() {
                   <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 text-sm border border-amber-200 space-y-2">
                     <p className="font-medium text-amber-800 dark:text-amber-300">Paiement Orange Money :</p>
                     <a href="tel:+22377163870" className="text-lg font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 77 16 38 70</a>
-                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement, puis envoyez la preuve via WhatsApp après inscription.</p>
+                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement, puis téléchargez la capture d&apos;écran ci-dessous.</p>
+                  </div>
+                  {/* Preuve de paiement */}
+                  <div className="space-y-2">
+                    <Label>Preuve de paiement <span className="text-red-500">*</span></Label>
+                    <input
+                      ref={regProofRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleRegProofChange}
+                    />
+                    {regPaymentProof ? (
+                      <div className="space-y-2">
+                        <div className="relative rounded-lg overflow-hidden border-2 border-emerald-200 dark:border-emerald-700">
+                          <img src={regPaymentProof} alt="Aperçu de la preuve" className="w-full max-h-40 object-contain bg-muted/30" />
+                          <button
+                            type="button"
+                            onClick={() => { setRegPaymentProof(null); }}
+                            className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-medium">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Image sélectionnée
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-16 flex-col gap-1 text-xs"
+                          onClick={() => regProofRef.current?.click()}
+                        >
+                          <Camera className="h-5 w-5" />
+                          <span>📷 Photo</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-16 flex-col gap-1 text-xs"
+                          onClick={() => {
+                            const input = regProofRef.current;
+                            if (input) {
+                              input.removeAttribute('capture');
+                              input.click();
+                            }
+                          }}
+                        >
+                          <UploadIcon className="h-5 w-5" />
+                          <span>📎 Fichier</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
                     <p>Votre compte sera activé après validation de votre paiement par notre équipe.</p>
@@ -643,7 +1039,64 @@ export default function HomePage() {
                   <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 text-sm border border-amber-200 space-y-2">
                     <p className="font-medium text-amber-800 dark:text-amber-300">Paiement Orange Money :</p>
                     <a href="tel:+22377163870" className="text-lg font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 77 16 38 70</a>
-                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement, puis envoyez la preuve via WhatsApp après inscription.</p>
+                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement, puis téléchargez la capture d&apos;écran ci-dessous.</p>
+                  </div>
+                  {/* Preuve de paiement */}
+                  <div className="space-y-2">
+                    <Label>Preuve de paiement <span className="text-red-500">*</span></Label>
+                    <input
+                      ref={regProofRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleRegProofChange}
+                    />
+                    {regPaymentProof ? (
+                      <div className="space-y-2">
+                        <div className="relative rounded-lg overflow-hidden border-2 border-emerald-200 dark:border-emerald-700">
+                          <img src={regPaymentProof} alt="Aperçu de la preuve" className="w-full max-h-40 object-contain bg-muted/30" />
+                          <button
+                            type="button"
+                            onClick={() => { setRegPaymentProof(null); }}
+                            className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-medium">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Image sélectionnée
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-16 flex-col gap-1 text-xs"
+                          onClick={() => regProofRef.current?.click()}
+                        >
+                          <Camera className="h-5 w-5" />
+                          <span>📷 Photo</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-16 flex-col gap-1 text-xs"
+                          onClick={() => {
+                            const input = regProofRef.current;
+                            if (input) {
+                              input.removeAttribute('capture');
+                              input.click();
+                            }
+                          }}
+                        >
+                          <UploadIcon className="h-5 w-5" />
+                          <span>📎 Fichier</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
                     <p>Vous devrez fournir vos documents (CNI, permis) et la preuve de paiement pour validation.</p>
@@ -662,6 +1115,7 @@ export default function HomePage() {
               </p>
             </div>
           )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

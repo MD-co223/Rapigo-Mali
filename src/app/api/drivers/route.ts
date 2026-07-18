@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
+import { parsePagination } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +13,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const approved = searchParams.get('approved');
     const available = searchParams.get('available');
+    const { limit, offset } = parsePagination(searchParams);
 
     // Non-admin can only see their own profile
     if (auth.role !== 'ADMIN' && !auth.isSuperAdmin) {
@@ -30,13 +32,18 @@ export async function GET(request: NextRequest) {
     if (approved === 'false') where.isApproved = false;
     if (available === 'true') where.isAvailable = true;
 
-    const drivers = await db.driver.findMany({
-      where,
-      include: { user: { select: { firstName: true, lastName: true, avatar: true, phone: true, email: true, isActive: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [drivers, total] = await Promise.all([
+      db.driver.findMany({
+        where,
+        include: { user: { select: { firstName: true, lastName: true, avatar: true, phone: true, email: true, isActive: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.driver.count({ where }),
+    ]);
 
-    return NextResponse.json(drivers);
+    return NextResponse.json({ drivers, total, limit, offset });
   } catch (error) {
     console.error('List drivers error:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
