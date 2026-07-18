@@ -28,128 +28,229 @@ const AdminApp = lazy(() => import('@/components/admin/admin-app'));
 const EASE_OUT = [0, 0, 0.2, 1] as const;
 
 // =============================================
-// SPLASH SCREEN - Animation d'ouverture ultra stylée
+// SPLASH SCREEN — Animation d'ouverture cinématique ultra stylée
 // =============================================
 function SplashScreen({ onDone }: { onDone: () => void }) {
-  const [phase, setPhase] = useState<'logo-enter' | 'glow' | 'shrink' | 'fade-out'>('logo-enter');
+  const [phase, setPhase] = useState(0);
+  // Phases: 0=black-in, 1=logo-reveal, 2=glow-pulse, 3=tagline-in, 4=shimmer, 5=zoom-out
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase('glow'), 600);
-    const t2 = setTimeout(() => setPhase('shrink'), 1600);
-    const t3 = setTimeout(() => setPhase('fade-out'), 2200);
-    const t4 = setTimeout(onDone, 2800);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+    const timers = [
+      setTimeout(() => setPhase(1), 400),
+      setTimeout(() => setPhase(2), 1000),
+      setTimeout(() => setPhase(3), 1600),
+      setTimeout(() => setPhase(4), 2100),
+      setTimeout(() => setPhase(5), 2600),
+      setTimeout(onDone, 3200),
+    ];
+    return () => timers.forEach(clearTimeout);
   }, [onDone]);
 
   return (
     <motion.div
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white dark:bg-gray-950 overflow-hidden"
+      className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 30%, #047857 60%, #059669 100%)' }}
       initial={{ opacity: 1 }}
-      animate={phase === 'fade-out' ? { opacity: 0, scale: 1.05 } : { opacity: 1, scale: 1 }}
-      transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+      animate={phase >= 5 ? { opacity: 0, scale: 1.08 } : { opacity: 1 }}
+      transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
     >
-      {/* Animated background rings */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        {[...Array(3)].map((_, i) => (
+      {/* Animated gradient background overlay */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.12) 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(16,185,129,0.15) 0%, transparent 50%)',
+        }}
+        animate={phase >= 2 ? { opacity: [0.5, 1, 0.5] } : { opacity: 0.5 }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Cinematic light rays */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {[...Array(6)].map((_, i) => (
           <motion.div
-            key={i}
-            className="absolute rounded-full border border-emerald-200 dark:border-emerald-800"
-            initial={{ width: 80, height: 80, opacity: 0.6 }}
-            animate={
-              phase === 'glow'
-                ? { width: [80, 300 + i * 120, 400 + i * 100], height: [80, 300 + i * 120, 400 + i * 100], opacity: [0.6, 0.3, 0] }
-                : { width: 80, height: 80, opacity: 0 }
+            key={`ray-${i}`}
+            className="absolute origin-center"
+            style={{
+              left: '50%',
+              top: '40%',
+              width: '2px',
+              height: '200%',
+              background: 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.06) 40%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.06) 60%, transparent 100%)',
+              transform: `rotate(${i * 30}deg)`,
+            }}
+            initial={{ opacity: 0, scaleY: 0 }}
+            animate={phase >= 1
+              ? { opacity: [0, 0.8, 0.4, 0], scaleY: [0, 1.2, 1, 1.2] }
+              : { opacity: 0, scaleY: 0 }
             }
-            transition={{ duration: 1.2, ease: 'easeOut', delay: i * 0.15 }}
+            transition={{ duration: 2.5, ease: 'easeOut', delay: i * 0.1 }}
           />
         ))}
       </div>
 
-      {/* Floating particles */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {[...Array(8)].map((_, i) => {
-          const angle = (i / 8) * Math.PI * 2;
-          const x = Math.cos(angle) * 120;
-          const y = Math.sin(angle) * 120;
+      {/* Orbiting ring particles */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {[...Array(12)].map((_, i) => {
+          const angle = (i / 12) * Math.PI * 2;
+          const radius = 140;
+          const x = Math.cos(angle) * radius;
+          const y = Math.sin(angle) * radius;
           return (
             <motion.div
-              key={`p-${i}`}
-              className="absolute w-1.5 h-1.5 rounded-full bg-emerald-400"
-              style={{ left: '50%', top: '50%' }}
+              key={`orb-${i}`}
+              className="absolute rounded-full"
+              style={{
+                width: i % 3 === 0 ? 6 : 3,
+                height: i % 3 === 0 ? 6 : 3,
+                background: i % 2 === 0 ? 'rgba(255,255,255,0.7)' : 'rgba(52,211,153,0.8)',
+                boxShadow: i % 2 === 0 ? '0 0 8px rgba(255,255,255,0.4)' : '0 0 8px rgba(52,211,153,0.4)',
+                left: '50%',
+                top: '50%',
+              }}
               initial={{ x: 0, y: 0, opacity: 0, scale: 0 }}
-              animate={
-                phase === 'glow'
-                  ? { x: [0, x * 0.5, x], y: [0, y * 0.5, y], opacity: [0, 0.8, 0], scale: [0, 1.2, 0.5] }
-                  : { x: 0, y: 0, opacity: 0, scale: 0 }
+              animate={phase >= 1
+                ? {
+                    x: [0, x * 0.3, x * 1.1, x],
+                    y: [0, y * 0.3, y * 1.1, y],
+                    opacity: [0, 1, 0.6, 0],
+                    scale: [0, 1.5, 1, 0.3],
+                  }
+                : { x: 0, y: 0, opacity: 0, scale: 0 }
               }
-              transition={{ duration: 1, ease: 'easeOut', delay: 0.2 + i * 0.06 }}
+              transition={{ duration: 2, ease: [0.16, 1, 0.3, 1], delay: 0.3 + i * 0.04 }}
             />
           );
         })}
       </div>
 
-      {/* Main banner logo */}
+      {/* Expanding pulse rings */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {[...Array(3)].map((_, i) => (
+          <motion.div
+            key={`ring-${i}`}
+            className="absolute rounded-full border-2 border-white/20"
+            initial={{ width: 60, height: 60, opacity: 0 }}
+            animate={phase >= 2
+              ? {
+                  width: [60, 200 + i * 150, 500 + i * 100],
+                  height: [60, 200 + i * 150, 500 + i * 100],
+                  opacity: [0, 0.5, 0],
+                  borderWidth: [2, 1, 0.5],
+                }
+              : { width: 60, height: 60, opacity: 0 }
+            }
+            transition={{ duration: 1.5, ease: 'easeOut', delay: i * 0.2 }}
+          />
+        ))}
+      </div>
+
+      {/* Main logo container with glow */}
       <motion.div
         className="relative z-10 flex flex-col items-center"
-        initial={{ y: 40, opacity: 0, scale: 0.8, filter: 'blur(10px)' }}
+        initial={{ y: 60, opacity: 0, scale: 0.6, filter: 'blur(20px)' }}
         animate={
-          phase === 'logo-enter'
+          phase === 1
             ? { y: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }
-            : phase === 'shrink'
-              ? { y: -10, scale: 0.9, opacity: 1 }
-              : phase === 'fade-out'
-                ? { y: -30, scale: 0.85, opacity: 0 }
-                : { y: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }
+            : phase === 5
+              ? { y: -40, scale: 0.88, opacity: 0, filter: 'blur(8px)' }
+              : { y: 0, opacity: 1, scale: 1 }
         }
-        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        transition={phase === 1
+          ? { duration: 0.8, ease: [0.16, 1, 0.3, 1] }
+          : { duration: 0.6, ease: [0.4, 0, 0.2, 1] }
+        }
       >
-        <img
-          src="/rapigo-banner.jpeg"
-          alt="Rapigo Mali"
-          className="h-24 sm:h-28 md:h-32 w-auto object-contain drop-shadow-2xl"
+        {/* Logo glow backdrop */}
+        <motion.div
+          className="absolute -inset-8 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.3) 0%, transparent 70%)' }}
+          animate={phase >= 2 ? { scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] } : { scale: 1, opacity: 0.5 }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
         />
+
+        {/* The actual logo image */}
+        <motion.div
+          className="relative rounded-2xl overflow-hidden shadow-2xl"
+          style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.3), 0 0 40px rgba(16,185,129,0.15)' }}
+          animate={phase >= 4 ? {
+            boxShadow: [
+              '0 25px 60px rgba(0,0,0,0.3), 0 0 40px rgba(16,185,129,0.15)',
+              '0 25px 60px rgba(0,0,0,0.3), 0 0 80px rgba(16,185,129,0.3)',
+              '0 25px 60px rgba(0,0,0,0.3), 0 0 40px rgba(16,185,129,0.15)',
+            ],
+          } : {}}
+          transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <img
+            src="/rapigo-logo.jpg"
+            alt="Rapigo Mali"
+            className="h-36 sm:h-44 md:h-52 w-auto object-contain"
+            draggable={false}
+          />
+          {/* Shimmer overlay on logo */}
+          <motion.div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 45%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.25) 55%, transparent 60%)',
+            }}
+            initial={{ x: '-100%' }}
+            animate={phase >= 4 ? { x: '200%' } : { x: '-100%' }}
+            transition={{ duration: 0.8, ease: 'easeInOut' }}
+          />
+        </motion.div>
       </motion.div>
 
-      {/* Tagline */}
-      <motion.p
-        className="relative z-10 text-emerald-700 dark:text-emerald-400 font-medium text-sm sm:text-base mt-4 tracking-wide"
-        initial={{ y: 20, opacity: 0 }}
-        animate={
-          phase === 'glow'
-            ? { y: 0, opacity: 1 }
-            : phase === 'fade-out'
-              ? { opacity: 0, y: -10 }
-              : { y: 20, opacity: 0 }
-        }
-        transition={{ duration: 0.5, ease: EASE_OUT }}
-      >
-        Rapide, Fiable, Partout au Mali
-      </motion.p>
-
-      {/* Loading bar */}
+      {/* Tagline with letter-by-letter animation */}
       <motion.div
-        className="absolute bottom-16 left-1/2 -translate-x-1/2 w-32 h-1 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden z-10"
+        className="relative z-10 mt-5 flex overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={phase >= 3 ? { opacity: 1 } : { opacity: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        {'Rapide • Fiable • Partout au Mali'.split('').map((char, i) => (
+          <motion.span
+            key={i}
+            className="text-white/90 font-semibold text-sm sm:text-base tracking-wider"
+            initial={{ y: 20, opacity: 0 }}
+            animate={phase >= 3 ? { y: 0, opacity: 1 } : { y: 20, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1], delay: (phase >= 3 ? 0 : 0) + i * 0.02 }}
+          >
+            {char === ' ' ? '\u00A0' : char}
+          </motion.span>
+        ))}
+      </motion.div>
+
+      {/* Elegant loading bar */}
+      <motion.div
+        className="absolute bottom-16 left-1/2 -translate-x-1/2 w-40 h-0.5 rounded-full overflow-hidden z-10"
+        style={{ background: 'rgba(255,255,255,0.15)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.3, duration: 0.3 }}
+        transition={{ delay: 0.5, duration: 0.3 }}
       >
         <motion.div
-          className="h-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-amber-400 rounded-full"
-          initial={{ width: '0%' }}
-          animate={{ width: '100%' }}
-          transition={{ duration: 2.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="h-full rounded-full"
+          style={{
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.9), rgba(52,211,153,0.9), transparent)',
+          }}
+          initial={{ x: '-100%' }}
+          animate={{ x: '100%' }}
+          transition={{ duration: 1.8, repeat: Infinity, ease: [0.25, 0.46, 0.45, 0.94] }}
         />
       </motion.div>
 
-      {/* Copyright */}
-      <motion.p
-        className="absolute bottom-6 text-[10px] text-gray-400 dark:text-gray-600 z-10"
+      {/* Version badge */}
+      <motion.div
+        className="absolute bottom-7 z-10 flex items-center gap-1.5"
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1, duration: 0.5 }}
+        animate={{ opacity: 0.6 }}
+        transition={{ delay: 1.2, duration: 0.6 }}
       >
-        © 2025 Rapigo Mali · Version 3.0.0 Enterprise
-      </motion.p>
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[10px] text-white/50 tracking-widest font-medium">
+          RAPIGO MALI · V3.0
+        </span>
+      </motion.div>
     </motion.div>
   );
 }

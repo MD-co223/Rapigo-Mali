@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "Rapigo Mali",
-    startupImage: "/logo-transparent.png",
+    startupImage: "/rapigo-logo.jpg",
   },
   openGraph: {
     title: "Rapigo Mali V3.0 — Rapide, Fiable, Partout au Mali",
@@ -67,9 +67,9 @@ export const metadata: Metadata = {
     siteName: "Rapigo Mali",
     images: [
       {
-        url: "/logo-transparent.png",
-        width: 1536,
-        height: 1024,
+        url: "/rapigo-logo.jpg",
+        width: 591,
+        height: 1280,
         alt: "Rapigo Mali",
       },
     ],
@@ -81,7 +81,7 @@ export const metadata: Metadata = {
     title: "Rapigo Mali V3.0 — Rapide, Fiable, Partout au Mali",
     description:
       "Votre plateforme de livraison N°1 au Mali. Restaurants, supermarchés, pharmacies, boutiques - tout livré chez vous en quelques minutes.",
-    images: ["/logo-transparent.png"],
+    images: ["/rapigo-logo.jpg"],
   },
   robots: {
     index: true,
@@ -127,7 +127,7 @@ export default function RootLayout({
               "@type": "Organization",
               name: "Rapigo Mali",
               url: APP_URL,
-              logo: `${APP_URL}/logo-transparent.png`,
+              logo: `${APP_URL}/rapigo-logo.jpg`,
               description:
                 "Plateforme de livraison N°1 au Mali. Restaurants, supermarchés, pharmacies, boutiques - tout livré chez vous.",
               address: {
