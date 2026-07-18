@@ -1279,3 +1279,66 @@ Stage Summary:
 - Super admin credentials now work: diarramoussaka7@gmail.com / pispa2026
 - Database fully seeded with essential data
 - seed.ts updated for future use (idempotent, correct role)
+
+---
+Task ID: banner-splash-animation
+Agent: Main Orchestrator
+Task: Add banner to header/footer, PWA install prompt, and create ultra-stylish splash screen animation
+
+Work Log:
+- Copied IMG_2841.jpeg to /public/rapigo-banner.jpeg
+- Added banner to landing page header (above nav bar, responsive h-10/h-12/h-14)
+- Added banner to landing page footer (above footer content, h-12/h-14/h-16)
+- Added banner to auth dialog header (replaced RapigoLogo vertical)
+- Added banner to client app (thin strip at top of content)
+- Added banner to merchant app (sidebar + mobile header + mobile sheet menu)
+- Added banner to driver app (thin strip above dark header)
+- Added banner to admin app (sidebar + mobile header + mobile sheet menu)
+- Updated PWA install prompt to use banner image instead of app-icon
+- Updated iOS install dialog to show banner at top
+- Created splash-screen.tsx with multi-phase Framer Motion animation:
+  - Phase 0: 3D logo reveal with blur-to-clear transition
+  - Phase 1: Tagline fade-in + animated dot indicators
+  - Phase 2: Smooth fade-out exit
+  - Background: animated emerald/amber gradient orbs, expanding rings, corner particles
+  - Top/bottom shimmer lines
+- Wired SplashScreen into layout.tsx wrapping {children}
+- All lint clean, TypeScript clean
+
+Stage Summary:
+- Banner visible on ALL pages (landing, client, merchant, driver, admin, auth dialog, PWA)
+- Splash screen shows once per session with premium animation (~2.8s)
+- PWA install prompt now shows the full Rapigo Mali banner
+
+---
+Task ID: banner-and-splash
+Agent: Main Orchestrator
+Task: Add Rapigo Mali banner to all headers/footers, PWA install, and create splash animation
+
+Work Log:
+- Copied IMG_2841.jpeg to /public/rapigo-banner.jpeg for static serving
+- Added banner to landing page header (above nav bar, responsive h-10/12/14)
+- Added banner to landing page footer (above footer content, responsive h-12/14/16)
+- Added banner to auth dialog header (replaced vertical logo)
+- Added banner to client app (top strip h-8)
+- Added banner to merchant app (sidebar + mobile header, brightness-0 invert for dark bg)
+- Added banner to driver app (above dark header bar)
+- Added banner to admin app (sidebar + mobile header + mobile menu sheet)
+- Updated PWA install prompt banner (already had banner from previous session)
+- Created ultra-stylized splash screen with 4 phases: logo-enter, glow, shrink, fade-out
+  - Animated background rings expanding outward
+  - 8 floating particles radiating from center
+  - Banner logo with blur-to-sharp entrance animation
+  - Tagline fade-in
+  - Gradient loading bar (emerald to amber)
+  - Version copyright
+- Updated LoadingSpace component to use banner instead of vertical logo
+- Removed old splash-screen.tsx (had lint errors with set-state-in-effect)
+- Removed SplashScreen wrapper from layout.tsx
+- Updated page version comment to V3.0
+
+Stage Summary:
+- Banner visible in ALL app spaces: landing, client, merchant, driver, admin
+- Banner in header + footer of landing page
+- Ultra-stylized splash animation on every app open (~2.8s)
+- Zero lint errors, zero TypeScript errors

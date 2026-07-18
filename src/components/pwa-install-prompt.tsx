@@ -18,7 +18,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-const DISMISS_KEY = 'rapigo-pwa-dismissed-v2';
+const DISMISS_KEY = 'rapigo-pwa-dismissed-v3';
 
 function isStandaloneMode(): boolean {
   if (typeof window === 'undefined') return false;
@@ -40,76 +40,54 @@ export function PwaInstallPrompt() {
   const [installing, setInstalling] = useState(false);
   const [iosDialogOpen, setIosDialogOpen] = useState(false);
 
-  // Check if already installed or dismissed
   const shouldShow = useCallback(() => {
     if (isStandaloneMode()) return false;
     if (localStorage.getItem(DISMISS_KEY)) return false;
     return true;
   }, []);
 
-  // Show the banner
   const show = useCallback(() => {
-    if (shouldShow()) {
-      setVisible(true);
-    }
+    if (shouldShow()) setVisible(true);
   }, [shouldShow]);
 
-  // Dismiss handler
   const handleDismiss = useCallback(() => {
     setVisible(false);
     localStorage.setItem(DISMISS_KEY, '1');
   }, []);
 
-  // Android install
   const handleInstall = useCallback(async () => {
     if (deferredPromptRef.current) {
       setInstalling(true);
       try {
         await deferredPromptRef.current.prompt();
         const { outcome } = await deferredPromptRef.current.userChoice;
-        if (outcome === 'accepted') {
-          setVisible(false);
-        }
-      } catch {
-        // user cancelled or error
-      } finally {
+        if (outcome === 'accepted') setVisible(false);
+      } catch { /* user cancelled */ } finally {
         setInstalling(false);
         deferredPromptRef.current = null;
       }
     }
   }, []);
 
-  // iOS install - show dialog with instructions
-  const handleIosInstall = useCallback(() => {
-    setIosDialogOpen(true);
-  }, []);
+  const handleIosInstall = useCallback(() => setIosDialogOpen(true), []);
 
   useEffect(() => {
-    // Detect platform
     setPlatform(isAppleDevice() ? 'ios' : 'android');
-
     if (!shouldShow()) return;
 
     let promptFired = false;
-
-    // Listen for beforeinstallprompt (Android/Chrome)
     const handler = (e: Event) => {
       e.preventDefault();
       deferredPromptRef.current = e as BeforeInstallPromptEvent;
       promptFired = true;
-      // Show our custom banner (Chrome shows its own mini-infobar, we override it)
-      setTimeout(show, 1500);
+      setTimeout(show, 3000);
     };
 
     window.addEventListener('beforeinstallprompt', handler);
 
-    // Fallback: if no beforeinstallprompt after 4s, show anyway
-    // This handles iOS (no event) and cases where event was missed
     const fallbackTimer = setTimeout(() => {
-      if (!promptFired && shouldShow()) {
-        show();
-      }
-    }, 4000);
+      if (!promptFired && shouldShow()) show();
+    }, 5000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
@@ -117,7 +95,6 @@ export function PwaInstallPrompt() {
     };
   }, [shouldShow, show]);
 
-  // Listen for appinstalled event
   useEffect(() => {
     const handler = () => {
       setVisible(false);
@@ -142,18 +119,16 @@ export function PwaInstallPrompt() {
             {/* Main Banner */}
             <div className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-600/20">
               <div className="max-w-5xl mx-auto px-3 py-2.5 flex items-center gap-3">
-                {/* App Icon */}
-                <div className="flex-shrink-0 w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-inner">
+                {/* Banner Logo */}
+                <div className="flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-xl p-1 shadow-inner">
                   <img
-                    src="/app-icon.png"
+                    src="/rapigo-banner.jpeg"
                     alt="Rapigo Mali"
-                    className="w-9 h-9 rounded-xl object-contain"
-                    width={36}
-                    height={36}
+                    className="h-9 w-auto object-contain rounded-lg"
                   />
                 </div>
 
-                {/* Text Content */}
+                {/* Text */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm tracking-tight">
@@ -170,7 +145,7 @@ export function PwaInstallPrompt() {
                   </p>
                 </div>
 
-                {/* Action Buttons */}
+                {/* Buttons */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {platform === 'ios' ? (
                     <button
@@ -194,8 +169,6 @@ export function PwaInstallPrompt() {
                       Installer
                     </button>
                   )}
-
-                  {/* Dismiss */}
                   <button
                     onClick={handleDismiss}
                     className="p-1.5 rounded-full hover:bg-white/10 active:scale-90 transition-all"
@@ -207,7 +180,7 @@ export function PwaInstallPrompt() {
               </div>
             </div>
 
-            {/* iOS Instruction Panel (shows below banner when on iOS) */}
+            {/* iOS instruction tip */}
             {platform === 'ios' && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
@@ -216,9 +189,7 @@ export function PwaInstallPrompt() {
                 className="bg-emerald-50 border-b border-emerald-200 overflow-hidden"
               >
                 <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-                  <div className="flex-shrink-0">
-                    <ArrowUpRight size={20} className="text-emerald-600" />
-                  </div>
+                  <ArrowUpRight size={20} className="text-emerald-600 flex-shrink-0" />
                   <p className="text-xs text-emerald-800 leading-relaxed">
                     <span className="font-semibold">Astuce :</span> Appuyez sur le bouton
                     <span className="inline-flex items-center mx-1 px-1.5 py-0.5 bg-white rounded-md shadow-sm text-[11px] font-medium">
@@ -234,54 +205,55 @@ export function PwaInstallPrompt() {
         )}
       </AnimatePresence>
 
-      {/* iOS Install Instructions Dialog */}
+      {/* iOS Install Dialog */}
       <Dialog open={iosDialogOpen} onOpenChange={setIosDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <div className="flex justify-center mb-3">
+              <img
+                src="/rapigo-banner.jpeg"
+                alt="Rapigo Mali"
+                className="h-14 w-auto object-contain"
+              />
+            </div>
+            <DialogTitle className="flex items-center justify-center gap-2">
               <Smartphone className="h-5 w-5 text-emerald-600" />
               Installer sur iPhone / iPad
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-center">
               Suivez ces étapes pour ajouter Rapigo Mali sur votre écran d&apos;accueil.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="flex gap-3 items-start">
-              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold text-sm">
-                1
+            {[
+              {
+                step: 1,
+                title: 'Appuyez sur le bouton Partager',
+                desc: "C'est l'icône avec une flèche qui sort d'un carré, en bas de votre écran (Safari).",
+              },
+              {
+                step: 2,
+                title: 'Scrollez et appuyez sur « Sur l\'écran d\'accueil »',
+                desc: "Cette option se trouve dans la liste d'actions qui apparaît.",
+              },
+              {
+                step: 3,
+                title: 'Appuyez sur « Ajouter »',
+                desc: "L'application Rapigo Mali sera ajoutée à votre écran d'accueil.",
+              },
+            ].map(({ step, title, desc }) => (
+              <div key={step} className="flex gap-3 items-start">
+                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold text-sm">
+                  {step}
+                </div>
+                <div className="pt-0.5">
+                  <p className="font-medium text-sm">{title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                </div>
               </div>
-              <div className="pt-0.5">
-                <p className="font-medium text-sm">Appuyez sur le bouton <strong>Partager</strong></p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  C&apos;est l&apos;icône avec une flèche qui sort d&apos;un carré, en bas de votre écran (Safari).
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3 items-start">
-              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold text-sm">
-                2
-              </div>
-              <div className="pt-0.5">
-                <p className="font-medium text-sm">Scrollez et appuyez sur <strong>« Sur l&apos;écran d&apos;accueil »</strong></p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Cette option se trouve dans la liste d&apos;actions qui apparaît.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3 items-start">
-              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold text-sm">
-                3
-              </div>
-              <div className="pt-0.5">
-                <p className="font-medium text-sm">Appuyez sur <strong>« Ajouter »</strong></p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  L&apos;application Rapigo Mali sera ajoutée à votre écran d&apos;accueil.
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
-          <DialogFooter>
+          <DialogFooter className="sm:justify-center">
             <Button onClick={() => setIosDialogOpen(false)} className="bg-emerald-600 hover:bg-emerald-700">
               J&apos;ai compris
             </Button>
