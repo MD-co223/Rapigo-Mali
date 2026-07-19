@@ -1454,3 +1454,30 @@ Stage Summary:
 - 31 tables existantes et fonctionnelles sur Supabase PostgreSQL
 - Super Admin: diarramoussaka7@gmail.com / pispa2026
 - .env corrigé avec URLs optimales Supabase (pooler transaction + session mode)
+---
+Task ID: 3
+Agent: Main Agent
+Task: Update payment methods to OMNIHUB DIGITAL (Orange Money, Wave, Moov Money) and add payment card to merchant dashboard
+
+Work Log:
+- Analyzed uploaded payment card image (f540102b-309d-41aa-b9ce-0ef4b0a0b419.jpeg) via VLM
+- Extracted 3 payment methods: Orange Money (+223 77 16 38 62), Wave (+223 98 93 28 06), Moov Money (+223 98 93 28 06)
+- Copied payment card image to public/payment-methods.jpeg
+- Updated PaymentProofUpload component (page.tsx) — all 3 methods + OMNIHUB branding + card image
+- Updated WaitingApproval component (page.tsx) — all 3 methods + OMNIHUB branding + card image
+- Updated MERCHANT registration block (page.tsx) — all 3 methods + OMNIHUB branding + card image
+- Updated DRIVER registration block (page.tsx) — all 3 methods + OMNIHUB branding + card image
+- Added payment info Card to merchant dashboard (merchant-app.tsx) with card image
+- Updated merchant subscription page (merchant-app.tsx) with all 3 methods + card image
+- Completed PostgreSQL migration (prisma db push + seed via Supabase pooler session mode port 5432)
+- Updated Vercel env vars (DATABASE_URL with pgbouncer, DIRECT_URL, JWT_SECRET, NEXT_PUBLIC_APP_URL)
+- Committed and pushed to GitHub → Vercel auto-deployed
+- Verified: deployment READY, login API working, home page 200 OK
+- Browser verification: all 3 payment methods visible with correct numbers and OMNIHUB DIGITAL branding
+
+Stage Summary:
+- All payment displays now show 3 OMNIHUB DIGITAL methods (was single Orange Money)
+- Payment card image displayed at 6 locations across the app
+- Merchant dashboard has dedicated payment info card
+- Production is fully functional: login works, database connected to Supabase
+- Committed as 8c7c0e6, deployed to Vercel successfully
