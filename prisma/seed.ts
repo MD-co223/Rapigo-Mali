@@ -79,10 +79,16 @@ async function main() {
     { key: 'premium_price', value: '4000', type: 'NUMBER', group: 'SUBSCRIPTION' },
   ];
 
+  let settingsCreated = 0;
   for (const setting of settings) {
-    await prisma.setting.create({ data: setting });
+    await prisma.setting.upsert({
+      where: { key: setting.key },
+      update: { value: setting.value, type: setting.type, group: setting.group },
+      create: setting,
+    });
+    settingsCreated++;
   }
-  console.log(`✅ ${settings.length} paramètres créés`);
+  console.log(`✅ ${settingsCreated} paramètres créés/mis à jour`);
 
   // ============================================
   // CATÉGORIES OFFICIELLES (8)
@@ -98,10 +104,16 @@ async function main() {
     { name: 'Colis', slug: 'colis', icon: '📦', sortOrder: 8 },
   ];
 
+  let catsCreated = 0;
   for (const cat of categories) {
-    await prisma.category.create({ data: { ...cat, isActive: true } });
+    await prisma.category.upsert({
+      where: { slug: cat.slug },
+      update: { name: cat.name, icon: cat.icon, sortOrder: cat.sortOrder, isActive: true },
+      create: { ...cat, isActive: true },
+    });
+    catsCreated++;
   }
-  console.log(`✅ ${categories.length} catégories créées`);
+  console.log(`✅ ${catsCreated} catégories créées/mises à jour`);
 
   // ============================================
   // VILLES (5)
@@ -136,26 +148,51 @@ async function main() {
   ];
 
   for (const city of cities) {
-    await prisma.setting.create({
-      data: {
-        key: `city_${city.name.toLowerCase().replace(/\s/g, '_')}`,
+    const cityKey = `city_${city.name.toLowerCase().replace(/\s/g, '_')}`;
+    await prisma.setting.upsert({
+      where: { key: cityKey },
+      update: { value: JSON.stringify(city), type: 'JSON', group: 'GENERAL' },
+      create: {
+        key: cityKey,
         value: JSON.stringify(city),
         type: 'JSON',
         group: 'GENERAL',
       },
     });
   }
-  console.log(`✅ ${cities.length} villes configurées`);
+  console.log(`✅ ${cities.length} villes configurées/mises à jour`);
 
   // ============================================
   // PLAN UNIQUE À VIE - PREMIUM LIFETIME
   // ============================================
-  await prisma.plan.create({
-    data: {
+  await prisma.plan.upsert({
+    where: { slug: 'premium_lifetime' },
+    update: {
+      name: 'Rapigo Mali Premium',
+      price: 4000,
+      duration: 36500,
+      features: JSON.stringify([
+        'Accès Premium à vie',
+        'Produits illimités',
+        'Commandes illimitées',
+        'Coupons illimités',
+        'Statistiques avancées',
+        'Support prioritaire',
+        'Badge vérifié',
+        'Zones de livraison multiples',
+        'Configuration paiement complète',
+      ]),
+      maxProducts: null,
+      maxOrders: null,
+      maxCoupons: null,
+      priority: 10,
+      isActive: true,
+    },
+    create: {
       name: 'Rapigo Mali Premium',
       slug: 'premium_lifetime',
       price: 4000,
-      duration: 36500, // 100 ans = vie
+      duration: 36500,
       features: JSON.stringify([
         'Accès Premium à vie',
         'Produits illimités',
@@ -174,7 +211,7 @@ async function main() {
       isActive: true,
     },
   });
-  console.log('✅ Plan Premium à vie créé — 4 000 FCFA');
+  console.log('✅ Plan Premium à vie créé/mis à jour — 4 000 FCFA');
 
   console.log('\n🎉 Rapigo Mali V2.7 — Seed terminé !');
   console.log('📧 Super Admin : diarramoussaka7@gmail.com');

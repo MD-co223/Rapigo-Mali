@@ -318,6 +318,29 @@ export default function MerchantApp() {
           </CardContent></Card>
         ))}
       </div>
+      {/* Carte de paiement OMNIHUB DIGITAL */}
+      <Card className="overflow-hidden border-emerald-200 dark:border-emerald-800">
+        <CardHeader className="pb-2 bg-emerald-50 dark:bg-emerald-900/20">
+          <CardTitle className="text-sm font-medium text-emerald-800 dark:text-emerald-300">💳 Moyens de paiement — OMNIHUB DIGITAL</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 space-y-3">
+          <img src="/payment-methods.jpeg" alt="Moyens de paiement OMNIHUB DIGITAL" className="w-full rounded-lg border border-emerald-100 dark:border-emerald-800" />
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">🟠 Orange Money</span>
+              <a href="tel:+22377163862" className="font-semibold hover:underline">+223 77 16 38 62</a>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">🔵 Wave</span>
+              <a href="tel:+22398932806" className="font-semibold hover:underline">+223 98 93 28 06</a>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">🟡 Moov Money</span>
+              <a href="tel:+22398932806" className="font-semibold hover:underline">+223 98 93 28 06</a>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Commandes récentes</CardTitle></CardHeader>
         <CardContent>
@@ -606,9 +629,24 @@ export default function MerchantApp() {
                 ))}
               </div>
             </>) : (<>
-              <div className="bg-emerald-50 rounded-lg p-4 text-center space-y-2">
-                <p className="text-sm font-medium">Envoyez <strong>4 000 FCFA</strong> via <strong>{PAYMENT_METHODS[subMethod]}</strong></p>
-                <p className="text-xs text-muted-foreground">puis téléchargez la capture d&apos;écran de votre paiement ci-dessous.</p>
+              <div className="bg-emerald-50 rounded-lg p-4 space-y-3">
+                <p className="text-xs text-center text-emerald-600/80 font-medium uppercase tracking-wider">OMNIHUB DIGITAL</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">🟠 Orange Money</span>
+                    <a href="tel:+22377163862" className="font-bold hover:underline">+223 77 16 38 62</a>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">🔵 Wave</span>
+                    <a href="tel:+22398932806" className="font-bold hover:underline">+223 98 93 28 06</a>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">🟡 Moov Money</span>
+                    <a href="tel:+22398932806" className="font-bold hover:underline">+223 98 93 28 06</a>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">Envoyez <strong>4 000 FCFA</strong> via l&apos;un de ces numéros, puis téléchargez la capture ci-dessous.</p>
+                <img src="/payment-methods.jpeg" alt="Moyens de paiement" className="w-full rounded-lg border border-emerald-200" />
               </div>
               <input type="file" accept="image/*" className="hidden" ref={proofRef} onChange={e => readFile(e, setSubProof)} />
               {subProof ? <div className="relative"><img src={subProof} alt="Preuve" className="max-h-40 w-full object-contain rounded-lg border bg-gray-50 dark:bg-gray-800" />

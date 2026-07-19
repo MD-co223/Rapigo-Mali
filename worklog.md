@@ -1431,3 +1431,26 @@ Stage Summary:
 - 31 tables créées, seeded, et fonctionnelles sur Supabase
 - Login fonctionne sur https://rapigo-mali.vercel.app
 - Super Admin: diarramoussaka7@gmail.com / pispa2026
+
+---
+Task ID: db-push-seed
+Agent: DB Setup Agent
+Task: Push Prisma schema and seed Supabase PostgreSQL database
+
+Work Log:
+- Tentative `prisma db push` via pooler port 6543 → ERROR: prepared statement "s0" already exists (PgBouncer transaction mode incompatible with Prisma schema engine)
+- Tentative connexion directe db.xxx.supabase.co:5432 → P1001: unreachable (IP restrictions)
+- Résolu en utilisant le session mode pooler (port 5432 sur le host pooler) pour les opérations de schéma
+- Schema push réussi: "The database is already in sync with the Prisma schema"
+- Seed modifié: remplacé tous les `create()` par des `upsert()` pour le rendre idempotent (settings, categories, cities, plan)
+- Seed exécuté avec succès via `bun run prisma/seed.ts`
+- Mis à jour .env: DATABASE_URL=pooler 6543 + pgbouncer=true (app queries), DIRECT_URL=pooler 5432 (schema ops)
+- Vérification: 31 tables confirmées (Advertisement, AuditLog, Category, Chat, Client, Coupon, CouponUsage, Delivery, DeliveryZone, Driver, DriverLocation, Favorite, Merchant, MerchantPaymentConfig, Message, Notification, Order, OrderItem, Payment, Plan, Product, Rating, Referral, Report, Setting, Subscription, SupportTicket, Transaction, User, Wallet, _ChatToUser)
+- User count: 1 (Super Admin Diarra Moussa)
+
+Stage Summary:
+- Prisma schema push: SUCCESS ✅ (via session mode pooler port 5432)
+- DB seed: SUCCESS ✅ (24 settings, 8 catégories, 5 villes, 1 plan Premium à vie)
+- 31 tables existantes et fonctionnelles sur Supabase PostgreSQL
+- Super Admin: diarramoussaka7@gmail.com / pispa2026
+- .env corrigé avec URLs optimales Supabase (pooler transaction + session mode)

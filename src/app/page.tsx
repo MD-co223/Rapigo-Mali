@@ -381,20 +381,26 @@ function PaymentProofUpload({ role, onProofSent }: { role: 'MERCHANT' | 'DRIVER'
             <span className="text-lg font-bold text-emerald-800 dark:text-emerald-200">{amountLabel}</span>
           </div>
           <div className="border-t border-emerald-200 dark:border-emerald-700/50" />
+          <p className="text-xs text-center text-emerald-600/80 dark:text-emerald-400/80 font-medium uppercase tracking-wider">OMNIHUB DIGITAL</p>
           <div className="space-y-2">
-            <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">Méthode : Orange Money</p>
-            <a
-              href="tel:+22377163870"
-              className="flex items-center justify-center gap-2 text-2xl font-bold text-emerald-800 dark:text-emerald-200 hover:underline py-2"
-            >
-              <Phone className="h-6 w-6" />
-              +223 77 16 38 70
-            </a>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">🟠 Orange Money</span>
+              <a href="tel:+22377163862" className="text-lg font-bold text-emerald-800 dark:text-emerald-200 hover:underline">+223 77 16 38 62</a>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">🔵 Wave</span>
+              <a href="tel:+22398932806" className="text-lg font-bold text-emerald-800 dark:text-emerald-200 hover:underline">+223 98 93 28 06</a>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">🟡 Moov Money</span>
+              <a href="tel:+22398932806" className="text-lg font-bold text-emerald-800 dark:text-emerald-200 hover:underline">+223 98 93 28 06</a>
+            </div>
           </div>
           <div className="border-t border-emerald-200 dark:border-emerald-700/50" />
           <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
-            Effectuez le paiement, puis prenez une capture d&apos;écran de la confirmation.
+            Effectuez le paiement via l&apos;un de ces numéros, puis prenez une capture d&apos;écran de la confirmation.
           </p>
+          <img src="/payment-methods.jpeg" alt="Moyens de paiement" className="w-full rounded-lg border border-emerald-200 dark:border-emerald-700" />
         </div>
 
         {/* Image upload */}
@@ -593,10 +599,22 @@ function WaitingApproval({ role, hasPaymentProof, proofUrl }: { role: 'MERCHANT'
 
         <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 space-y-2 text-sm border border-emerald-200">
           <p className="font-semibold text-emerald-800 dark:text-emerald-300">📋 Inscription : 4 000 FCFA</p>
-          <div className="flex items-center justify-center gap-2 text-emerald-700 dark:text-emerald-400">
-            <span className="font-medium">Paiement Orange Money :</span>
-            <a href="tel:+22377163870" className="font-bold text-lg hover:underline">+223 77 16 38 70</a>
+          <p className="text-xs text-center text-emerald-600/80 dark:text-emerald-400/80 font-medium uppercase tracking-wider">OMNIHUB DIGITAL</p>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-emerald-700 dark:text-emerald-400">🟠 Orange Money</span>
+              <a href="tel:+22377163862" className="font-bold hover:underline">+223 77 16 38 62</a>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-emerald-700 dark:text-emerald-400">🔵 Wave</span>
+              <a href="tel:+22398932806" className="font-bold hover:underline">+223 98 93 28 06</a>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-emerald-700 dark:text-emerald-400">🟡 Moov Money</span>
+              <a href="tel:+22398932806" className="font-bold hover:underline">+223 98 93 28 06</a>
+            </div>
           </div>
+          <img src="/payment-methods.jpeg" alt="Moyens de paiement" className="w-full rounded-lg border border-emerald-200 dark:border-emerald-700 mt-2" />
         </div>
 
         <div className="bg-muted/50 rounded-xl p-4 space-y-2 text-sm">
@@ -1213,10 +1231,24 @@ export default function HomePage() {
                     <p className="font-bold text-emerald-800 dark:text-emerald-300 text-base">📋 Les frais d&apos;inscription sont de 4 000 FCFA à vie.</p>
                   </div>
                   <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 text-sm border border-amber-200 space-y-2">
-                    <p className="font-medium text-amber-800 dark:text-amber-300">Paiement Orange Money :</p>
-                    <a href="tel:+22377163870" className="text-lg font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 77 16 38 70</a>
-                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement, puis téléchargez la capture d&apos;écran ci-dessous.</p>
+                    <p className="text-xs text-center text-amber-600/80 dark:text-amber-400/80 font-medium uppercase tracking-wider">OMNIHUB DIGITAL — Moyens de paiement</p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-amber-800 dark:text-amber-300">🟠 Orange Money</span>
+                        <a href="tel:+22377163862" className="text-base font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 77 16 38 62</a>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-amber-800 dark:text-amber-300">🔵 Wave</span>
+                        <a href="tel:+22398932806" className="text-base font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 98 93 28 06</a>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-amber-800 dark:text-amber-300">🟡 Moov Money</span>
+                        <a href="tel:+22398932806" className="text-base font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 98 93 28 06</a>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement via l&apos;un de ces numéros, puis téléchargez la capture ci-dessous.</p>
                   </div>
+                    <img src="/payment-methods.jpeg" alt="Moyens de paiement" className="w-full rounded-lg border border-amber-200 dark:border-amber-700" />
                   {/* Preuve de paiement */}
                   <div className="space-y-2">
                     <Label>Preuve de paiement <span className="text-red-500">*</span></Label>
@@ -1285,10 +1317,24 @@ export default function HomePage() {
                     <p className="font-bold text-emerald-800 dark:text-emerald-300 text-base">📋 Inscription : 4 000 FCFA</p>
                   </div>
                   <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 text-sm border border-amber-200 space-y-2">
-                    <p className="font-medium text-amber-800 dark:text-amber-300">Paiement Orange Money :</p>
-                    <a href="tel:+22377163870" className="text-lg font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 77 16 38 70</a>
-                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement, puis téléchargez la capture d&apos;écran ci-dessous.</p>
+                    <p className="text-xs text-center text-amber-600/80 dark:text-amber-400/80 font-medium uppercase tracking-wider">OMNIHUB DIGITAL — Moyens de paiement</p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-amber-800 dark:text-amber-300">🟠 Orange Money</span>
+                        <a href="tel:+22377163862" className="text-base font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 77 16 38 62</a>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-amber-800 dark:text-amber-300">🔵 Wave</span>
+                        <a href="tel:+22398932806" className="text-base font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 98 93 28 06</a>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-amber-800 dark:text-amber-300">🟡 Moov Money</span>
+                        <a href="tel:+22398932806" className="text-base font-bold text-amber-700 dark:text-amber-400 hover:underline">+223 98 93 28 06</a>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">Effectuez le paiement via l&apos;un de ces numéros, puis téléchargez la capture ci-dessous.</p>
                   </div>
+                    <img src="/payment-methods.jpeg" alt="Moyens de paiement" className="w-full rounded-lg border border-amber-200 dark:border-amber-700" />
                   {/* Preuve de paiement */}
                   <div className="space-y-2">
                     <Label>Preuve de paiement <span className="text-red-500">*</span></Label>
