@@ -1375,3 +1375,30 @@ Stage Summary:
 - Nouveau logo appliqué: toutes icônes PWA + splash screen + OG/Twitter cards
 - Animation splash cinématique 6 phases avec effets lumière, particules, shimmer
 - Site live: https://rapigo-mali.vercel.app — 2 déploiements réussis consécutifs
+
+---
+Task ID: deploy-fix-2
+Agent: Main Orchestrator
+Task: Analyse déploiements échoués V2.8/V3.0 + corriger icônes PWA avec vrai logo
+
+Work Log:
+- Analysé IMG_2882.png via VLM: capture d'écran Vercel montrant les déploiements (V2.8=Error, V3.0=Error)
+- Analysé IMG_2841.jpeg via VLM: logo officiel de l'app (R vert avec cube doré et flèche livraison)
+- Vérifié les 2 déploiements échoués via API Vercel — supprimés/garbage-collected par Vercel
+- La cause racine (JWT_SECRET throw au build-time) est déjà corrigée dans le code actuel
+- Le vrai problème: les icônes PWA étaient générées depuis le logo portrait (rapigo-logo.jpg)
+  au lieu du vrai logo d'application (IMG_2841.jpeg = R vert + cube doré)
+- Régénéré toutes les icônes PWA depuis IMG_2841.jpeg avec Pillow:
+  - favicon-16.png, favicon-32.png, favicon.ico (16+32)
+  - apple-touch-icon.png (180x180, padding 8%)
+  - android-chrome-192.png, android-chrome-512.png, app-icon.png (padding 8%)
+  - maskable-icon.png (512x512, padding 25% safe zone pour Android)
+- Build production validé: 0 erreurs, 36 pages, 48 routes API
+- Lint: 0 erreurs
+- Déploiement Vercel: READY ✅ (sha b85b9f5)
+
+Stage Summary:
+- V2.8/V3.0 erreurs: déjà corrigées (JWT_SECRET lazy eval)
+- Vrai logo d'app (R vert + cube doré) appliqué à toutes les icônes PWA
+- Build + lint + déploiement: tout vert
+- Site live: https://rapigo-mali.vercel.app
