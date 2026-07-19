@@ -1402,3 +1402,32 @@ Stage Summary:
 - Vrai logo d'app (R vert + cube doré) appliqué à toutes les icônes PWA
 - Build + lint + déploiement: tout vert
 - Site live: https://rapigo-mali.vercel.app
+
+---
+Task ID: deploy-fix-3
+Agent: Main Orchestrator
+Task: Corriger "Erreur serveur" sur Vercel — Migration SQLite → PostgreSQL
+
+Work Log:
+- Analysé la capture d'écran VLM: "Erreur serveur, veuillez réessayer" sur le login
+- Testé l'API login Vercel: retourne 500 → DB vide
+- Découvert cause racine: Prisma schema configuré en SQLite mais Vercel
+  utilise Supabase PostgreSQL. SQLite ne fonctionne pas en serverless.
+- Changé prisma/schema.prisma: provider "sqlite" → "postgresql" + directUrl
+- Corrigé bug: contrainte FK dupliquée sur Rating.clientId (user + client
+  référençaient le même champ) → supprimé la relation user redondante
+- Généré SQL complet (1041 lignes) via prisma migrate diff
+- Supprimé et recréé le schéma public sur Supabase (DROP CASCADE)
+- Exécuté les 31 CREATE TABLE + indexes + FKs via module pg directement
+- Seeded Supabase: admin + 24 settings + 8 catégories + 5 villes + 1 plan
+- Build production: 0 erreurs, 36 pages, 48 API routes
+- Lint: 0 erreurs
+- Déploiement Vercel: READY ✅
+- Test login API Vercel: SUCCESS ✅ (Diarra Moussa, ADMIN, isSuperAdmin=True)
+
+Stage Summary:
+- Cause: Prisma SQLite + Vercel serverless = incompatible
+- Fix: Migration complète vers PostgreSQL (Supabase eu-north-1)
+- 31 tables créées, seeded, et fonctionnelles sur Supabase
+- Login fonctionne sur https://rapigo-mali.vercel.app
+- Super Admin: diarramoussaka7@gmail.com / pispa2026
