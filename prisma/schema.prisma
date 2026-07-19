@@ -45,7 +45,6 @@ model User {
   sentMessages   Message[]  @relation("MessageSender")
   receivedMessages Message[] @relation("MessageRecipient")
   chats          Chat[]
-  ratingsGiven   Rating[]  @relation("RatingGiven")
   auditLogs      AuditLog[]
   supportTickets SupportTicket[]
   payments       Payment[]
@@ -569,7 +568,6 @@ model Rating {
   client   Client   @relation("ClientReview", fields: [clientId], references: [id])
   driver   Driver?  @relation("DriverReview", fields: [driverId], references: [id])
   merchant Merchant? @relation(fields: [merchantId], references: [id])
-  user     User     @relation("RatingGiven", fields: [clientId], references: [id])
 
   @@index([orderId])
   @@index([clientId])

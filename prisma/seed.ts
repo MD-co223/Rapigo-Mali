@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seed Rapigo Mali V3 — SQLite Local...');
+  console.log('🌱 Seed Rapigo Mali V3 — Supabase PostgreSQL...');
 
   // ============================================
   // SUPER ADMINISTRATEUR - Mr. Diarra Moussa
