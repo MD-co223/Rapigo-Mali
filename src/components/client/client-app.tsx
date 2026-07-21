@@ -7,7 +7,7 @@ import {
   Bell, Plus, Minus, Trash2, ShoppingBag, ChevronLeft, Store,
   Send, Wallet, HelpCircle, Package, Upload, Tag, X, Loader2,
   MoreHorizontal, StarOff, Copy, MessageSquare, Phone, Check,
-  RefreshCw, FileText,
+  RefreshCw, FileText, CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -587,8 +587,34 @@ function CheckoutView() {
         couponDiscount: couponDiscount || undefined,
       }),
     });
+    if (res.error) { setSubmitting(false); toast.error(res.error); return; }
+
+    // If FedaPay payment, redirect to FedaPay checkout
+    if (method === 'FEDAPAY' && res.data?.id) {
+      toast.info('Redirection vers FedaPay...');
+      try {
+        const payRes = await apiFetch<{ data: { paymentUrl: string; token: string } }>('/api/payments/create', {
+          method: 'POST',
+          body: JSON.stringify({ orderId: res.data.id }),
+        });
+        clearCart();
+        if (payRes.error || !payRes.data?.paymentUrl) {
+          toast.error(payRes.error || 'Erreur de connexion à FedaPay');
+          setSubmitting(false);
+          return;
+        }
+        // Redirect to FedaPay checkout
+        window.location.href = payRes.data.paymentUrl;
+        return;
+      } catch {
+        clearCart();
+        toast.error('Erreur de connexion au service de paiement');
+        setSubmitting(false);
+        return;
+      }
+    }
+
     setSubmitting(false);
-    if (res.error) { toast.error(res.error); return; }
     clearCart();
     toast.success('Commande passée avec succès !');
     navigate('orders');
@@ -613,9 +639,21 @@ function CheckoutView() {
             )}
           </div>
         </div>
-        <div><Label className="text-sm font-medium">Mode de paiement</Label><Select value={method} onValueChange={setMethod}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent>
-          {Object.entries(PAYMENT_METHODS).filter(([k]) => k !== 'WALLET').map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-        </SelectContent></Select></div>
+        <div><Label className="text-sm font-medium">Mode de paiement</Label>
+          {method === 'FEDAPAY' && (
+            <div className="mt-1.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 text-sm space-y-1">
+              <p className="font-medium text-emerald-800 dark:text-emerald-300">🔒 Paiement sécurisé par FedaPay</p>
+              <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">Cartes Visa, Mastercard, Orange Money, Wave, Moov Money</p>
+            </div>
+          )}
+          <Select value={method} onValueChange={setMethod} className="mt-1.5"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+            <SelectItem value="CASH">💵 Cash (à la livraison)</SelectItem>
+            <SelectItem value="FEDAPAY">💳 Carte bancaire / Mobile Money</SelectItem>
+          </SelectContent></Select>
+          {method !== 'FEDAPAY' && method !== 'CASH' && (
+            <p className="text-xs text-amber-600 mt-1.5">⚠️ Veuillez envoyer la preuve de paiement après la commande</p>
+          )}
+        </div>
         <div><Label className="text-sm font-medium">Note pour le livreur</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Instructions supplémentaires..." className="mt-1.5" rows={2} /></div>
       </div>
       <Separator />
@@ -630,7 +668,7 @@ function CheckoutView() {
       </div>
       <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-30 mx-4 w-[calc(100%-2rem)] max-w-lg">
         <Button className="w-full bg-emerald-700 hover:bg-emerald-800 h-12 rounded-2xl shadow-lg text-base font-semibold" onClick={handleSubmit} disabled={submitting}>
-          {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}Confirmer la commande
+          {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}{method === 'FEDAPAY' ? 'Payer avec FedaPay' : 'Confirmer la commande'}
         </Button>
       </div>
     </div>
@@ -677,6 +715,7 @@ function OrderDetailView() {
   const [proofSubmitting, setProofSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [proofFileUploading, setProofFileUploading] = useState(false);
+  const [fedaPayLoading, setFedaPayLoading] = useState(false);
 
   const fetchOrder = () => {
     if (!data?.id) return;
@@ -749,6 +788,26 @@ function OrderDetailView() {
     fetchOrder();
   };
 
+  const handleFedaPayPayment = async () => {
+    if (!order?.id) return;
+    setFedaPayLoading(true);
+    try {
+      const payRes = await apiFetch<{ data: { paymentUrl: string } }>('/api/payments/create', {
+        method: 'POST',
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      if (payRes.error || !payRes.data?.paymentUrl) {
+        toast.error(payRes.error || 'Erreur de connexion à FedaPay');
+        setFedaPayLoading(false);
+        return;
+      }
+      window.location.href = payRes.data.paymentUrl;
+    } catch {
+      toast.error('Erreur de connexion au service de paiement');
+      setFedaPayLoading(false);
+    }
+  };
+
   return (
     <div className="px-4 pt-4 space-y-5 pb-8">
       <div className="flex items-center gap-3"><Button variant="ghost" size="icon" onClick={goBack}><ChevronLeft size={20} /></Button><div><h1 className="text-lg font-bold">{order.orderNumber}</h1><p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleString('fr-FR')}</p></div></div>
@@ -776,7 +835,16 @@ function OrderDetailView() {
         <div className="flex justify-between"><span className="text-muted-foreground">Méthode</span><span>{PAYMENT_METHODS[order.paymentMethod]}</span></div>
         <div className="flex justify-between"><span className="text-muted-foreground">Statut</span><Badge variant="outline" className="text-xs">{PAYMENT_STATUS_LABELS[order.paymentStatus]}</Badge></div>
         {order.paymentProof && <div><p className="text-muted-foreground text-xs mb-1">Preuve :</p><img src={order.paymentProof} alt="Preuve" className="max-h-48 w-full rounded-lg object-contain bg-gray-50 dark:bg-gray-800" /></div>}
-        {order.paymentStatus === 'PENDING' && order.paymentMethod !== 'CASH' && (
+        {order.paymentStatus === 'PENDING' && order.paymentMethod === 'FEDAPAY' && (
+          <div className="space-y-2 pt-2">
+            <p className="text-xs text-muted-foreground">Paiement en attente via FedaPay</p>
+            <Button size="sm" className="w-full bg-emerald-700 hover:bg-emerald-800" onClick={handleFedaPayPayment} disabled={fedaPayLoading}>
+              {fedaPayLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CreditCard size={14} className="mr-1" />}
+              {fedaPayLoading ? 'Connexion à FedaPay...' : '💳 Payer avec FedaPay'}
+            </Button>
+          </div>
+        )}
+        {order.paymentStatus === 'PENDING' && order.paymentMethod !== 'CASH' && order.paymentMethod !== 'FEDAPAY' && (
           <div className="space-y-2 pt-2">
             <Label className="text-xs">Preuve de paiement</Label>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
@@ -1077,6 +1145,24 @@ function CouponsView() {
 /* ── Main Component ────────────────────────── */
 export default function ClientApp() {
   const { view } = useClientNav();
+
+  // Handle FedaPay payment callback
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const paymentResult = params.get('payment');
+    if (paymentResult === 'success') {
+      toast.success('Paiement confirmé ! Votre commande est en cours de préparation.');
+      // Clean URL params without reload
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (paymentResult === 'failed') {
+      toast.error('Le paiement a échoué. Veuillez réessayer.');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (paymentResult === 'error') {
+      toast.error('Une erreur est survenue lors du paiement.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const renderView = () => {
     switch (view) {

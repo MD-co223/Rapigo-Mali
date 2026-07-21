@@ -329,12 +329,13 @@ export const BUSINESS_TYPES: Record<string, string> = {
 };
 
 export const PAYMENT_METHODS: Record<string, string> = {
-  CASH: 'Cash',
-  ORANGE_MONEY: 'Orange Money',
-  MOOV_MONEY: 'Moov Money',
-  WAVE: 'Wave',
-  VISA: 'Visa',
-  MASTERCARD: 'Mastercard',
+  CASH: 'Cash (à la livraison)',
+  FEDAPAY: '💳 Carte bancaire / Mobile Money',
+  ORANGE_MONEY: 'Orange Money (virement manuel)',
+  MOOV_MONEY: 'Moov Money (virement manuel)',
+  WAVE: 'Wave (virement manuel)',
+  VISA: 'Visa (virement manuel)',
+  MASTERCARD: 'Mastercard (virement manuel)',
   QR_CODE: 'QR Code',
   WALLET: 'Portefeuille',
 };
