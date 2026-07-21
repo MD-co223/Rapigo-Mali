@@ -598,13 +598,13 @@ function CheckoutView() {
           body: JSON.stringify({ orderId: res.data.id }),
         });
         clearCart();
-        if (payRes.error || !payRes.data?.paymentUrl) {
+        if (payRes.error || !payRes.data?.data?.paymentUrl) {
           toast.error(payRes.error || 'Erreur de connexion à FedaPay');
           setSubmitting(false);
           return;
         }
         // Redirect to FedaPay checkout
-        window.location.href = payRes.data.paymentUrl;
+        window.location.href = payRes.data.data.paymentUrl;
         return;
       } catch {
         clearCart();
@@ -646,10 +646,10 @@ function CheckoutView() {
               <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">Cartes Visa, Mastercard, Orange Money, Wave, Moov Money</p>
             </div>
           )}
-          <Select value={method} onValueChange={setMethod} className="mt-1.5"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+          <div className="mt-1.5"><Select value={method} onValueChange={setMethod}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
             <SelectItem value="CASH">💵 Cash (à la livraison)</SelectItem>
             <SelectItem value="FEDAPAY">💳 Carte bancaire / Mobile Money</SelectItem>
-          </SelectContent></Select>
+          </SelectContent></Select></div>
           {method !== 'FEDAPAY' && method !== 'CASH' && (
             <p className="text-xs text-amber-600 mt-1.5">⚠️ Veuillez envoyer la preuve de paiement après la commande</p>
           )}
@@ -796,12 +796,12 @@ function OrderDetailView() {
         method: 'POST',
         body: JSON.stringify({ orderId: order.id }),
       });
-      if (payRes.error || !payRes.data?.paymentUrl) {
+      if (payRes.error || !payRes.data?.data?.paymentUrl) {
         toast.error(payRes.error || 'Erreur de connexion à FedaPay');
         setFedaPayLoading(false);
         return;
       }
-      window.location.href = payRes.data.paymentUrl;
+      window.location.href = payRes.data.data.paymentUrl;
     } catch {
       toast.error('Erreur de connexion au service de paiement');
       setFedaPayLoading(false);

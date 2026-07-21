@@ -14,20 +14,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { verifyAuth } from '@/lib/auth';
+import { getAuthUser } from '@/lib/auth';
 import {
   createFedaPayTransaction,
-  mapFedaPayStatus,
 } from '@/lib/fedapay';
 
 export async function POST(request: NextRequest) {
   try {
     // 1. Authenticate user
-    const user = await verifyAuth(request);
-    if (!user) {
+    const authUser = await getAuthUser(request);
+    if (!authUser) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
-    if (user.role !== 'CLIENT') {
+    if (authUser.role !== 'CLIENT') {
       return NextResponse.json({ error: 'Accès réservé aux clients' }, { status: 403 });
     }
 
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Verify ownership
-    if (order.clientId !== user.id && order.client?.userId !== user.id) {
+    if (order.clientId !== authUser.userId && order.client?.userId !== authUser.userId) {
       return NextResponse.json(
         { error: 'Cette commande ne vous appartient pas' },
         { status: 403 }
@@ -112,7 +111,7 @@ export async function POST(request: NextRequest) {
     const payment = await db.payment.create({
       data: {
         orderId: order.id,
-        userId: user.id,
+        userId: authUser.userId,
         amount: order.total,
         currency: order.currency || 'XOF',
         method: 'FEDAPAY',
