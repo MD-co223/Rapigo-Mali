@@ -1481,3 +1481,31 @@ Stage Summary:
 - Merchant dashboard has dedicated payment info card
 - Production is fully functional: login works, database connected to Supabase
 - Committed as 8c7c0e6, deployed to Vercel successfully
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Integrate FedaPay payment gateway into Rapigo Mali
+
+Work Log:
+- Analyzed current payment system: 100% manual (screenshot upload + merchant approval)
+- Installed fedapay SDK v1.2.5
+- Created src/lib/fedapay.ts: SDK init, transaction creation, webhook verification, status mapping
+- Created POST /api/payments/create: Auth + order validation + FedaPay transaction + Payment DB record
+- Created POST /api/webhooks/fedapay: HMAC signature verification + event processing + Order/Payment updates + notifications
+- Created GET /api/payments/callback: Transaction verification + redirect with payment result
+- Created GET /api/payments/status: Payment status polling for frontend
+- Updated PAYMENT_METHODS in store.ts: Added FEDAPAY option
+- Updated CheckoutView: FedaPay selection with info banner, auto-redirect after order, 'Payer avec FedaPay' button
+- Updated OrderDetailView: FedaPay payment button for pending orders, skip manual proof upload for FEDAPAY
+- Added payment callback toast handler (success/failed/error)
+- Fixed build errors: verifyAuth → getAuthUser, Select className, paymentUrl type
+- Set FedaPay env vars on Vercel (4 vars, encrypted, all targets)
+- Committed as 2f02558, fixed as 612b714, deployed successfully
+
+Stage Summary:
+- FedaPay fully integrated: 4 API routes + 1 lib + frontend checkout flow
+- Payment methods: Cash (delivery), FedaPay (cards + mobile money), Manual (proof upload)
+- All endpoints verified: 401 without auth, webhook processes gracefully, callback redirects
+- Production URL: https://rapigo-mali.vercel.app
+- FedaPay sandbox keys configured for testing
