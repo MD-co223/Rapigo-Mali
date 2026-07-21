@@ -652,6 +652,13 @@ export default function HomePage() {
 
   // Splash screen
   const [showSplash, setShowSplash] = useState(true);
+
+  // Bypass splash for automated testing
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('noSplash')) {
+      setShowSplash(false);
+    }
+  }, []);
   const splashDone = useCallback(() => setShowSplash(false), []);
 
   const [showAuth, setShowAuth] = useState(false);
@@ -813,8 +820,8 @@ export default function HomePage() {
   // ESPACE AUTHENTIFIÉ
   // =============================================
 
-  // Splash screen (always shows first)
-  if (showSplash) return <SplashScreen onDone={splashDone} />;
+  // Splash screen (disabled for testing)
+  // if (showSplash) return <SplashScreen onDone={splashDone} />;
 
   if (isAuthenticated && user) {
     // Commerçant ou livreur non approuvé
