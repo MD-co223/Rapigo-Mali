@@ -35,9 +35,9 @@ export async function GET(request: NextRequest) {
 
     // Check if already paid
     if (payment.status === 'PAID') {
-      return NextResponse.redirect(
-        new URL(`/?payment=success&orderId=${payment.orderId}`, request.url)
-      );
+      const params = new URLSearchParams({ payment: 'success' });
+      if (payment.orderId) params.set('orderId', payment.orderId);
+      return NextResponse.redirect(new URL(`/?${params}`, request.url));
     }
 
     // If we have a FedaPay transaction ID, verify with FedaPay API
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
               orderUpdateData.status = orderStatus;
             }
             await db.order.update({
-              where: { id: payment.orderId },
+              where: { id: payment.orderId! },
               data: orderUpdateData,
             });
           }
@@ -79,13 +79,13 @@ export async function GET(request: NextRequest) {
 
         // Redirect based on final status
         if (paymentStatus === 'PAID') {
-          return NextResponse.redirect(
-            new URL(`/?payment=success&orderId=${payment.orderId}`, request.url)
-          );
+          const params = new URLSearchParams({ payment: 'success' });
+          if (payment.orderId) params.set('orderId', payment.orderId);
+          return NextResponse.redirect(new URL(`/?${params}`, request.url));
         } else {
-          return NextResponse.redirect(
-            new URL(`/?payment=failed&orderId=${payment.orderId}&status=${paymentStatus}`, request.url)
-          );
+          const params = new URLSearchParams({ payment: 'failed', status: paymentStatus });
+          if (payment.orderId) params.set('orderId', payment.orderId);
+          return NextResponse.redirect(new URL(`/?${params}`, request.url));
         }
       } catch (error) {
         console.error('[FedaPay Callback] Failed to verify transaction:', error);
@@ -94,9 +94,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Fallback — redirect to orders page
-    return NextResponse.redirect(
-      new URL(`/?payment=pending&orderId=${payment.orderId}`, request.url)
-    );
+    const params = new URLSearchParams({ payment: 'pending' });
+    if (payment.orderId) params.set('orderId', payment.orderId);
+    return NextResponse.redirect(new URL(`/?${params}`, request.url));
   } catch (error: unknown) {
     console.error('[FedaPay Callback] Error:', error);
     return NextResponse.redirect(new URL('/?payment=error', request.url));
