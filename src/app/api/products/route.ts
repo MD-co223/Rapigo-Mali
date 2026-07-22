@@ -34,6 +34,9 @@ export async function GET(request: NextRequest) {
       where.isAvailable = true;
     }
 
+    // Only show products from approved merchants
+    where.merchant = { isApproved: true };
+
     const [products, total] = await Promise.all([
       db.product.findMany({
         where,

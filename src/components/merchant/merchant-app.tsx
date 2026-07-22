@@ -6,6 +6,7 @@ import {
   Menu, LogOut, Bell, Loader2, CheckCircle2, Clock, Send, X, RefreshCw, ClipboardList, Store, Grid3X3, Wallet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -213,11 +214,28 @@ export default function MerchantApp() {
   };
 
   const submitSub = async () => {
-    if (!subProof) return;
+    if (!subMethod) { toast.error('Veuillez choisir un moyen de paiement'); return; }
     setSaving(true);
-    const r = await apiFetch<any>('/api/subscriptions', { method: 'POST', body: JSON.stringify({ paymentMethod: subMethod, paymentProof: subProof }) });
-    setSaving(false);
-    if (r.data) setSubDone(true);
+    
+    try {
+      // Create FedaPay payment for subscription
+      const r = await apiFetch<{ data: { paymentUrl: string } }>('/api/payments/subscription', {
+        method: 'POST',
+        body: JSON.stringify({ amount: 4000, description: 'Abonnement Premium Rapigo Mali - À vie' }),
+      });
+      
+      if (r.error || !r.data?.paymentUrl) {
+        toast.error(r.error || 'Erreur de connexion à FedaPay');
+        setSaving(false);
+        return;
+      }
+      
+      // Redirect to FedaPay checkout
+      window.location.href = r.data.paymentUrl;
+    } catch {
+      toast.error('Erreur de connexion au service de paiement');
+      setSaving(false);
+    }
   };
 
   const saveCoupon = async () => {
@@ -621,44 +639,34 @@ export default function MerchantApp() {
           </div>
           <div className="space-y-1 text-sm">{SUB_FEATURES.map(f => <p key={f} className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> {f}</p>)}</div>
           <div className="border-t pt-4">
-            {!subMethod ? (<>
-              <Label className="mb-2 block">Choisissez votre moyen de paiement</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {SUB_METHODS.map(m => (
-                  <Button key={m} variant="outline" className="justify-start" onClick={() => setSubMethod(m)}>{PAYMENT_METHODS[m]}</Button>
-                ))}
-              </div>
-            </>) : (<>
+            <>
               <div className="bg-emerald-50 rounded-lg p-4 space-y-3">
-                <p className="text-xs text-center text-emerald-600/80 font-medium uppercase tracking-wider">OMNIHUB DIGITAL</p>
+                <p className="text-xs text-center text-emerald-600/80 font-medium uppercase tracking-wider">OMNIHUB DIGITAL — Paiement sécurisé</p>
+                <p className="text-sm text-center">Choisissez votre moyen et payez directement via FedaPay</p>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">🟠 Orange Money</span>
-                    <a href="tel:+22377163862" className="font-bold hover:underline">+223 77 16 38 62</a>
+                    <span className="text-sm text-muted-foreground">via FedaPay</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">🔵 Wave</span>
-                    <a href="tel:+22398932806" className="font-bold hover:underline">+223 98 93 28 06</a>
+                    <span className="text-sm text-muted-foreground">via FedaPay</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">🟡 Moov Money</span>
-                    <a href="tel:+22398932806" className="font-bold hover:underline">+223 98 93 28 06</a>
+                    <span className="text-sm text-muted-foreground">via FedaPay</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">💳 Visa / Mastercard</span>
+                    <span className="text-sm text-muted-foreground">via FedaPay</span>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground text-center">Envoyez <strong>4 000 FCFA</strong> via l&apos;un de ces numéros, puis téléchargez la capture ci-dessous.</p>
                 <img src="/payment-methods.jpeg" alt="Moyens de paiement" className="w-full rounded-lg border border-emerald-200" />
               </div>
-              <input type="file" accept="image/*" className="hidden" ref={proofRef} onChange={e => readFile(e, setSubProof)} />
-              {subProof ? <div className="relative"><img src={subProof} alt="Preuve" className="max-h-40 w-full object-contain rounded-lg border bg-gray-50 dark:bg-gray-800" />
-                <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6" onClick={() => setSubProof('')}><X className="h-3 w-3" /></Button></div>
-                : <Button variant="outline" className="w-full gap-2" onClick={() => proofRef.current?.click()}><Upload className="h-4 w-4" /> Télécharger la preuve</Button>}
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => { setSubMethod(''); setSubProof(''); }}>Retour</Button>
-                <Button className="flex-1" disabled={!subProof || saving} onClick={submitSub}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-4 w-4" /> Envoyer</>}
-                </Button>
-              </div>
-            </>)}
+              <Button className="w-full" disabled={saving} onClick={submitSub}>
+                {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Connexion à FedaPay...</> : <><CreditCard className="h-4 w-4 mr-2" /> Payer 4 000 FCFA avec FedaPay</>}
+              </Button>
+            </>
           </div>
         </CardContent></Card>
       )}

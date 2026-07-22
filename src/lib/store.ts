@@ -258,9 +258,24 @@ export async function apiFetch<T = unknown>(
     let data: T | null = null;
     try {
       const parsed = JSON.parse(text);
-      // Auto-unwrap paginated responses { items: [...], total, limit, offset }
-      if (parsed && typeof parsed === 'object' && 'items' in parsed && Array.isArray(parsed.items)) {
-        data = parsed.items as T;
+      // Auto-unwrap paginated responses
+      if (parsed && typeof parsed === 'object') {
+        const env = parsed as Record<string, unknown>;
+        const unwrapKey = 'items' in env ? 'items'
+          : 'products' in env ? 'products'
+          : 'merchants' in env ? 'merchants'
+          : 'orders' in env ? 'orders'
+          : 'notifications' in env ? 'notifications'
+          : 'coupons' in env ? 'coupons'
+          : 'zones' in env ? 'zones'
+          : 'transactions' in env ? 'transactions'
+          : 'deliveries' in env ? 'deliveries'
+          : null;
+        if (unwrapKey && Array.isArray(env[unwrapKey])) {
+          data = env[unwrapKey] as T;
+        } else {
+          data = parsed as T;
+        }
       } else {
         data = parsed as T;
       }
