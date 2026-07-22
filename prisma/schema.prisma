@@ -98,6 +98,7 @@ model Merchant {
   website         String?
   operatingHours  String    @default("08:00-22:00")
   isApproved      Boolean   @default(false)
+  isPremium       Boolean   @default(false)
   isFeatured      Boolean   @default(false)
   rating          Float     @default(0)
   totalRatings    Int       @default(0)
@@ -139,6 +140,7 @@ model Driver {
   vehicleImage    String?
   selfieImage     String?
   isApproved      Boolean   @default(false)
+  isPremium       Boolean   @default(false)
   isOnline        Boolean   @default(false)
   isAvailable     Boolean   @default(false)
   rating          Float     @default(0)
@@ -363,7 +365,7 @@ model OrderItem {
 
 model Payment {
   id              String    @id @default(cuid())
-  orderId         String
+  orderId         String?
   userId          String
   amount          Int
   currency        String    @default("XOF")
@@ -376,7 +378,7 @@ model Payment {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id])
 
   @@index([orderId])

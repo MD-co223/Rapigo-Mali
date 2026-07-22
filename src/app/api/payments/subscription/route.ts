@@ -1,10 +1,8 @@
 /**
  * POST /api/payments/subscription
- * 
- * Creates a FedaPay transaction for merchant/driver subscription.
- * Requires authentication (MERCHANT or DRIVER role).
+ * Creates a FedaPay transaction for merchant/driver subscription payment.
+ * Requires MERCHANT or DRIVER role.
  */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
@@ -16,24 +14,15 @@ export async function POST(request: NextRequest) {
     if (!authUser) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
-
-    const user = await db.user.findUnique({
-      where: { id: authUser.userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 });
-    }
-
+    const user = await db.user.findUnique({ where: { id: authUser.userId } });
+    if (!user) return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 });
     if (!['MERCHANT', 'DRIVER'].includes(user.role)) {
       return NextResponse.json({ error: 'Accès réservé aux commerçants et livreurs' }, { status: 403 });
     }
 
     const body = await request.json();
     const amount = body.amount || 4000;
-    const description = body.description || 'Abonnement Premium Rapigo Mali';
 
-    // Create FedaPay transaction
     const result = await createFedaPayTransaction({
       orderReference: `SUB-${user.id.slice(0, 8)}-${Date.now()}`,
       amount,
@@ -45,8 +34,23 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Store pending subscription in metadata (webhook will finalize)
-    // Note: Payment model requires orderId, so we track subscriptions via FedaPay webhook only
+    await db.payment.create({
+      data: {
+        userId: user.id,
+        amount,
+        currency: 'XOF',
+        method: 'FEDAPAY',
+        status: 'PENDING',
+        transactionRef: `SUB-${user.id.slice(0, 8)}`,
+        providerRef: String(result.transactionId),
+        metadata: JSON.stringify({
+          type: 'SUBSCRIPTION',
+          role: user.role,
+          fedaPayTransactionId: result.transactionId,
+          fedaPayToken: result.token,
+        }),
+      },
+    });
 
     return NextResponse.json({
       paymentUrl: result.paymentUrl,

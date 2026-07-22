@@ -136,10 +136,12 @@ export async function POST(request: NextRequest) {
       orderUpdateData.cancelReason = 'Remboursement FedaPay';
     }
 
-    await db.order.update({
-      where: { id: payment.orderId },
-      data: orderUpdateData,
-    });
+    if (payment.orderId) {
+      await db.order.update({
+        where: { id: payment.orderId },
+        data: orderUpdateData,
+      });
+    }
 
     // 9. If payment successful, notify merchant
     if (paymentStatus === 'PAID' && payment.order?.merchantId) {
@@ -165,9 +167,43 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 11. TODO: Handle subscription activation via separate tracking mechanism
-    //     Subscription payments don't create Payment records (model requires orderId).
-    //     Future: add SubscriptionPayment model or make Payment.orderId optional.
+    // 11. If this is a subscription payment, activate premium
+    if (paymentStatus === 'PAID') {
+      try {
+        const meta = JSON.parse(payment.metadata || '{}');
+        if (meta.type === 'SUBSCRIPTION' && meta.role === 'MERCHANT' && payment.userId) {
+          await db.merchant.update({
+            where: { userId: payment.userId },
+            data: { isPremium: true },
+          });
+          console.log(`[FedaPay Webhook] Activated premium for merchant ${payment.userId}`);
+          await db.notification.create({
+            data: {
+              userId: payment.userId,
+              title: 'Abonnement Premium activé !',
+              message: 'Votre abonnement Premium Rapigo Mali est maintenant actif. Profitez de toutes les fonctionnalités premium !',
+              type: 'SUBSCRIPTION',
+            },
+          });
+        } else if (meta.type === 'SUBSCRIPTION' && meta.role === 'DRIVER' && payment.userId) {
+          await db.driver.update({
+            where: { userId: payment.userId },
+            data: { isPremium: true },
+          });
+          console.log(`[FedaPay Webhook] Activated premium for driver ${payment.userId}`);
+          await db.notification.create({
+            data: {
+              userId: payment.userId,
+              title: 'Abonnement Premium activé !',
+              message: 'Votre abonnement Premium est maintenant actif !',
+              type: 'SUBSCRIPTION',
+            },
+          });
+        }
+      } catch (subErr) {
+        console.error('[FedaPay Webhook] Subscription activation error:', subErr);
+      }
+    }
 
     console.log(`[FedaPay Webhook] Successfully processed: ${event.event}`);
 
