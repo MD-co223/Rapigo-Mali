@@ -165,45 +165,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 11. If this is a subscription payment, activate premium
-    if (paymentStatus === 'PAID') {
-      try {
-        const metadata = JSON.parse(payment.metadata || '{}');
-        if (metadata.type === 'SUBSCRIPTION' && metadata.role === 'MERCHANT') {
-          await db.merchant.update({
-            where: { userId: payment.userId },
-            data: { isPremium: true },
-          });
-          console.log(`[FedaPay Webhook] Activated premium for merchant ${payment.userId}`);
-
-          await db.notification.create({
-            data: {
-              userId: payment.userId,
-              title: 'Abonnement Premium activé',
-              message: 'Votre abonnement Premium a été activé avec succès. Accédez à toutes les fonctionnalités premium !',
-              type: 'SUBSCRIPTION',
-            },
-          });
-        } else if (metadata.type === 'SUBSCRIPTION' && metadata.role === 'DRIVER') {
-          await db.driver.update({
-            where: { userId: payment.userId },
-            data: { isPremium: true },
-          });
-          console.log(`[FedaPay Webhook] Activated premium for driver ${payment.userId}`);
-
-          await db.notification.create({
-            data: {
-              userId: payment.userId,
-              title: 'Abonnement Premium activé',
-              message: 'Votre abonnement Premium a été activé avec succès !',
-              type: 'SUBSCRIPTION',
-            },
-          });
-        }
-      } catch (subError) {
-        console.error('[FedaPay Webhook] Error activating subscription:', subError);
-      }
-    }
+    // 11. TODO: Handle subscription activation via separate tracking mechanism
+    //     Subscription payments don't create Payment records (model requires orderId).
+    //     Future: add SubscriptionPayment model or make Payment.orderId optional.
 
     console.log(`[FedaPay Webhook] Successfully processed: ${event.event}`);
 

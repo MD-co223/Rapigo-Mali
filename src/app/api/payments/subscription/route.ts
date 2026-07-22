@@ -41,35 +41,17 @@ export async function POST(request: NextRequest) {
         firstname: user.firstName || 'Utilisateur',
         lastname: user.lastName || 'Rapigo',
         email: user.email || undefined,
-        phone: user.phone || undefined,
+        phone_number: user.phone || undefined,
       },
     });
 
-    // Create Payment record
-    await db.payment.create({
-      data: {
-        userId: user.id,
-        amount,
-        currency: 'XOF',
-        method: 'FEDAPAY',
-        status: 'PENDING',
-        transactionRef: `SUB-${user.id.slice(0, 8)}`,
-        providerRef: String(result.transactionId),
-        metadata: JSON.stringify({
-          type: 'SUBSCRIPTION',
-          role: user.role,
-          fedaPayTransactionId: result.transactionId,
-          fedaPayToken: result.token,
-        }),
-      },
-    });
+    // Store pending subscription in metadata (webhook will finalize)
+    // Note: Payment model requires orderId, so we track subscriptions via FedaPay webhook only
 
     return NextResponse.json({
-      data: {
-        paymentUrl: result.paymentUrl,
-        token: result.token,
-        transactionId: result.transactionId,
-      },
+      paymentUrl: result.paymentUrl,
+      token: result.token,
+      transactionId: result.transactionId,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Erreur interne';

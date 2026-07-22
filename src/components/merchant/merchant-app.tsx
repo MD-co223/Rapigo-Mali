@@ -219,7 +219,7 @@ export default function MerchantApp() {
     
     try {
       // Create FedaPay payment for subscription
-      const r = await apiFetch<{ data: { paymentUrl: string } }>('/api/payments/subscription', {
+      const r = await apiFetch<{ paymentUrl: string }>('/api/payments/subscription', {
         method: 'POST',
         body: JSON.stringify({ amount: 4000, description: 'Abonnement Premium Rapigo Mali - À vie' }),
       });
